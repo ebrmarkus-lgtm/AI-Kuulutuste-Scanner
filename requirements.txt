@@ -1,3 +1,4 @@
-requests
+treamlit
 beautifulsoup4
-streamlit
+requests
+lxml
