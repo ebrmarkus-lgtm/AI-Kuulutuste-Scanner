@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 
 # -----------------------------------------------------------------------------
-# 1. LEHE KONFIGURATSIOON & PROFESSIONAALNE UI/UX DISAIN
+# 1. LEHE KONFIGURATSIOON & TÖÖKORRAS UI/UX DISAIN
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Kuulutuste Skänner Pro", 
@@ -28,75 +28,66 @@ PRO_UI_CSS = """
     }
 
     .stApp {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        background: #f8fafc;
         color: #0f172a;
     }
     
     /* Pealkirja ja päise kujundus */
     .hero-container {
-        padding: 1.5rem 0 2rem 0;
+        padding: 1rem 0 1.5rem 0;
         border-bottom: 1px solid #e2e8f0;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
     }
     
     .main-title {
-        font-size: 2.5rem;
+        font-size: 2.2rem;
         font-weight: 800;
         color: #0f172a;
         letter-spacing: -0.03em;
-        margin-bottom: 0.4rem;
+        margin-bottom: 0.3rem;
     }
     
     .sub-title {
-        font-size: 1.05rem;
+        font-size: 1rem;
         color: #64748b;
         font-weight: 400;
     }
 
-    /* Stiilsed vahelehed (Tabs) */
+    /* Vahelehtede stiil - tagab teksti nähtavuse kõigis seadmetes */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
-        background-color: #e2e8f0;
-        padding: 6px;
-        border-radius: 14px;
-        margin-bottom: 2rem;
+        border-bottom: 2px solid #e2e8f0;
+        margin-bottom: 1.5rem;
     }
 
     .stTabs [data-baseweb="tab"] {
-        height: 44px;
-        border-radius: 10px;
-        padding: 0 24px;
         font-weight: 600;
-        font-size: 0.92rem;
+        font-size: 1rem;
         color: #475569;
-        background-color: transparent;
-        border: none;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 10px 20px;
     }
 
     .stTabs [aria-selected="true"] {
-        color: #0f172a !important;
-        background-color: #ffffff !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        color: #2563eb !important;
+        border-bottom: 2px solid #2563eb !important;
     }
 
-    /* Kaartide disain (Glassmorphism & Modern Shadows) */
+    /* Kaartide disain */
     .pro-card {
         background: #ffffff;
-        border: 1px solid rgba(226, 232, 240, 0.8);
-        border-radius: 18px;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
         padding: 24px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        transition: all 0.25s ease;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
     }
 
     .pro-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
         border-color: #cbd5e1;
     }
 
@@ -156,7 +147,7 @@ PRO_UI_CSS = """
         border: 1px solid #e2e8f0;
     }
 
-    /* Aktsentnupp (Call to Action) */
+    /* Aktsentnupp */
     .pro-btn {
         display: inline-flex;
         align-items: center;
@@ -331,11 +322,11 @@ def fetch_reitingud_html():
     return None
 
 # -----------------------------------------------------------------------------
-# 4. VAHELEHED (TABS)
+# 4. VAHELEHED (TABS) - PUHTAD TEXT-NIMED ILMA SÕLMEDA CSS-ita
 # -----------------------------------------------------------------------------
 tab_fb, tab_kv24, tab_reitingud = st.tabs([
-    "📌 Facebook: Tasuta asjad", 
-    "🏠 Kinnisvara24: Garaažid",
+    "📌 Facebook Marketplace", 
+    "🏠 Kinnisvara24 Garaažid",
     "📊 Reitingud"
 ])
 
