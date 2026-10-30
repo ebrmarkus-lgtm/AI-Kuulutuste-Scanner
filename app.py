@@ -158,7 +158,6 @@ with tab_kv24:
     rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
     
-    # Toimiv otsingulink Kinnisvara24-s garaažidele Harjumaal
     kv24_garage_search = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
     
     results_kv24 = []
@@ -215,7 +214,7 @@ with tab_kv24:
                 "description": description,
                 "price": price,
                 "location": "Harjumaa",
-                "link": kv24_search_url := kv24_garage_search,  # Suunab otse toimivale Harjumaa garaažide listile
+                "link": kv24_garage_search,
                 "image": image_url,
                 "timestamp": timestamp
             })
