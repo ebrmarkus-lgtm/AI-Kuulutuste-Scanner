@@ -143,9 +143,10 @@ with tab_fb:
 
 # --- 2. KINNISVARA24 TABI LOOGIKA ---
 with tab_kv24:
-    st.write("Garaažide kuulutused Harjumaal (kirjelduses peab sisalduma 'garaaž'):")
+    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee, uuemad eespool):")
     
-    rss_url_kv24 = "https://rss.app/feeds/aWV2VpetQuPw0DhO.xml"
+    # Uus Kinnisvara24 RSS link
+    rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
     
     results_kv24 = []
     try:
@@ -163,13 +164,7 @@ with tab_kv24:
             desc_raw = item.find('description') or item.find('summary')
             description = clean_text(desc_raw.text) if desc_raw else ""
             
-            # --- FILTREERIMINE: Kirjelduses PEAB sisalduma sõna "garaaž" ---
-            desc_lower = description.lower()
-            is_garage = "garaaž" in desc_lower or "garaaz" in desc_lower
-            
-            if not is_garage:
-                continue  # Jäta vahele, kui kirjelduses pole sõna garaaž
-            
+            # Automaatne hinna ekstraheerimine pealkirjast ja kirjeldusest
             price = extract_price(title + " " + description)
             
             if len(description) > 200:
@@ -229,7 +224,7 @@ with tab_kv24:
         results_kv24 = [
             {
                 "title": "Sobivaid kuulutusi ei leitud.",
-                "description": "Hetkel ei ole RSS-voos ühtegi kuulutust, mille kirjelduses sisalduks sõna 'garaaž'.",
+                "description": "Hetkel ei ole RSS-voos ühtegi garaaži kuulutust.",
                 "price": "-",
                 "location": "Harjumaa",
                 "link": "https://kinnisvara24.ee",
