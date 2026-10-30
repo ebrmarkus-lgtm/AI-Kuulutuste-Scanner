@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 
 # -----------------------------------------------------------------------------
-# 1. RAKENDUSE SEADISTUS JA PERFEKTNE UI/UX DISAIN
+# 1. RAKENDUSE SEADISTUS JA TUME (DARK MODE) DISAINISÜSTEEM
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Kuulutuste Skänner Pro", 
@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-APP_THEME_CSS = """
+DARK_MODE_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
@@ -28,75 +28,52 @@ APP_THEME_CSS = """
     }
 
     .stApp {
-        background-color: #f8fafc;
-        color: #0f172a;
+        background-color: #0b0f19;
+        color: #f8fafc;
     }
     
     /* Päis */
     .hero-container {
         padding: 0.5rem 0 1.25rem 0;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid #1e293b;
         margin-bottom: 1.5rem;
     }
     
     .main-title {
-        font-size: 2rem;
+        font-size: 2.2rem;
         font-weight: 800;
-        color: #0f172a;
+        color: #f8fafc;
         letter-spacing: -0.025em;
         margin-bottom: 0.25rem;
     }
     
     .sub-title {
         font-size: 0.95rem;
-        color: #64748b;
+        color: #94a3b8;
         font-weight: 400;
     }
 
-    /* Vahelehed (Tabs) - Tagab alati nähtava teksti */
-    .stTabs [data-baseweb="tab-list"] {
-        border-bottom: 2px solid #e2e8f0;
-        margin-bottom: 1.5rem;
-        display: flex;
-        gap: 12px;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        font-weight: 600;
-        font-size: 0.95rem;
-        color: #475569;
-        padding: 10px 16px;
-        background-color: transparent;
-        border-radius: 8px 8px 0 0;
-    }
-
-    .stTabs [aria-selected="true"] {
-        color: #2563eb !important;
-        background-color: #ffffff !important;
-        border-bottom: 2px solid #2563eb !important;
-    }
-
-    /* Ühtne ja elegantne kaardi disain (nii pildiga kui ilma) */
+    /* Kaartide disain (Dark Mode) */
     .pro-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background: #111827;
+        border: 1px solid #1f2937;
         border-radius: 16px;
         padding: 24px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
         transition: all 0.2s ease;
     }
 
     .pro-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
-        border-color: #cbd5e1;
+        border-color: #374151;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
     }
 
     .card-title {
         font-size: 1.2rem;
         font-weight: 700;
-        color: #0f172a;
+        color: #f8fafc;
         line-height: 1.4;
         margin-bottom: 6px;
     }
@@ -110,7 +87,7 @@ APP_THEME_CSS = """
 
     .card-desc {
         font-size: 0.95rem;
-        color: #334155;
+        color: #cbd5e1;
         line-height: 1.6;
         margin-bottom: 18px;
     }
@@ -132,21 +109,21 @@ APP_THEME_CSS = """
     }
 
     .badge-free {
-        background-color: #ecfdf5;
-        color: #059669;
-        border: 1px solid #a7f3d0;
+        background-color: rgba(5, 150, 105, 0.15);
+        color: #34d399;
+        border: 1px solid rgba(5, 150, 105, 0.3);
     }
 
     .badge-price {
-        background-color: #eff6ff;
-        color: #2563eb;
-        border: 1px solid #bfdbfe;
+        background-color: rgba(37, 99, 235, 0.15);
+        color: #60a5fa;
+        border: 1px solid rgba(37, 99, 235, 0.3);
     }
 
     .badge-location {
-        background-color: #f1f5f9;
-        color: #475569;
-        border: 1px solid #e2e8f0;
+        background-color: rgba(71, 85, 105, 0.2);
+        color: #94a3b8;
+        border: 1px solid rgba(71, 85, 105, 0.4);
     }
 
     /* Aktsentnupp */
@@ -156,7 +133,7 @@ APP_THEME_CSS = """
         justify-content: center;
         width: 100%;
         padding: 11px 18px;
-        background: #0f172a;
+        background: #2563eb;
         color: #ffffff !important;
         font-size: 0.9rem;
         font-weight: 600;
@@ -166,14 +143,14 @@ APP_THEME_CSS = """
     }
 
     .pro-btn:hover {
-        background: #2563eb;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        background: #1d4ed8;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
     }
 </style>
 """
-st.markdown(APP_THEME_CSS, unsafe_allow_html=True)
+st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
-# Päise plokk
+# Päis
 st.markdown("""
     <div class="hero-container">
         <div class="main-title">⚡ AI Kuulutuste Skänner</div>
@@ -323,16 +300,19 @@ def fetch_reitingud_html():
     return None
 
 # -----------------------------------------------------------------------------
-# 4. VAHELEHED (TABS) - KORRALIKUD TEKSTID JA KLIKITAVAD PEALIRJAD
+# 4. 100% NÄHTAVAD JA KLIKITAVAD VALIKUNUPUD (TAGAVAD TÄIELIKU NÄHTAVUSE)
 # -----------------------------------------------------------------------------
-tab_fb, tab_kv24, tab_reitingud = st.tabs([
-    "🎁 Tasuta asjad (Facebook)", 
-    "Kinnisvara objektid",
-    "Eesti erakondade reitingud"
-])
+selected_tab = st.radio(
+    "Vali vaade:",
+    ["🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "📈 Eesti reitingud"],
+    horizontal=True,
+    label_visibility="collapsed"
+)
 
-# --- TAB 1: FACEBOOK MARKETPLACE ---
-with tab_fb:
+st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+
+# --- 1. SEKTSIOON: TASUTA ASJAD ---
+if selected_tab == "🎁 Tasuta asjad":
     rss_url_fb = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
@@ -416,7 +396,6 @@ with tab_fb:
         for item in results_fb:
             date_meta = f"📅 {item['date_str']}" if item.get('date_str') else ""
             
-            # Ühtne ja alati korrektselt joonitud kaardi struktuur (pro-card)
             card_content = f"""
             <div class="card-title">{item['title']}</div>
             <div class="card-date">{date_meta}</div>
@@ -429,22 +408,19 @@ with tab_fb:
             """
             
             if item.get("image"):
-                # Kasutame Streamliti konteinerit ja veerge, et pilt ja sisu oleksid kaunilt raamitud
-                with st.container():
-                    st.markdown('<div class="pro-card">', unsafe_allow_html=True)
-                    col_img, col_content = st.columns([1, 2.5])
-                    with col_img:
-                        st.image(item["image"], use_container_width=True)
-                    with col_content:
-                        st.markdown(card_content, unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('<div class="pro-card">', unsafe_allow_html=True)
+                col_img, col_content = st.columns([1, 2.5])
+                with col_img:
+                    st.image(item["image"], use_container_width=True)
+                with col_content:
+                    st.markdown(card_content, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
             else:
-                with st.container():
-                    st.markdown(f'<div class="pro-card">{card_content}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="pro-card">{card_content}</div>', unsafe_allow_html=True)
 
 
-# --- TAB 2: KINNISVARA OBJEKTID ---
-with tab_kv24:
+# --- 2. SEKTSIOON: KINNISVARA OBJEKTID ---
+elif selected_tab == "🏢 Kinnisvara objektid":
     with st.spinner("Skännin Kinnisvara24 aktiivseid garaažipakkumisi..."):
         kv24_items = fetch_live_kv24_garages()
     
@@ -477,9 +453,9 @@ with tab_kv24:
         """, unsafe_allow_html=True)
 
 
-# --- TAB 3: EESTI ERAKONDADE REITINGUD ---
-with tab_reitingud:
-    st.markdown("### Eesti erakondade reitingud reaalajas")
+# --- 3. SEKTSIOON: EESTI REITINGUD ---
+elif selected_tab == "📈 Eesti reitingud":
+    st.markdown("### Eesti reitingud reaalajas praegu")
     st.markdown("---")
     
     reitingud_html = fetch_reitingud_html()
