@@ -4,12 +4,12 @@ import os
 import urllib.request
 from bs4 import BeautifulSoup
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
 
 st.title("⚡ AI Kuulutuste Skänner (Tallinn)")
-st.write("Skännitakse kõiki tasuta kuulutusi FB grupist (uuemad eespool)...")
+st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
 
 def clean_text(text):
     if not text:
@@ -30,6 +30,9 @@ def scrape_fb_group_rss():
         
         items = soup.find_all(['item', 'entry'])
         
+        # Arvutame 1 kuu (30 päeva) taguse ajatempli
+        one_month_ago_timestamp = (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
+        
         for item in items:
             title_raw = item.find('title').text if item.find('title') else "Tasuta ese FB grupis"
             title = clean_text(title_raw)
@@ -48,7 +51,6 @@ def scrape_fb_group_rss():
                 elif link_elem.text.strip():
                     link = link_elem.get_text(strip=True)
             
-            # Ohutu kuupäeva lugemine
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
             
@@ -63,6 +65,10 @@ def scrape_fb_group_rss():
                         timestamp = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00')).timestamp()
                     except:
                         timestamp = 0
+
+            # Jätame vahele postitused, mis on vanemad kui 1 kuu (kui ajatempel on olemas)
+            if timestamp > 0 and timestamp < one_month_ago_timestamp:
+                continue
 
             image_url = None
             enclosure = item.find('enclosure')
