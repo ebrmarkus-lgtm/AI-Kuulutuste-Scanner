@@ -53,18 +53,19 @@ APP_THEME_CSS = """
         font-weight: 400;
     }
 
-    /* Vahelehed (Tabs) - Lühikesed ja selged nimed tagavad täieliku nähtavuse */
+    /* Vahelehed (Tabs) - Tagab alati nähtava teksti */
     .stTabs [data-baseweb="tab-list"] {
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 1.5rem;
-        gap: 10px;
+        display: flex;
+        gap: 12px;
     }
 
     .stTabs [data-baseweb="tab"] {
         font-weight: 600;
-        font-size: 1rem;
+        font-size: 0.95rem;
         color: #475569;
-        padding: 12px 24px;
+        padding: 10px 16px;
         background-color: transparent;
         border-radius: 8px 8px 0 0;
     }
@@ -75,7 +76,7 @@ APP_THEME_CSS = """
         border-bottom: 2px solid #2563eb !important;
     }
 
-    /* Ühtne ja elegantne kaardi disain */
+    /* Ühtne ja elegantne kaardi disain (nii pildiga kui ilma) */
     .pro-card {
         background: #ffffff;
         border: 1px solid #e2e8f0;
@@ -322,12 +323,12 @@ def fetch_reitingud_html():
     return None
 
 # -----------------------------------------------------------------------------
-# 4. VAHELEHED (TABS) - SELGED TEKSTID ILMA ÜLELIIGSETE EMOJIDETA
+# 4. VAHELEHED (TABS) - KORRALIKUD TEKSTID JA KLIKITAVAD PEALIRJAD
 # -----------------------------------------------------------------------------
 tab_fb, tab_kv24, tab_reitingud = st.tabs([
-    "Tasuta asjad", 
+    "🎁 Tasuta asjad (Facebook)", 
     "Kinnisvara objektid",
-    "Eesti reitingud"
+    "Eesti erakondade reitingud"
 ])
 
 # --- TAB 1: FACEBOOK MARKETPLACE ---
@@ -415,6 +416,7 @@ with tab_fb:
         for item in results_fb:
             date_meta = f"📅 {item['date_str']}" if item.get('date_str') else ""
             
+            # Ühtne ja alati korrektselt joonitud kaardi struktuur (pro-card)
             card_content = f"""
             <div class="card-title">{item['title']}</div>
             <div class="card-date">{date_meta}</div>
@@ -426,17 +428,19 @@ with tab_fb:
             <a href="{item['link']}" target="_blank" class="pro-btn">👉 Vaata kuulutust</a>
             """
             
-            # Tagame, et nii pildiga kui ka ilma pildita kaardid on alati korrektselt joonitud (pro-card)
             if item.get("image"):
-                st.markdown('<div class="pro-card">', unsafe_allow_html=True)
-                col_img, col_content = st.columns([1, 2.5])
-                with col_img:
-                    st.image(item["image"], use_container_width=True)
-                with col_content:
-                    st.markdown(card_content, unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                # Kasutame Streamliti konteinerit ja veerge, et pilt ja sisu oleksid kaunilt raamitud
+                with st.container():
+                    st.markdown('<div class="pro-card">', unsafe_allow_html=True)
+                    col_img, col_content = st.columns([1, 2.5])
+                    with col_img:
+                        st.image(item["image"], use_container_width=True)
+                    with col_content:
+                        st.markdown(card_content, unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="pro-card">{card_content}</div>', unsafe_allow_html=True)
+                with st.container():
+                    st.markdown(f'<div class="pro-card">{card_content}</div>', unsafe_allow_html=True)
 
 
 # --- TAB 2: KINNISVARA OBJEKTID ---
@@ -473,9 +477,9 @@ with tab_kv24:
         """, unsafe_allow_html=True)
 
 
-# --- TAB 3: EESTI REITINGUD ---
+# --- TAB 3: EESTI ERAKONDADE REITINGUD ---
 with tab_reitingud:
-    st.markdown("### Eesti reitingud reaalajas praegu")
+    st.markdown("### Eesti erakondade reitingud reaalajas")
     st.markdown("---")
     
     reitingud_html = fetch_reitingud_html()
