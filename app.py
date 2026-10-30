@@ -2,45 +2,136 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import re
-import base64
+import urllib.parse
+import time
 
+# Konfiguratsioon
 st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
 st.title("⚡ AI Kuulutuste Skänner (Tallinn & Harjumaa)")
 
 tab_fb, tab_kv24 = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 Kinnisvara24: Garaažid Harjumaal"])
 
 def clean_text(text):
+    """Puhastab teksti HTML märgistest."""
     if not text:
         return ""
+    # Eemalda CDATA
     text = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', text, flags=re.DOTALL)
     clean_soup = BeautifulSoup(text, 'html.parser')
     return clean_soup.get_text(strip=True)
 
 def extract_price(text):
+    """Leiab hinnad tekstist."""
     if not text:
         return "Hind puudub"
+    
+    # Muster: number, siis € või EUR
     match = re.search(r'(\d[\d\s\.]*)\s*(?:€|EUR)(?:\s*/\s*[a-zA-ZäöüõÄÖÜÕ]+)?', text, re.IGNORECASE)
     if match:
         return match.group(0).strip()
+    
+    # Muster: 'hind:' järel number
     match_label = re.search(r'(?:hind|hind:)\s*(\d[\d\s\.]*)', text, re.IGNORECASE)
     if match_label:
         return f"{match_label.group(1).strip()} €"
+        
+    # Üldine muster: number eurodes/eurot
     match_generic = re.search(r'(\d[\d\s]{2,})\s*(?:eur|euro|eurot)', text, re.IGNORECASE)
     if match_generic:
         return f"{match_generic.group(1).strip()} €"
+
     return "Hind kokkuleppel / puudub"
 
-def decode_kv24_id(id_str):
-    try:
-        decoded_bytes = base64.b64decode(id_str)
-        decoded_str = decoded_bytes.decode('utf-8')
-        id_match = re.search(r'(\d+)', decoded_str)
-        if id_match:
-            return f"https://kinnisvara24.ee/objekt/{id_match.group(1)}"
-    except Exception:
-        pass
-    return f"https://kinnisvara24.ee/objekt/{id_str}"
+def get_full_url(href):
+    """Teostab täisaadressi, kui on suhteline link."""
+    if not href:
+        return "#"
+    if href.startswith('http'):
+        return href
+    if href.startswith('//'):
+        return f"https:{href}"
+    if href.startswith('/'):
+        return f"https://kinnisvara24.ee{href}"
+    return href
 
+def fetch_kv24_garages():
+    """Võtab garaazi kuulutused Kinnisvara24-st HTML scrapinguga."""
+    # Otsinguleht garaazidele Harjumaal
+    url = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'et-EE,et;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+    }
+    
+    try:
+        st.write("Laadin Kinnisvara24 andmed HTML scrapinguga...")
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        results = []
+        
+        # Leiame kõik elemendid, mis sisaldavad linki objekti lehele
+        # Kinnisvara24 kasutab sageli <a> elemente klassiga 'listing-card__link' või sarnane.
+        # Kui klassid muutuvad, proovime leida kõik <a> lingid, mis viitavad /objekt/
+        links = soup.find_all('a', href=re.compile(r'/objekt/'))
+        
+        for link in links:
+            parent_card = link.find_parent(['div', 'article'])
+            if not parent_card:
+                continue
+                
+            title_tag = parent_card.find(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span'], class_=re.compile(r'title|name|heading'))
+            if not title_tag:
+                # Proovi leida pealkiri mingil muul viisil
+                title_tag = parent_card.find('a', class_=re.compile(r'title|name|heading')) or link
+            
+            title = title_tag.get_text(strip=True) if title_tag else "Garaaž"
+            
+            # Hinde leidmine
+            price_container = parent_card.find(['span', 'div'], class_=re.compile(r'price|cost'))
+            price_text = ""
+            if price_container:
+                price_text = price_container.get_text()
+            else:
+                # Proovi leida hind kogu kaardi tekstist
+                price_text = parent_card.get_text()
+            
+            price = extract_price(price_text)
+            
+            # Asukoht
+            location_container = parent_card.find(['span', 'div'], class_=re.compile(r'location|address|city'))
+            location = location_container.get_text(strip=True) if location_container else "Asukoht puudub"
+            
+            full_link = get_full_url(link.get('href'))
+            
+            results.append({
+                'title': title,
+                'url': full_link,
+                'price': price,
+                'location': location
+            })
+            
+        # Eraldame duplikaadid
+        seen_urls = set()
+        unique_results = []
+        for item in results:
+            if item['url'] not in seen_urls:
+                seen_urls.add(item['url'])
+                unique_results.append(item)
+                
+        return unique_results
+        
+    except Exception as e:
+        st.error(f"Viga andmete laadimisel: {e}")
+        return []
+
+# Tab 1: Facebook (Näidisandmed)
 with tab_fb:
     st.header("📌 Facebook: Tasuta asjad (Viimased 30 päeva)")
     rss_url = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
@@ -80,106 +171,34 @@ with tab_fb:
         st.error(f"Viga Facebooki RSS-i lugemisel: {e}")
         st.info("Proovi hiljem uuesti või kontrolli RSS URL-i.")
 
+# Tab 2: Kinnisvara24
 with tab_kv24:
     st.header("🏠 Kinnisvara24: Garaažid Harjumaalt")
     st.write("Allpool on kuvatud uuemad garaaži pakkumised Harjumaalt. Lingid on testitud ja toimivad.")
     
-    graphql_url = "https://www.kinnisvara24.ee/api/graphql"
-    
-    query = """
-    query AdsQuery($filter: AdFilterInput!, $pagination: PaginationInput!) {
-      ads(filter: $filter, pagination: $pagination) {
-        items {
-          id
-          attributes {
-            title
-            price
-            currency
-            description
-            location {
-              city
-              address
-            }
-            createdAt
-          }
-        }
-      }
-    }
-    """
-    
-    variables = {
-        "filter": {
-            "location": {"county": "Harjumaa"},
-            "objectType": "GARAGE", 
-            "transactionType": "SALE"
-        },
-        "pagination": {
-            "first": 20,
-            "sortBy": ["CREATED_AT_DESC"]
-        }
-    }
-    
-    ads = []
-    error_msg = ""
-    
-    try:
-        st.write("Laadin Kinnisvara24 andmed GraphQL API kaudu...")
-        response = requests.post(graphql_url, json={"query": query, "variables": variables}, headers={
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0"
-        }, timeout=15)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if "data" in data and "ads" in data["data"]:
-                ads = data["data"]["ads"].get("items", [])
-            else:
-                error_msg = "API tagastas andmed, kuid struktuur on ootamatud."
+    if st.button("Laadi uued kuulutused"):
+        with st.spinner('Otsin Kinnisvara24-st...'):
+            kv24_data = fetch_kv24_garages()
+            
+        if not kv24_data:
+            st.warning("Andmeid ei leitud. Või vigaühendus.")
         else:
-            error_msg = f"API viga: HTTP {response.status_code}"
+            st.success(f"Leiti {len(kv24_data)} garaazi kuulutust!")
             
-    except Exception as e:
-        error_msg += f" | Exception: {e}"
-
-    if not ads:
-        st.warning(f"Andmeid ei leitud. Viga: {error_msg}")
-    else:
-        for ad in ads:
-            attributes = ad.get("attributes", {})
-            title = attributes.get("title", "Garaaž")
-            price_val = attributes.get("price")
-            currency = attributes.get("currency", "€")
-            
-            if price_val:
-                price_display = f"{price_val:,} {currency}"
-            else:
-                price_display = "Hind kokkuleppel"
-            
-            location = attributes.get("location", {})
-            city = location.get("city", "")
-            address = location.get("address", "")
-            full_location = f"{city}, {address}".strip(", ")
-            
-            ad_id = ad.get("id")
-            if ad_id:
-                ad_link = decode_kv24_id(ad_id)
-            else:
-                ad_link = "https://kinnisvara24.ee"
+            for item in kv24_data:
+                col1, col2, col3 = st.columns([3, 1, 1])
                 
-            description = clean_text(attributes.get("description", ""))
-            if len(description) > 100:
-                description = description[:100] + "..."
-            
-            created_at = attributes.get("createdAt", "")
-            date_str = created_at.split('T')[0] if created_at else ""
-            
-            col1, col2, col3 = st.columns([3, 1, 1])
-            with col1:
-                st.markdown(f"[**{title}**]({ad_link})")
-                st.caption(f"📍 {full_location} | 📅 {date_str}")
-                st.write(description)
-            with col2:
-                st.metric("Hind", price_display)
-            with col3:
-                st.link_button("Vaata ➡️", ad_link)
-            st.divider()
+                with col1:
+                    st.markdown(f"**[{item['title']}]({item['url']})**")
+                    st.caption(f"📍 {item['location']}")
+                
+                with col2:
+                    st.metric("Hind", item['price'])
+                    
+                with col3:
+                    st.link_button("Ava ➡️", item['url'])
+                    
+                st.divider()
+                
+    else:
+        st.info("Vajuta nuppu 'Laadi uued kuulutused', et skaneerida.")
