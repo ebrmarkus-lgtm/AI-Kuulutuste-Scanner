@@ -11,7 +11,7 @@ st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout=
 st.title("⚡ AI Kuulutuste Skänner (Tallinn & Harjumaa)")
 
 # Ülemine kategooriate riba (tabs)
-tab_fb, tab_kv24 = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 Kinnisvara24: Garaažid Harjumaal"])
+tab_fb, tab_kv24 = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 Kinnisvara24: Eraldi kinnistul garaažid"])
 
 def clean_text(text):
     if not text:
@@ -19,6 +19,15 @@ def clean_text(text):
     text = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', text, flags=re.DOTALL)
     clean_soup = BeautifulSoup(text, 'html.parser')
     return clean_soup.get_text(strip=True)
+
+def extract_price(text):
+    if not text:
+        return "Hind ebaselge"
+    # Otsime mustrit nagu "15000 €", "15 000€" vms
+    match = re.search(r'(\d[\d\s]*)\s*(?:€|EUR)', text, re.IGNORECASE)
+    if match:
+        return match.group(0).strip()
+    return "Vaata hinda portaalist"
 
 # --- 1. FACEBOOK TABI LOOGIKA ---
 with tab_fb:
@@ -134,9 +143,8 @@ with tab_fb:
 
 # --- 2. KINNISVARA24 TABI LOOGIKA ---
 with tab_kv24:
-    st.write("Skännitakse viimase 1 kuu Garaaže Harjumaal (Kinnisvara24.ee, uuemad eespool)...")
+    st.write("Garaažid eraldi kinnistutel Harjumaal (Kinnisvara24.ee, uuemad eespool):")
     
-    # Sinu lisatud Kinnisvara24 RSS.app link
     rss_url_kv24 = "https://rss.app/feeds/aWV2VpetQuPw0DhO.xml"
     
     results_kv24 = []
@@ -154,6 +162,16 @@ with tab_kv24:
             
             desc_raw = item.find('description') or item.find('summary')
             description = clean_text(desc_raw.text) if desc_raw else ""
+            
+            # --- FILTREERIMINE: Ainult garaažid eraldi kinnistutel ---
+            full_text = (title + " " + description).lower()
+            is_garage = "garaaž" in full_text or "garaaz" in full_text
+            is_separate_property = any(word in full_text for word in ["eraldi", "omaette", "kinnistul", "kinnistu"])
+            
+            if not (is_garage and is_separate_property):
+                continue  # Jäta vahele, kui ei vasta tingimusele
+            
+            price = extract_price(title + " " + description)
             
             if len(description) > 200:
                 description = description[:200] + "..."
@@ -196,7 +214,7 @@ with tab_kv24:
             results_kv24.append({
                 "title": title,
                 "description": description,
-                "price": "Kinnisvara24",
+                "price": price,
                 "location": "Harjumaa",
                 "link": link,
                 "image": image_url,
@@ -211,8 +229,8 @@ with tab_kv24:
     if not results_kv24:
         results_kv24 = [
             {
-                "title": "Ootame uusi garaažide kuulutusi.",
-                "description": "Siia ilmuvad uued Kinnisvara24 garaažide pakkumised Harjumaal.",
+                "title": "Sobivaid kuulutusi ei leitud.",
+                "description": "Hetkel ei ole RSS-voos ühtegi garaaži, mis mainiks eraldi kinnistut.",
                 "price": "-",
                 "location": "Harjumaa",
                 "link": "https://kinnisvara24.ee",
@@ -231,12 +249,12 @@ with tab_kv24:
                     st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
                     if item.get("description"):
                         st.write(item.get("description"))
-                    st.write(f"**Asukoht:** {item.get('location', 'Harjumaa')}")
+                    st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
             else:
                 st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
                 if item.get("description"):
                     st.write(item.get("description"))
-                st.write(f"**Asukoht:** {item.get('location', 'Harjumaa')}")
+                st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
             
             link = item.get("link", "#")
             if link != "#":
