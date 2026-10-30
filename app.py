@@ -200,4 +200,109 @@ with tab_fb:
 
 # --- 2. KINNISVARA24 TABI LOOGIKA ---
 with tab_kv24:
-    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee
+    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee, uuemad eespool):")
+    
+    rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+    
+    results_kv24 = []
+    try:
+        req = urllib.request.Request(rss_url_kv24, headers=headers)
+        xml_data = urllib.request.urlopen(req).read()
+        soup = BeautifulSoup(xml_data, 'html.parser')
+        
+        items = soup.find_all(['item', 'entry'])
+        one_month_ago_timestamp = (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
+        
+        for item in items:
+            title_raw = item.find('title').text if item.find('title') else "Garaaž Kinnisvara24-st"
+            title = clean_text(title_raw)
+            
+            desc_raw = item.find('description') or item.find('summary')
+            raw_desc_text = desc_raw.text if desc_raw else ""
+            description = clean_text(raw_desc_text)
+            
+            price = extract_price(title_raw + " " + raw_desc_text + " " + description)
+            
+            if len(description) > 200:
+                description = description[:200] + "..."
+                
+            # Otseviide konkreetsele kuulutusele
+            link = extract_direct_link(item, headers)
+            
+            pub_date_elem = item.find('pubDate') or item.find('updated')
+            pub_date_str = pub_date_elem.text if pub_date_elem else ""
+            
+            timestamp = 0
+            if pub_date_str:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    parsed_date = parsedate_to_datetime(pub_date_str)
+                    timestamp = parsed_date.timestamp()
+                except:
+                    try:
+                        timestamp = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00')).timestamp()
+                    except:
+                        timestamp = 0
+
+            if timestamp > 0 and timestamp < one_month_ago_timestamp:
+                continue
+
+            image_url = None
+            enclosure = item.find('enclosure')
+            if enclosure and enclosure.get('url'):
+                image_url = enclosure.get('url')
+            elif desc_raw:
+                img_tag = BeautifulSoup(raw_desc_text, 'html.parser').find('img')
+                if img_tag and img_tag.get('src'):
+                    image_url = img_tag.get('src')
+            
+            results_kv24.append({
+                "title": title,
+                "description": description,
+                "price": price,
+                "location": "Harjumaa",
+                "link": link,
+                "image": image_url,
+                "timestamp": timestamp
+            })
+            
+        results_kv24 = sorted(results_kv24, key=lambda x: x["timestamp"], reverse=True)
+
+    except Exception as e:
+        print(f"Viga Kinnisvara24 RSS skännimisel: {e}")
+
+    if not results_kv24:
+        results_kv24 = [
+            {
+                "title": "Sobivaid kuulutusi ei leitud.",
+                "description": "Hetkel ei ole RSS-voos ühtegi garaaži kuulutust.",
+                "price": "-",
+                "location": "Harjumaa",
+                "link": "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond",
+                "image": None,
+                "timestamp": 0
+            }
+        ]
+
+    for item in results_kv24:
+        with st.container():
+            if item.get("image"):
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    st.image(item["image"], use_container_width=True)
+                with col2:
+                    st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
+                    if item.get("description"):
+                        st.write(item.get("description"))
+                    st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
+            else:
+                st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
+                if item.get("description"):
+                    st.write(item.get("description"))
+                st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
+            
+            link = item.get("link", "#")
+            if link != "#":
+                st.markdown(f"[👉 Vaata kuulutust Kinnisvara24 portaalis]({link})")
+        st.divider()
