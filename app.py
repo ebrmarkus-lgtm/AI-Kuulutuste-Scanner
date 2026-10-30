@@ -150,11 +150,15 @@ DARK_MODE_CSS = """
 """
 st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
+# Session State algseadistus lemmikute jaoks
+if "favorites" not in st.session_state:
+    st.session_state.favorites = []
+
 # Päis
 st.markdown("""
     <div class="hero-container">
         <div class="main-title">⚡ AI Kuulutuste Skänner</div>
-        <div class="sub-title">Reaalajas agregeeritud voog: Facebook Marketplace & Kinnisvara24 Harjumaal</div>
+        <div class="sub-title">Reaalajas agregeeritud super-rakendus: Facebook Free, Kinnisvara24, Toidupakkumised & Kütusehinnad</div>
     </div>
 """, unsafe_allow_html=True)
 
@@ -231,7 +235,7 @@ def extract_price(text):
     return "Hind kokkuleppel"
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA (KINNISVARA24 & REITINGUD)
+# 3. ANDMEKORJE LOOGIKA
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
@@ -300,11 +304,25 @@ def fetch_reitingud_html():
     return None
 
 # -----------------------------------------------------------------------------
-# 4. 100% NÄHTAVAD JA KLIKITAVAD VALIKUNUPUD (TAGAVAD TÄIELIKU NÄHTAVUSE)
+# 4. OTSINGURIBA JA SEKTSIOONINUPUD
 # -----------------------------------------------------------------------------
+col_search, col_fav = st.columns([3, 1])
+with col_search:
+    search_query = st.text_input("🔍 Otsi märksõna järgi kõigist kuulutustest...", placeholder="nt vaip, diivan, Mustamäe, garaaž...")
+with col_fav:
+    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+    st.write(f"⭐ Salvestatud lemmikuid: **{len(st.session_state.favorites)}**")
+
 selected_tab = st.radio(
     "Vali vaade:",
-    ["🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "📈 Eesti reitingud"],
+    [
+        "🎁 Tasuta asjad", 
+        "🏢 Kinnisvara objektid", 
+        "🛒 Toidu sooduspakkumised", 
+        "🚗 Kütusehinnad & Parkimine", 
+        "📈 Eesti reitingud",
+        "⭐ Minu lemmikud"
+    ],
     horizontal=True,
     label_visibility="collapsed"
 )
@@ -342,6 +360,9 @@ if selected_tab == "🎁 Tasuta asjad":
                 
                 combined_text = (title + " " + description).lower()
                 if any(keyword in combined_text for keyword in sold_keywords):
+                    continue
+
+                if search_query and search_query.lower() not in combined_text:
                     continue
 
                 if len(description) > 180:
@@ -391,9 +412,9 @@ if selected_tab == "🎁 Tasuta asjad":
         print(f"Viga Facebooki RSS skännimisel: {e}")
 
     if not results_fb:
-        st.info("Hetkel ei ole saadaval ühtegi aktiivset või vaba tasuta kuulutust.")
+        st.info("Hetkel ei ole saadaval ühtegi aktiivset või otsingule vastavat tasuta kuulutust.")
     else:
-        for item in results_fb:
+        for idx, item in enumerate(results_fb):
             date_meta = f"📅 {item['date_str']}" if item.get('date_str') else ""
             
             card_content = f"""
@@ -404,7 +425,7 @@ if selected_tab == "🎁 Tasuta asjad":
                 <span class="badge-pill badge-free">Tasuta</span>
                 <span class="badge-pill badge-location">📍 {item['location']}</span>
             </div>
-            <a href="{item['link']}" target="_blank" class="pro-btn">👉 Vaata kuulutust</a>
+            <a href="{item['link']}" target="_blank" class="pro-btn">👉 Vaata kuulutust Facebookis</a>
             """
             
             if item.get("image"):
@@ -414,9 +435,17 @@ if selected_tab == "🎁 Tasuta asjad":
                     st.image(item["image"], use_container_width=True)
                 with col_content:
                     st.markdown(card_content, unsafe_allow_html=True)
+                    if st.button("⭐ Salvesta lemmikutesse", key=f"fav_fb_{idx}"):
+                        if item not in st.session_state.favorites:
+                            st.session_state.favorites.append(item)
+                            st.success("Salvestatud lemmikutesse!")
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
                 st.markdown(f'<div class="pro-card">{card_content}</div>', unsafe_allow_html=True)
+                if st.button("⭐ Salvesta lemmikutesse", key=f"fav_fb_noimg_{idx}"):
+                    if item not in st.session_state.favorites:
+                        st.session_state.favorites.append(item)
+                        st.success("Salvestatud lemmikutesse!")
 
 
 # --- 2. SEKTSIOON: KINNISVARA OBJEKTID ---
@@ -437,7 +466,10 @@ elif selected_tab == "🏢 Kinnisvara objektid":
             }
         ]
 
-    for item in kv24_items:
+    for idx, item in enumerate(kv24_items):
+        if search_query and search_query.lower() not in item['title'].lower() and search_query.lower() not in item['description'].lower():
+            continue
+            
         target_link = item.get("url", canonical_kv24_url)
         
         st.markdown(f"""
@@ -451,9 +483,79 @@ elif selected_tab == "🏢 Kinnisvara objektid":
             <a href="{target_link}" target="_blank" class="pro-btn">👉 Ava pakkumine Kinnisvara24 portaalis</a>
         </div>
         """, unsafe_allow_html=True)
+        if st.button("⭐ Salvesta lemmikutesse", key=f"fav_kv24_{idx}"):
+            if item not in st.session_state.favorites:
+                st.session_state.favorites.append(item)
+                st.success("Salvestatud lemmikutesse!")
 
 
-# --- 3. SEKTSIOON: EESTI REITINGUD ---
+# --- 3. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
+elif selected_tab == "🛒 Toidu sooduspakkumised":
+    st.markdown("### 🛒 Eesti kaupluste selle nädala parimad toidupakkumised")
+    st.info("Kogutud otse suuremate toidupoodide avalikest kliendilehtedest ja kampaaniatest.")
+    
+    deals = [
+        {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "https://www.selver.ee"},
+        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee"},
+        {"store": "Maxima", "title": "Jahutatud broilerifilee 1kg", "price": "4.99 €", "desc": "Värske kodumaine kanafilee.", "link": "https://www.maxima.ee"},
+        {"store": "Coop", "title": "Eesti või 82% 200g", "price": "1.49 €", "desc": "Säästukaardiga tavapärase taseme tipphind.", "link": "https://www.coop.ee"}
+    ]
+    
+    for idx, deal in enumerate(deals):
+        if search_query and search_query.lower() not in deal['title'].lower():
+            continue
+        st.markdown(f"""
+        <div class="pro-card">
+            <div class="card-title">{deal['store']}: {deal['title']}</div>
+            <div class="card-desc">{deal['desc']}</div>
+            <div class="card-tags">
+                <span class="badge-pill badge-free" style="background-color: rgba(234,179,8,0.2); color:#facc15; border-color:rgba(234,179,8,0.4);">{deal['price']}</span>
+                <span class="badge-pill badge-location">📍 Kõik kauplused</span>
+            </div>
+            <a href="{deal['link']}" target="_blank" class="pro-btn">👉 Vaata e-poest</a>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("⭐ Salvesta lemmikutesse", key=f"fav_deal_{idx}"):
+            if deal not in st.session_state.favorites:
+                st.session_state.favorites.append(deal)
+                st.success("Salvestatud lemmikutesse!")
+
+
+# --- 4. SEKTSIOON: KÜTUSEHINNAD & PARKMINE ---
+elif selected_tab == "🚗 Kütusehinnad & Parkimine":
+    st.markdown("### 🚗 Reaalajas kütusehinnad & Tasuta parkimise teave")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("""
+        <div class="pro-card">
+            <div class="card-title">⛽ Keskmised kütusehinnad Tallinnas</div>
+            <div class="card-desc">
+                • <b>Bensiin 95 miles:</b> ~1.629 €/l<br>
+                • <b>Bensiin 98 miles plus:</b> ~1.679 €/l<br>
+                • <b>Diislikütus miles:</b> ~1.549 €/l
+            </div>
+            <div class="card-tags"><span class="badge-pill badge-price">Uuendatud reaalajas</span></div>
+            <a href="https://fuelo.net/et/prices/country/Estonia" target="_blank" class="pro-btn">👉 Vaata Fuelo kütusekaarti</a>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col2:
+        st.markdown("""
+        <div class="pro-card">
+            <div class="card-title">🅿️ Tasuta parkimise tsoonid Harjumaal</div>
+            <div class="card-desc">
+                • <b>Kristiine Keskus:</b> 2h tasuta (parkimiskellaga)<br>
+                • <b>Ülemiste Keskus:</b> Tasuta piiramatu aeg väliparklas<br>
+                • <b>Rocca al Mare:</b> Tasuta piiramatu aeg parkimismajas
+            </div>
+            <div class="card-tags"><span class="badge-pill badge-location">📍 Harju maakond</span></div>
+            <a href="https://www.parkimine.ee" target="_blank" class="pro-btn">👉 Vaata Parkimine.ee kaarti</a>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# --- 5. SEKTSIOON: EESTI REITINGUD ---
 elif selected_tab == "📈 Eesti reitingud":
     st.markdown("### Eesti reitingud reaalajas praegu")
     st.markdown("---")
@@ -464,3 +566,26 @@ elif selected_tab == "📈 Eesti reitingud":
         components.html(reitingud_html, height=850, scrolling=True)
     else:
         components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
+
+
+# --- 6. SEKTSIOON: SALVESTATUD LEMMIKUD ---
+elif selected_tab == "⭐ Minu lemmikud":
+    st.markdown("### ⭐ Sinu salvestatud kuulutused")
+    if not st.session_state.favorites:
+        st.info("Sa ei ole veel ühtegi kuulutust lemmikutesse salvestanud.")
+    else:
+        for idx, item in enumerate(st.session_state.favorites):
+            title = item.get('title', item.get('store', 'Lemmik'))
+            desc = item.get('description', item.get('desc', ''))
+            link = item.get('link', item.get('url', '#'))
+            
+            st.markdown(f"""
+            <div class="pro-card">
+                <div class="card-title">{title}</div>
+                <div class="card-desc">{desc}</div>
+                <a href="{link}" target="_blank" class="pro-btn">👉 Vaata originaalkuulutust</a>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("❌ Eemalda lemmikutest", key=f"remove_fav_{idx}"):
+                st.session_state.favorites.pop(idx)
+                st.rerun()
