@@ -46,6 +46,8 @@ def extract_price(text):
 
     return "Hind kokkuleppel / puudub"
 
+# Vahemällu salvestamine 24 tunniks (86400 sekundit), et tagada igapäevane automaatne uuenemine
+@st.cache_data(ttl=86400)
 def fetch_live_kv24_garages():
     """Skännib otse Kinnisvara24 Harjumaa garaažide müügikategooriat."""
     url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
@@ -90,6 +92,24 @@ def fetch_live_kv24_garages():
         print(f"KV24 viga: {e}")
         
     return results
+
+@st.cache_data(ttl=86400)
+def fetch_reitingud_html():
+    """Laeb reitingud.ee sisu, asendab sõna 'Norstat' ja uueneb iga 24h järel."""
+    url = "https://reitingud.ee/reitingud/"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            html = res.text
+            # Asendab kõik 'Norstat' viited (nii suurte kui väikeste tähtedega)
+            html = re.sub(r'Norstat', 'Eesti reitingud globaalselt', html, flags=re.IGNORECASE)
+            # Lisab kanoonilise baas-URLi, et stiilid ja pildid laeksid korrektselt
+            html = html.replace('<head>', '<head><base href="https://reitingud.ee/">')
+            return html
+    except Exception as e:
+        print(f"Reitingud laadimise viga: {e}")
+    return None
 
 
 # --- 1. FACEBOOK TABI LOOGIKA ---
@@ -248,5 +268,10 @@ with tab_reitingud:
     st.markdown("### Eesti reitingud reaalajas praegu")
     st.markdown("---")
     
-    # Visuaalne iframe sisestus puhta ja stiilse raamiga
-    components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
+    reitingud_html = fetch_reitingud_html()
+    
+    if reitingud_html:
+        components.html(reitingud_html, height=850, scrolling=True)
+    else:
+        # Fallback juhtudeks, kui otselaadimine on piiratud
+        components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
