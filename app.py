@@ -7,9 +7,10 @@ from bs4 import BeautifulSoup
 import re
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
+import urllib.parse
 
 # -----------------------------------------------------------------------------
-# 1. LEHE KONTSEPTSIOON JA KOHANDATUD PREMIUM CSS
+# 1. LEHE KONFIGURATSIOON & PROFESSIONAALNE UI/UX DISAIN
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Kuulutuste Skänner Pro", 
@@ -18,76 +19,89 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-PREMIUM_CSS = """
+PRO_UI_CSS = """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
     html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     .stApp {
-        background-color: #f8fafc;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        color: #0f172a;
+    }
+    
+    /* Pealkirja ja päise kujundus */
+    .hero-container {
+        padding: 1.5rem 0 2rem 0;
+        border-bottom: 1px solid #e2e8f0;
+        margin-bottom: 2rem;
     }
     
     .main-title {
-        font-size: 2.2rem;
+        font-size: 2.5rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #0f172a 0%, #2563eb 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.2rem;
-        letter-spacing: -0.02em;
+        color: #0f172a;
+        letter-spacing: -0.03em;
+        margin-bottom: 0.4rem;
     }
     
     .sub-title {
-        font-size: 0.95rem;
+        font-size: 1.05rem;
         color: #64748b;
-        margin-bottom: 1.5rem;
+        font-weight: 400;
     }
 
+    /* Stiilsed vahelehed (Tabs) */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        border-bottom: 2px solid #e2e8f0;
+        gap: 12px;
+        background-color: #e2e8f0;
+        padding: 6px;
+        border-radius: 14px;
+        margin-bottom: 2rem;
     }
 
     .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        border-radius: 8px 8px 0 0;
-        padding: 0 20px;
+        height: 44px;
+        border-radius: 10px;
+        padding: 0 24px;
         font-weight: 600;
-        color: #64748b;
+        font-size: 0.92rem;
+        color: #475569;
         background-color: transparent;
-        transition: all 0.2s ease;
+        border: none;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .stTabs [aria-selected="true"] {
-        color: #2563eb !important;
+        color: #0f172a !important;
         background-color: #ffffff !important;
-        border-bottom: 2px solid #2563eb !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }
 
-    .custom-card {
+    /* Kaartide disain (Glassmorphism & Modern Shadows) */
+    .pro-card {
         background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 18px;
         padding: 24px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
     }
 
-    .custom-card:hover {
+    .pro-card:hover {
         transform: translateY(-4px);
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.08);
         border-color: #cbd5e1;
     }
 
-    .card-header-title {
-        font-size: 1.25rem;
+    .card-title {
+        font-size: 1.2rem;
         font-weight: 700;
         color: #0f172a;
         line-height: 1.4;
@@ -98,33 +112,36 @@ PREMIUM_CSS = """
         font-size: 0.825rem;
         font-weight: 500;
         color: #94a3b8;
-        display: flex;
-        align-items: center;
-        gap: 4px;
         margin-bottom: 12px;
     }
 
-    .card-body-text {
+    .card-desc {
         font-size: 0.95rem;
         color: #334155;
         line-height: 1.6;
-        margin-bottom: 16px;
-    }
-
-    .card-footer-tags {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
         margin-bottom: 18px;
     }
 
-    .badge {
-        padding: 6px 12px;
-        border-radius: 20px;
+    /* Märgised (Badges) */
+    .card-tags {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+
+    .badge-pill {
+        padding: 6px 14px;
+        border-radius: 30px;
         font-size: 0.8rem;
         font-weight: 600;
-        letter-spacing: 0.01em;
+    }
+
+    .badge-free {
+        background-color: #ecfdf5;
+        color: #059669;
+        border: 1px solid #a7f3d0;
     }
 
     .badge-price {
@@ -134,40 +151,46 @@ PREMIUM_CSS = """
     }
 
     .badge-location {
-        background-color: #f8fafc;
+        background-color: #f1f5f9;
         color: #475569;
         border: 1px solid #e2e8f0;
     }
 
-    .btn-action {
+    /* Aktsentnupp (Call to Action) */
+    .pro-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         width: 100%;
-        padding: 10px 20px;
+        padding: 12px 20px;
         background: #0f172a;
         color: #ffffff !important;
         font-size: 0.9rem;
         font-weight: 600;
-        border-radius: 10px;
+        border-radius: 12px;
         text-decoration: none !important;
         transition: all 0.2s ease;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
     }
 
-    .btn-action:hover {
+    .pro-btn:hover {
         background: #2563eb;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
     }
 </style>
 """
-st.markdown(PREMIUM_CSS, unsafe_allow_html=True)
+st.markdown(PRO_UI_CSS, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">⚡ AI Kuulutuste Skänner</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Reaalajas agregeeritud voog: Facebook Free & Kinnisvara24 Harjumaal</div>', unsafe_allow_html=True)
+# Päise plokk
+st.markdown("""
+    <div class="hero-container">
+        <div class="main-title">⚡ AI Kuulutuste Skänner</div>
+        <div class="sub-title">Reaalajas agregeeritud intelligentne voog: Facebook Free & Kinnisvara24 Harjumaal</div>
+    </div>
+""", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. HTTP SESSIOON & MULTITHREAD LINGIKONTROLL
+# 2. ROBUSTNE SESSION, TÕLGE JA PARALLEELNE VALIDEERIMINE
 # -----------------------------------------------------------------------------
 def get_robust_session():
     session = requests.Session()
@@ -176,6 +199,24 @@ def get_robust_session():
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
+
+def translate_to_estonian(text):
+    if not text:
+        return text
+    if not re.search(r'[\u0400-\u04FF]', text):
+        return text
+    try:
+        encoded_text = urllib.parse.quote(text)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl=et&dt=t&q={encoded_text}"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=3)
+        if response.status_code == 200:
+            data = response.json()
+            translated_sentence = "".join([item[0] for item in data[0] if item[0]])
+            return translated_sentence if translated_sentence else text
+    except Exception:
+        pass
+    return text
 
 def check_single_link(url):
     if not url or url == "#" or not url.startswith("http"):
@@ -194,11 +235,9 @@ def check_single_link(url):
 def filter_valid_items(items, link_key="link"):
     if not items:
         return []
-    
     urls = [item.get(link_key) for item in items]
     with ThreadPoolExecutor(max_workers=10) as executor:
         valid_statuses = list(executor.map(check_single_link, urls))
-        
     return [item for item, is_valid in zip(items, valid_statuses) if is_valid]
 
 def clean_text(text):
@@ -223,7 +262,7 @@ def extract_price(text):
     return "Hind kokkuleppel"
 
 # -----------------------------------------------------------------------------
-# 3. KORJE JA POOL-AUTOMAATNE SALVESTAMINE
+# 3. ANDMETE KORJE (KV24 & REITINGUD)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
@@ -250,7 +289,6 @@ def fetch_live_kv24_garages():
                     continue
                 
                 full_url = href if href.startswith('http') else f"https://kinnisvara24.ee{href}"
-                
                 parent_container = a_tag.find_parent(['div', 'article', 'li'])
                 container_text = parent_container.get_text() if parent_container else title
                 price = extract_price(container_text)
@@ -270,7 +308,6 @@ def fetch_live_kv24_garages():
 
 @st.cache_data(ttl=86400)
 def fetch_reitingud_html():
-    """Laeb reitingud.ee sisu, puhastab üleliigse teksti ja asendab viited."""
     url = "https://reitingud.ee/reitingud/"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
@@ -278,18 +315,13 @@ def fetch_reitingud_html():
         res = session.get(url, headers=headers, timeout=10)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
-            
-            # Eemaldame üleliigsed tekstiblokid, uudiskirja vormid ja kontaktiosad
             for selector in ['footer', '.newsletter', '.newsletter-form', '.footer-info', '#footer', '.site-footer', '.contact-info']:
                 for match in soup.select(selector):
                     match.decompose()
-                    
-            # Eemaldame spetsiifiliselt otsitud tekstielemendid
             for element in soup.find_all(['p', 'div', 'section']):
                 text_content = element.get_text()
                 if "TELLI UUDISKIRI" in text_content or "MTÜ Ühiskonnauuringute Instituut" in text_content or "Uuringufirma" in text_content:
                     element.decompose()
-            
             html = str(soup)
             html = re.sub(r'Norstat', 'Eesti reitingud globaalselt', html, flags=re.IGNORECASE)
             html = html.replace('<head>', '<head><base href="https://reitingud.ee/">')
@@ -299,7 +331,7 @@ def fetch_reitingud_html():
     return None
 
 # -----------------------------------------------------------------------------
-# 4. TAB-IDE KUVAMISE LOOGIKA
+# 4. VAHELEHED (TABS)
 # -----------------------------------------------------------------------------
 tab_fb, tab_kv24, tab_reitingud = st.tabs([
     "📌 Facebook: Tasuta asjad", 
@@ -321,6 +353,8 @@ with tab_fb:
             items = soup.find_all(['item', 'entry'])
             one_month_ago = (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
             
+            sold_keywords = ["broneeritud", "läinud", "ära antud", "annatud", "läks", "müüdud", "läinud!", "bron"]
+
             for item in items:
                 link_elem = item.find('link')
                 link = "https://www.facebook.com/groups/442569942509759"
@@ -328,12 +362,16 @@ with tab_fb:
                     link = link_elem.get('href') or link_elem.get_text(strip=True) or link
                 
                 title_raw = item.find('title').text if item.find('title') else "Tasuta ese"
-                title = clean_text(title_raw)
+                title = translate_to_estonian(clean_text(title_raw))
                 
                 desc_raw = item.find('description') or item.find('summary')
                 raw_desc_text = desc_raw.text if desc_raw else ""
-                description = clean_text(raw_desc_text)
+                description = translate_to_estonian(clean_text(raw_desc_text))
                 
+                combined_text = (title + " " + description).lower()
+                if any(keyword in combined_text for keyword in sold_keywords):
+                    continue
+
                 if len(description) > 180:
                     description = description[:180] + "..."
                 
@@ -381,24 +419,24 @@ with tab_fb:
         print(f"Viga Facebooki RSS skännimisel: {e}")
 
     if not results_fb:
-        st.info("Hetkel ei ole saadaval ühtegi aktiivse lingiga tasuta kuulutust.")
+        st.info("Hetkel ei ole saadaval ühtegi aktiivset või vaba tasuta kuulutust.")
     else:
         for item in results_fb:
             date_meta = f"📅 {item['date_str']}" if item.get('date_str') else ""
             
             card_html = f"""
-            <div class="custom-card">
+            <div class="pro-card">
                 <div>
-                    <div class="card-header-title">{item['title']}</div>
+                    <div class="card-title">{item['title']}</div>
                     <div class="card-date">{date_meta}</div>
-                    <div class="card-body-text">{item['description']}</div>
+                    <div class="card-desc">{item['description']}</div>
                 </div>
                 <div>
-                    <div class="card-footer-tags">
-                        <span class="badge badge-price">Tasuta</span>
-                        <span class="badge badge-location">📍 {item['location']}</span>
+                    <div class="card-tags">
+                        <span class="badge-pill badge-free">Tasuta</span>
+                        <span class="badge-pill badge-location">📍 {item['location']}</span>
                     </div>
-                    <a href="{item['link']}" target="_blank" class="btn-action">👉 Vaata kuulutust</a>
+                    <a href="{item['link']}" target="_blank" class="pro-btn">👉 Vaata kuulutust</a>
                 </div>
             </div>
             """
@@ -435,17 +473,17 @@ with tab_kv24:
         target_link = item.get("url", canonical_kv24_url)
         
         st.markdown(f"""
-        <div class="custom-card">
+        <div class="pro-card">
             <div>
-                <div class="card-header-title">{item['title']}</div>
-                <div class="card-body-text">{item['description']}</div>
+                <div class="card-title">{item['title']}</div>
+                <div class="card-desc">{item['description']}</div>
             </div>
             <div>
-                <div class="card-footer-tags">
-                    <span class="badge badge-price">{item['price']}</span>
-                    <span class="badge badge-location">📍 {item['location']}</span>
+                <div class="card-tags">
+                    <span class="badge-pill badge-price">{item['price']}</span>
+                    <span class="badge-pill badge-location">📍 {item['location']}</span>
                 </div>
-                <a href="{target_link}" target="_blank" class="btn-action">👉 Ava pakkumine Kinnisvara24 portaalis</a>
+                <a href="{target_link}" target="_blank" class="pro-btn">👉 Ava pakkumine Kinnisvara24 portaalis</a>
             </div>
         </div>
         """, unsafe_allow_html=True)
