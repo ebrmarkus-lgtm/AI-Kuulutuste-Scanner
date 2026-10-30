@@ -38,8 +38,26 @@ def extract_price(text):
 
     return "Hind kokkuleppel / puudub"
 
+def get_safe_kv24_link(item):
+    """Tagab turvalise lingi, mis viib kas objektile või töötavasse filtrisse."""
+    raw_link = ""
+    link_elem = item.find('link')
+    if link_elem:
+        raw_link = link_elem.get('href') or link_elem.text or ""
+    
+    if not raw_link:
+        guid_elem = item.find('guid')
+        if guid_elem:
+            raw_link = guid_elem.text or ""
 
-# --- 1. FACEBOOK TABI LOOGIKA ---
+    id_match = re.search(r'(\d{6,8})', raw_link)
+    if id_match:
+        return f"https://kinnisvara24.ee/objekt/{id_match.group(1)}"
+    
+    return "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&county=Harju+maakond"
+
+
+# --- 1. FACEBOOK TABI LOOGIKA (MUUTUMATU JA TÖÖTAV) ---
 with tab_fb:
     st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
     
@@ -158,12 +176,11 @@ with tab_fb:
         st.divider()
 
 
-# --- 2. KINNISVARA24 TABI LOOGIKA ---
+# --- 2. KINNISVARA24 TABI LOOGIKA (PERFECTED) ---
 with tab_kv24:
     st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee, uuemad eespool):")
     
     rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
-    valid_kv24_link = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
     
     results_kv24 = []
     try:
@@ -187,6 +204,8 @@ with tab_kv24:
             if len(description) > 200:
                 description = description[:200] + "..."
                 
+            item_link = get_safe_kv24_link(item)
+            
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
             
@@ -219,7 +238,7 @@ with tab_kv24:
                 "description": description,
                 "price": price,
                 "location": "Harjumaa",
-                "link": valid_kv24_link,
+                "link": item_link,
                 "image": image_url,
                 "timestamp": timestamp,
                 "date_str": pub_date_str
@@ -231,13 +250,14 @@ with tab_kv24:
         print(f"Viga Kinnisvara24 RSS skännimisel: {e}")
 
     if not results_kv24:
+        default_kv_link = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&county=Harju+maakond"
         results_kv24 = [
             {
                 "title": "Sobivaid kuulutusi ei leitud.",
                 "description": "Hetkel ei ole RSS-voos ühtegi garaaži kuulutust.",
                 "price": "-",
                 "location": "Harjumaa",
-                "link": valid_kv24_link,
+                "link": default_kv_link,
                 "image": None,
                 "timestamp": 0,
                 "date_str": ""
@@ -265,6 +285,6 @@ with tab_kv24:
                     st.write(item.get("description"))
                 st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
             
-            link = item.get("link", valid_kv24_link)
-            st.markdown(f'<a href="{link}" target="_blank">👉 Vaata Harjumaa garaaže Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
+            link = item.get("link", "https://kinnisvara24.ee")
+            st.markdown(f'<a href="{link}" target="_blank">👉 Ava see kuulutus Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
         st.divider()
