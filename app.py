@@ -24,23 +24,55 @@ def extract_price(text):
     if not text:
         return "Hind puudub"
     
-    # 1. Otsime numbreid koos euro tähisega (nt "15 000 €", "150 €/kuu", "15000€")
     match = re.search(r'(\d[\d\s\.]*)\s*(?:€|EUR)(?:\s*/\s*[a-zA-ZäöüõÄÖÜÕ]+)?', text, re.IGNORECASE)
     if match:
-        clean_num = match.group(0).strip()
-        return clean_num
+        return match.group(0).strip()
     
-    # 2. Otsime sõna "Hind:" järel olevaid numbreid (nt "Hind: 15000")
     match_label = re.search(r'(?:hind|hind:)\s*(\d[\d\s\.]*)', text, re.IGNORECASE)
     if match_label:
         return f"{match_label.group(1).strip()} €"
         
-    # 3. Otsime üldist numbrit teksti algusest või keskelt, kui esineb euro märge teises vormis
     match_generic = re.search(r'(\d[\d\s]{2,})\s*(?:eur|euro|eurot)', text, re.IGNORECASE)
     if match_generic:
         return f"{match_generic.group(1).strip()} €"
 
     return "Hind kokkuleppel / puudub tekstoas"
+
+def extract_direct_link(item, default_url):
+    """Otsib RSS elemendist kõige täpsema otselinki kuulutuseni ja väldib pelgalt kodulehele suunamist."""
+    candidate_links = []
+    
+    # 1. Otsime kõiki <a> silte kirjelduse seest (RSS.app paneb otselingi siia)
+    desc_raw = item.find('description') or item.find('summary')
+    if desc_raw:
+        soup_desc = BeautifulSoup(desc_raw.text, 'html.parser')
+        for a_tag in soup_desc.find_all('a', href=True):
+            href = a_tag['href'].strip()
+            if href and href != "https://kinnisvara24.ee" and href != "https://kinnisvara24.ee/":
+                candidate_links.append(href)
+
+    # 2. Kontrollime guid elementi
+    guid_elem = item.find('guid')
+    if guid_elem:
+        guid_text = guid_elem.text.strip()
+        if (guid_text.startswith('http://') or guid_text.startswith('https://')) and guid_text != "https://kinnisvara24.ee":
+            candidate_links.append(guid_text)
+
+    # 3. Kontrollime link elemente
+    for link_elem in item.find_all('link'):
+        href = link_elem.get('href') or link_elem.text
+        if href:
+            href = href.strip()
+            if href and href != "https://kinnisvara24.ee" and href != "https://kinnisvara24.ee/":
+                candidate_links.append(href)
+
+    # Filtreerime välja lingid, mis viitavad otse kuulutusele (nt sisaldavad ID-d või sõna /kinnisvara/ /garaaz/ vms)
+    for link in candidate_links:
+        if link != "https://kinnisvara24.ee" and link != "https://kinnisvara24.ee/":
+            return link
+
+    return default_url
+
 
 # --- 1. FACEBOOK TABI LOOGIKA ---
 with tab_fb:
@@ -68,13 +100,7 @@ with tab_fb:
             if len(description) > 200:
                 description = description[:200] + "..."
                 
-            link_elem = item.find('link')
-            link = "https://www.facebook.com/groups/442569942509759"
-            if link_elem:
-                if link_elem.get('href'):
-                    link = link_elem.get('href')
-                elif link_elem.text.strip():
-                    link = link_elem.get_text(strip=True)
+            link = extract_direct_link(item, "https://www.facebook.com/groups/442569942509759")
             
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
@@ -159,6 +185,7 @@ with tab_kv24:
     st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee, uuemad eespool):")
     
     rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
     results_kv24 = []
     try:
@@ -177,19 +204,14 @@ with tab_kv24:
             raw_desc_text = desc_raw.text if desc_raw else ""
             description = clean_text(raw_desc_text)
             
-            # Ekstraheerime hinna toorest XML tektist (võtab arvesse pealkirja ja kirjeldust enne puhastamist)
             price = extract_price(title_raw + " " + raw_desc_text + " " + description)
             
             if len(description) > 200:
                 description = description[:200] + "..."
                 
-            link_elem = item.find('link')
-            link = "https://kinnisvara24.ee"
-            if link_elem:
-                if link_elem.get('href'):
-                    link = link_elem.get('href')
-                elif link_elem.text.strip():
-                    link = link_elem.get_text(strip=True)
+            # Täpse otselinki hankimine (vaikeväärtuseks Kinnisvara24 Harjumaa garaažide otsinguleht)
+            default_kv24_search = "https://kinnisvara24.ee/garaazid-muuk/harju-maakond"
+            link = extract_direct_link(item, default_kv24_search)
             
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
@@ -240,7 +262,7 @@ with tab_kv24:
                 "description": "Hetkel ei ole RSS-voos ühtegi garaaži kuulutust.",
                 "price": "-",
                 "location": "Harjumaa",
-                "link": "https://kinnisvara24.ee",
+                "link": "https://kinnisvara24.ee/garaazid-muuk/harju-maakond",
                 "image": None,
                 "timestamp": 0
             }
