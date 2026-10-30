@@ -1,48 +1,42 @@
+import streamlit as st
 import json
-import urllib.request
-from bs4 import BeautifulSoup
+import os
 
-def scrape_soov():
-    url = "https://soov.ee/139-ara-anda/headings.html"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    
-    results = []
+st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
+
+st.title("⚡ AI Kuulutuste Skänner (Tallinn)")
+st.write("Skännitakse viimaseid tasuta kuulutusi SOOV.ee portaalist ja FB grupist...")
+
+json_file = "results.json"
+
+if os.path.exists(json_file):
     try:
-        req = urllib.request.Request(url, headers=headers)
-        html = urllib.request.urlopen(req).read().decode('utf-8')
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        listings = soup.find_all('div', class_='item-list') or soup.find_all('a', class_='item-title')
-        
-        for item in listings[:15]:
-            title_elem = item.find('h2') or item.find('a') or item
-            title = title_elem.get_text(strip=True) if title_elem else "Tasuta ese Tallinnas"
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
             
-            link = item.get('href') or (item.find('a')['href'] if item.find('a') else "https://soov.ee")
-            if not link.startswith('http'):
-                link = "https://soov.ee" + link
-                
-            results.append({
-                "title": title,
-                "price": "Tasuta",
-                "location": "Tallinn",
-                "link": link
-            })
+        if data:
+            for item in data:
+                with st.container():
+                    col1, col2 = st.columns([1, 3])
+                    
+                    with col1:
+                        if item.get("image"):
+                            st.image(item.get("image"), use_container_width=True)
+                        else:
+                            st.write("🖼️ *Pilt puudub*")
+                            
+                    with col2:
+                        st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
+                        st.write(f"**Hind:** {item.get('price', 'Tasuta')}")
+                        st.write(f"**Asukoht:** {item.get('location', 'Tallinn')}")
+                        
+                        link = item.get("link", "#")
+                        if link != "#":
+                            st.markdown(f"[👉 Vaata kuulutust originaalportaalis]({link})")
+                st.divider()
+        else:
+            st.info("Hetkel ühtegi uut kuulutust ei leitud. Kontrollime uuesti järgmisel tunnil!")
     except Exception as e:
-        print(f"Viga skännimisel: {e}")
-
-    if not results:
-        results = [
-            {
-                "title": "Süsteem töötab! Ootame uusi kuulutusi SOOV.ee portaalist.",
-                "price": "0 €",
-                "location": "Tallinn",
-                "link": "https://soov.ee"
-            }
-        ]
-
-    with open("results.json", "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-
-if __name__ == "__main__":
-    scrape_soov()
+        st.error(f"Viga andmete lugemisel: {e}")
+else:
+    st.warning("Andmeid alles kogutakse. Tule mõne aja pärast tagasi!")
