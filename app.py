@@ -4,19 +4,17 @@ import os
 import urllib.request
 from bs4 import BeautifulSoup
 import re
+from datetime import datetime
 
 st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
 
 st.title("⚡ AI Kuulutuste Skänner (Tallinn)")
-st.write("Skännitakse viimaseid tasuta kuulutusi FB grupist...")
+st.write("Skännitakse kõiki tasuta kuulutusi FB grupist (uuemad eespool)...")
 
-# Funktsioon CDATA ja HTML siltide puhastamiseks
 def clean_text(text):
     if not text:
         return ""
-    # Eemaldame CDATA plokid
     text = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', text, flags=re.DOTALL)
-    # Eemaldame HTML sildid kirjeldusest
     clean_soup = BeautifulSoup(text, 'html.parser')
     return clean_soup.get_text(strip=True)
 
@@ -30,16 +28,16 @@ def scrape_fb_group_rss():
         xml_data = urllib.request.urlopen(req).read()
         soup = BeautifulSoup(xml_data, 'html.parser')
         
+        # Võtame kõik elemendid ilma limiidita
         items = soup.find_all(['item', 'entry'])
         
-        for item in items[:15]:
+        for item in items:
             title_raw = item.find('title').text if item.find('title') else "Tasuta ese FB grupis"
             title = clean_text(title_raw)
             
             desc_raw = item.find('description') or item.find('summary')
             description = clean_text(desc_raw.text) if desc_raw else ""
             
-            # Lühendame kirjelduse, et ei oleks liiga pikk
             if len(description) > 200:
                 description = description[:200] + "..."
                 
@@ -51,7 +49,21 @@ def scrape_fb_group_rss():
                 elif link_elem.text.strip():
                     link = link_elem.get_text(strip=True)
             
-            # Pildi otsimine RSS voost (enclosure, media:content või img tag kirjeldusest)
+            # Kuupäeva lugemine järjestamiseks
+            pub_date_elem = item.find('pubDate') or item.find('updated')
+            pub_date_str = pub_date_elem.text if pub_date_elem else ""
+            
+            parsed_date = datetime.min
+            if pub_date_str:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    parsed_date = parsedate_to_datetime(pub_date_str)
+                except:
+                    try:
+                        parsed_date = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00'))
+                    except:
+                        pass
+
             image_url = None
             enclosure = item.find('enclosure')
             if enclosure and enclosure.get('url'):
@@ -67,8 +79,13 @@ def scrape_fb_group_rss():
                 "price": "Tasuta",
                 "location": "Haapsalu / Tallinn",
                 "link": link,
-                "image": image_url
+                "image": image_url,
+                "timestamp": parsed_date.timestamp() if isinstance(parsed_date, datetime) else 0
             })
+            
+        # Sorteerime tulemused: uuemad postitused esimesena (suurem timestamp eespool)
+        results = sorted(results, key=lambda x: x["timestamp"], reverse=True)
+
     except Exception as e:
         print(f"Viga RSS skännimisel: {e}")
 
@@ -76,21 +93,20 @@ def scrape_fb_group_rss():
         results = [
             {
                 "title": "Ootame uusi postitusi grupis.",
-                "description": "Siia ilmuvad gruusia uued tasuta asjad.",
+                "description": "Siia ilmuvad uued tasuta asjad.",
                 "price": "0 €",
                 "location": "Tallinn",
                 "link": "https://www.facebook.com/groups/442569942509759",
-                "image": None
+                "image": None,
+                "timestamp": 0
             }
         ]
 
     with open("results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
 
-# Käivitame skännimise
 scrape_fb_group_rss()
 
-# Kuvame tulemused lehel
 json_file = "results.json"
 
 if os.path.exists(json_file):
@@ -101,7 +117,6 @@ if os.path.exists(json_file):
         if data:
             for item in data:
                 with st.container():
-                    # Kasutame veerge, et pilt ja tekst mahuksid kõrvuti (kui pilt on olemas)
                     if item.get("image"):
                         col1, col2 = st.columns([1, 3])
                         with col1:
