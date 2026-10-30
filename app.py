@@ -9,7 +9,9 @@ from datetime import datetime, timedelta, timezone
 st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
 
 st.title("⚡ AI Kuulutuste Skänner (Tallinn)")
-st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
+
+# Ülemine kategooriate riba (tabs)
+tab_fb, tab_kv = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 KV - Kinnisvaraportaal (KV.ee)"])
 
 def clean_text(text):
     if not text:
@@ -18,7 +20,10 @@ def clean_text(text):
     clean_soup = BeautifulSoup(text, 'html.parser')
     return clean_soup.get_text(strip=True)
 
-def scrape_fb_group_rss():
+# --- FACEBOOK TABI LOOGIKA ---
+with tab_fb:
+    st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
+    
     rss_url = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
@@ -29,8 +34,6 @@ def scrape_fb_group_rss():
         soup = BeautifulSoup(xml_data, 'html.parser')
         
         items = soup.find_all(['item', 'entry'])
-        
-        # Arvutame 1 kuu (30 päeva) taguse ajatempli
         one_month_ago_timestamp = (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
         
         for item in items:
@@ -46,7 +49,7 @@ def scrape_fb_group_rss():
             link_elem = item.find('link')
             link = "https://www.facebook.com/groups/442569942509759"
             if link_elem:
-                if link_elem.get('href'):
+                if link_.get('href') if 'link_' in locals() else link_elem.get('href'):
                     link = link_elem.get('href')
                 elif link_elem.text.strip():
                     link = link_elem.get_text(strip=True)
@@ -66,7 +69,6 @@ def scrape_fb_group_rss():
                     except:
                         timestamp = 0
 
-            # Jätame vahele postitused, mis on vanemad kui 1 kuu (kui ajatempel on olemas)
             if timestamp > 0 and timestamp < one_month_ago_timestamp:
                 continue
 
@@ -89,7 +91,6 @@ def scrape_fb_group_rss():
                 "timestamp": timestamp
             })
             
-        # Sorteerime tulemused: uuemad eespool
         results = sorted(results, key=lambda x: x["timestamp"], reverse=True)
 
     except Exception as e:
@@ -108,43 +109,31 @@ def scrape_fb_group_rss():
             }
         ]
 
-    with open("results.json", "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-
-scrape_fb_group_rss()
-
-json_file = "results.json"
-
-if os.path.exists(json_file):
-    try:
-        with open(json_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+    for item in results:
+        with st.container():
+            if item.get("image"):
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    st.image(item["image"], use_container_width=True)
+                with col2:
+                    st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
+                    if item.get("description"):
+                        st.write(item.get("description"))
+                    st.write(f"**Hind:** {item.get('price', 'Tasuta')} | **Asukoht:** {item.get('location', 'Tallinn')}")
+            else:
+                st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
+                if item.get("description"):
+                    st.write(item.get("description"))
+                st.write(f"**Hind:** {item.get('price', 'Tasuta')} | **Asukoht:** {item.get('location', 'Tallinn')}")
             
-        if data:
-            for item in data:
-                with st.container():
-                    if item.get("image"):
-                        col1, col2 = st.columns([1, 3])
-                        with col1:
-                            st.image(item["image"], use_container_width=True)
-                        with col2:
-                            st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                            if item.get("description"):
-                                st.write(item.get("description"))
-                            st.write(f"**Hind:** {item.get('price', 'Tasuta')} | **Asukoht:** {item.get('location', 'Tallinn')}")
-                    else:
-                        st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                        if item.get("description"):
-                            st.write(item.get("description"))
-                        st.write(f"**Hind:** {item.get('price', 'Tasuta')} | **Asukoht:** {item.get('location', 'Tallinn')}")
-                    
-                    link = item.get("link", "#")
-                    if link != "#":
-                        st.markdown(f"[👉 Vaata kuulutust originaalportaalis]({link})")
-                st.divider()
-        else:
-            st.info("Hetkel ühtegi uut kuulutust ei leitud.")
-    except Exception as e:
-        st.error(f"Viga andmete lugemisel: {e}")
-else:
-    st.warning("Andmeid alles kogutakse...")
+            link = item.get("link", "#")
+            if link != "#":
+                st.markdown(f"[👉 Vaata kuulutust originaalportaalis]({link})")
+        st.divider()
+
+
+# --- KV.EE TABI LOOGIKA ---
+with tab_kv:
+    st.write("Siia kuvatakse KV.ee kinnisvaraportaali kuulutused.")
+    st.info("KV.ee vaade on valmis andmete lisamiseks. Kui genereerid KV.ee jaoks RSS.app lingi (analoogselt Facebooki grupiga), saame selle siia samas formatDate loogikaga külge ühendada!")
+    st.markdown("[👉 Ava KV.ee](https://www.kv.ee)")
