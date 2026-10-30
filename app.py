@@ -1,42 +1,46 @@
-import streamlit as st
 import json
-import os
+import urllib.request
+from bs4 import BeautifulSoup
 
-st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
-
-st.title("⚡ AI Kuulutuste Skänner (Tallinn)")
-st.write("Skännitakse viimaseid tasuta kuulutusi SOOV.ee portaalist...")
-
-json_file = "results.json"
-
-if os.path.exists(json_file):
+def scrape_fb_group_rss():
+    # Asenda see aadress enda rss.app lingiga:
+    rss_url = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    
+    results = []
     try:
-        with open(json_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        req = urllib.request.Request(rss_url, headers=headers)
+        xml_data = urllib.request.urlopen(req).read()
+        soup = BeautifulSoup(xml_data, 'xml')
+        
+        items = soup.find_all('item')
+        
+        for item in items[:15]:
+            title = item.find('title').get_text(strip=True) if item.find('title') else "Tasuta ese FB grupis"
+            link = item.find('link').get_text(strip=True) if item.find('link') else "https://facebook.com"
             
-        if data:
-            for item in data:
-                with st.container():
-                    col1, col2 = st.columns([1, 3])
-                    
-                    with col1:
-                        if item.get("image"):
-                            st.image(item.get("image"), use_container_width=True)
-                        else:
-                            st.write("🖼️ *Pilt puudub*")
-                            
-                    with col2:
-                        st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                        st.write(f"**Hind:** {item.get('price', 'Tasuta')}")
-                        st.write(f"**Asukoht:** {item.get('location', 'Tallinn')}")
-                        
-                        link = item.get("link", "#")
-                        if link != "#":
-                            st.markdown(f"[👉 Vaata kuulutust originaalportaalis]({link})")
-                st.divider()
-        else:
-            st.info("Hetkel ühtegi uut kuulutust ei leitud. Kontrollime uuesti järgmisel tunnil!")
+            results.append({
+                "title": title,
+                "price": "Tasuta",
+                "location": "Tallinn (FB Grupp)",
+                "link": link
+            })
     except Exception as e:
-        st.error(f"Viga andmete lugemisel: {e}")
-else:
-    st.warning("Andmeid alles kogutakse. Tule mõne aja pärast tagasi!")
+        print(f"Viga RSS skännimisel: {e}")
+
+    # Tagavara, kui sild veel andmeid ei edastanud
+    if not results:
+        results = [
+            {
+                "title": "FB skänner seadistatud! Ootame uusi postitusi grupis.",
+                "price": "0 €",
+                "location": "Tallinn",
+                "link": "https://www.facebook.com/groups/442569942509759"
+            }
+        ]
+
+    with open("results.json", "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=2)
+
+if __name__ == "__main__":
+    scrape_fb_group_rss()
