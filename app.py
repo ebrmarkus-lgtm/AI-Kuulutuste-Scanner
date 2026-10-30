@@ -1,3 +1,4 @@
+import html
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -84,12 +85,33 @@ def normalize_fb_link(link):
     return link, "other"
 
 
+def get_tz():
+    if ZoneInfo:
+        try:
+            return ZoneInfo("Europe/Tallinn")
+        except Exception:
+            pass
+    return timezone(timedelta(hours=2))
+
+
 def now_str():
-    tz = ZoneInfo("Europe/Tallinn") if ZoneInfo else timezone.utc
-    try:
-        return datetime.now(tz).strftime("%d.%m.%Y %H:%M")
-    except Exception:
-        return datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+    return datetime.now(get_tz()).strftime("%d.%m.%Y %H:%M")
+
+
+def fmt_date(ts):
+    """Ajatempel -> '30.10.2026 14:00' Tallinna aja järgi."""
+    return datetime.fromtimestamp(ts, get_tz()).strftime("%d.%m.%Y %H:%M")
+
+
+def time_ago(ts):
+    """Ajatempel -> '5 min tagasi', '3 h tagasi', '2 päeva tagasi'."""
+    diff = max(0, int(datetime.now(timezone.utc).timestamp() - ts))
+    if diff < 3600:
+        return f"{max(1, diff // 60)} min tagasi"
+    if diff < 86400:
+        return f"{diff // 3600} h tagasi"
+    days = diff // 86400
+    return f"{days} {'päev' if days == 1 else 'päeva'} tagasi"
 
 
 def parse_date(s):
@@ -127,9 +149,20 @@ def fetch_fb_items():
 
         raw_desc = child_text(item, "description") or child_text(item, "summary") \
             or child_text(item, "content")
-        description = clean_text(raw_desc)
-        if len(description) > 200:
-            description = description[:200] + "..."
+        full = clean_text(raw_desc)
+        base = title.rstrip(".… ")
+        # Kui kirjeldus algab pealkirjaga, ära korda seda
+        if base and full.startswith(base):
+            description = full[len(base):].lstrip(" .,:;-–—\n")
+        else:
+            description = full
+        # Liiga lühike pealkiri ("Tere!", "TASUTA") -> võta pealkiri kirjeldusest
+        if len(title) < 15 and len(full) > len(title):
+            cut = full[:70].rsplit(" ", 1)[0] if len(full) > 70 else full
+            title = cut + ("…" if len(full) > len(cut) else "")
+            description = full[len(cut):].lstrip(" .,:;-–—\n")
+        if len(description) > 250:
+            description = description[:250].rsplit(" ", 1)[0] + "…"
 
         link = ""
         for ch in item:
@@ -171,15 +204,20 @@ def fetch_fb_items():
 
 
 # ---------- 1. FACEBOOK ----------
+PAGE_SIZE = 10
+
+
 @st.fragment(run_every=FB_REFRESH_SEC)
 def render_facebook():
-    st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
+    st.write("Viimase 1 kuu tasuta kuulutused FB grupist (uuemad eespool).")
+
     try:
         results_fb, updated_at = fetch_fb_items()
         fb_error = None
     except Exception as e:
         results_fb, updated_at = [], None
         fb_error = f"Facebooki RSS-i lugemine ebaõnnestus: {e}"
+
     if fb_error:
         st.warning(fb_error)
     else:
@@ -187,52 +225,80 @@ def render_facebook():
 
     if not results_fb:
         st.info("Ootame uusi postitusi grupis.")
-        st.markdown(
-            f'<a href="{FB_GROUP_URL}" target="_blank" rel="noopener">👉 Ava Facebooki grupp</a>',
-            unsafe_allow_html=True,
+        st.link_button("👉 Ava Facebooki grupp", FB_GROUP_URL)
+        return
+
+    # --- Otsing ja filter ---
+    col_q, col_new = st.columns([3, 1])
+    query = col_q.text_input(
+        "🔎 Otsi kuulutusi", placeholder="nt külmik, диван, aknad", key="fb_query"
+    )
+    only_new = col_new.checkbox("🆕 Ainult viimased 24 h", key="fb_only_new")
+
+    now_ts = datetime.now(timezone.utc).timestamp()
+    filtered = []
+    for r in results_fb:
+        if query and query.lower().strip() not in f"{r['title']} {r['description']}".lower():
+            continue
+        if only_new and not (r["timestamp"] and now_ts - r["timestamp"] < 86400):
+            continue
+        filtered.append(r)
+
+    if not filtered:
+        st.info("Otsingule ei leitud ühtegi kuulutust.")
+        return
+
+    if "fb_limit" not in st.session_state:
+        st.session_state["fb_limit"] = PAGE_SIZE
+    shown = filtered[: st.session_state["fb_limit"]]
+    st.caption(f"Näitan {len(shown)} / {len(filtered)} kuulutust")
+
+    # --- Kiirnavigatsioon ---
+    with st.expander(f"⏬ Hüppa kuulutuse juurde ({len(shown)})"):
+        nav = "".join(
+            f'<div><a href="#fb-{i}" target="_self">{i + 1}. {html.escape(r["title"][:70])}</a></div>'
+            for i, r in enumerate(shown)
         )
-    else:
-        # Kiirnavigatsioon: klikk keerab leht automaatselt vastava kuulutuse juurde
-        with st.expander(f"⏬ Hüppa kuulutuse juurde ({len(results_fb)})"):
-            nav = "".join(
-                f'<div><a href="#fb-{i}" target="_self">{i + 1}. {r["title"][:70]}</a></div>'
-                for i, r in enumerate(results_fb)
-            )
-            st.markdown(nav, unsafe_allow_html=True)
+        st.markdown(nav, unsafe_allow_html=True)
 
-        for i, item in enumerate(results_fb):
-            st.markdown(f'<div id="fb-{i}"></div>', unsafe_allow_html=True)
-            with st.container():
-                def render_text():
-                    st.subheader(item["title"])
-                    if item["date_str"]:
-                        st.caption(f"📅 {item['date_str']}")
-                    if item["description"]:
-                        st.write(item["description"])
-                    st.write("**Hind:** Tasuta")
+    # --- Kuulutuste kaardid ---
+    for i, item in enumerate(shown):
+        st.markdown(f'<div id="fb-{i}"></div>', unsafe_allow_html=True)
+        is_new = bool(item["timestamp"]) and now_ts - item["timestamp"] < 86400
 
-                if item["image"]:
-                    col1, col2 = st.columns([1, 3])
-                    with col1:
-                        st.image(item["image"], use_container_width=True)
-                    with col2:
-                        render_text()
+        with st.container(border=True):
+            def render_text():
+                st.subheader(("🆕 " if is_new else "") + item["title"])
+                if item["timestamp"]:
+                    st.caption(
+                        f"📅 {fmt_date(item['timestamp'])} · {time_ago(item['timestamp'])} · 💚 Tasuta"
+                    )
                 else:
-                    render_text()
-
+                    st.caption("💚 Tasuta")
+                if item["description"]:
+                    st.write(item["description"])
                 label = (
-                    "👉 Ava Marketplace'i kuulutus"
+                    "Ava Marketplace'i kuulutus"
                     if item["link_type"] == "marketplace"
-                    else "👉 Ava see postitus Facebookis"
+                    else "Ava postitus Facebookis"
                 )
-                st.markdown(
-                    f'<a href="{item["link"]}" target="_blank" rel="noopener">{label}</a> '
-                    f'&nbsp;|&nbsp; <a href="#fb-0" target="_self">⬆️ Üles</a>',
-                    unsafe_allow_html=True,
-                )
-            st.divider()
+                st.link_button(f"👉 {label}", item["link"])
 
+            if item["image"]:
+                col_img, col_txt = st.columns([1, 4])
+                with col_img:
+                    st.image(item["image"], width=180)
+                with col_txt:
+                    render_text()
+            else:
+                render_text()
 
+    # --- Näita rohkem ---
+    if len(shown) < len(filtered):
+        if st.button(f"⬇️ Näita rohkem ({len(filtered) - len(shown)} veel)"):
+            st.session_state["fb_limit"] += PAGE_SIZE
+            st.rerun(scope="fragment")
+    st.markdown('<a href="#fb-0" target="_self">⬆️ Tagasi üles</a>', unsafe_allow_html=True)
 
 
 with tab_fb:
@@ -256,7 +322,7 @@ def fetch_kv24_info():
 
 @st.fragment(run_every=KV24_REFRESH_SEC)
 def render_kv24():
-    st.write("Garaažide müügipakkumised Harjumaal (Kinnisvara24.ee):")
+    st.write("Garaažide müügipakkumised Harjumaal (Kinnisvara24.ee).")
 
     info, updated_at = {"count": None}, None
     try:
@@ -267,18 +333,13 @@ def render_kv24():
     if updated_at:
         st.caption(f"🔄 Viimati uuendatud: {updated_at} (uueneb automaatselt iga 24 h)")
 
-    with st.container():
-        st.subheader("Garaažid Harju maakonnas, müük")
+    with st.container(border=True):
+        st.subheader("🏠 Garaažid Harju maakonnas, müük")
         st.write("Aktiivsed garaažide müügipakkumised ja boksid Harjumaal.")
-        st.write("**Asukoht:** Harjumaa")
+        st.caption("📍 Harjumaa")
         if info.get("count"):
             st.write(f"**Leitud kuulutusi lehel:** {info['count']}")
-        st.markdown(
-            f'<a href="{KV24_HARJU_URL}" target="_blank" rel="noopener">'
-            "👉 Ava Harjumaa garaažid Kinnisvara24 portaalis</a>",
-            unsafe_allow_html=True,
-        )
-    st.divider()
+        st.link_button("👉 Ava Harjumaa garaažid Kinnisvara24 portaalis", KV24_HARJU_URL)
 
 
 with tab_kv24:
