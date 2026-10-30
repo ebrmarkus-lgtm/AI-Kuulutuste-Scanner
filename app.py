@@ -38,39 +38,58 @@ def extract_price(text):
 
     return "Hind kokkuleppel / puudub tekstoas"
 
-def extract_direct_link(item, default_url):
-    """Otsib RSS elemendist täpse lingi või ümbersuunamislingi kuulutuseni."""
-    candidate_links = []
+def resolve_final_url(initial_url, headers):
+    """
+    Tuvastab ja puhastab otselingi, et vältida 404 lehti.
+    """
+    if not initial_url or initial_url == "https://kinnisvara24.ee":
+        return "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
     
-    # 1. Otsime <a> silte kirjelduse seest
-    desc_raw = item.find('description') or item.find('summary')
-    if desc_raw:
-        soup_desc = BeautifulSoup(desc_raw.text, 'html.parser')
-        for a_tag in soup_desc.find_all('a', href=True):
-            href = a_tag['href'].strip()
-            if href and not href.endswith('/garaazid-muuk/harju-maakond') and href != "https://kinnisvara24.ee":
-                candidate_links.append(href)
+    # 1. Otsime lingist otse Kinnisvara24 objekti ID-d (nt /1234567 või id=1234567)
+    id_match = re.search(r'(?:kinnisvara24\.ee/|id=|objekt/|/)(24\d{5,}|[3-9]\d{6,})', initial_url)
+    if id_match:
+        return f"https://kinnisvara24.ee/objekt/{id_match.group(1)}"
 
-    # 2. Kontrollime guid elementi
-    guid_elem = item.find('guid')
-    if guid_elem:
-        guid_text = guid_elem.text.strip()
-        if (guid_text.startswith('http://') or guid_text.startswith('https://')) and not guid_text.endswith('/garaazid-muuk/harju-maakond'):
-            candidate_links.append(guid_text)
+    # 2. Kui on RSS.app vahelink, lahendame selle päringuga
+    if "rss.app" in initial_url or "news.google" in initial_url:
+        try:
+            req = urllib.request.Request(initial_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                final_url = resp.geturl()
+                if final_url and "404" not in final_url and final_url != "https://kinnisvara24.ee":
+                    return final_url
+        except Exception:
+            pass
 
-    # 3. Kontrollime link elemente
-    for link_elem in item.find_all('link'):
+    return initial_url
+
+def extract_direct_link(item, headers):
+    """Otsib RSS elemendist toorlingi ja teeb kindlaks selle lõpliku sihtkoha."""
+    raw_link = None
+    
+    # 1. Kontrollime standardset link elementi
+    link_elem = item.find('link')
+    if link_elem:
         href = link_elem.get('href') or link_elem.text
-        if href:
-            href = href.strip()
-            if href and not href.endswith('/garaazid-muuk/harju-maakond') and href != "https://kinnisvara24.ee":
-                candidate_links.append(href)
+        if href and href.strip():
+            raw_link = href.strip()
 
-    for link in candidate_links:
-        if link and link != "https://kinnisvara24.ee" and link != "https://kinnisvara24.ee/":
-            return link
+    # 2. Kui puudub, kontrollime guid elementi
+    if not raw_link:
+        guid_elem = item.find('guid')
+        if guid_elem and guid_elem.text.strip():
+            raw_link = guid_elem.text.strip()
 
-    return default_url
+    # 3. Kui ikka puudub, otsime kirjelduse HTML-ist
+    if not raw_link:
+        desc_raw = item.find('description') or item.find('summary')
+        if desc_raw:
+            soup_desc = BeautifulSoup(desc_raw.text, 'html.parser')
+            a_tag = soup_desc.find('a', href=True)
+            if a_tag:
+                raw_link = a_tag['href'].strip()
+
+    return resolve_final_url(raw_link, headers)
 
 
 # --- 1. FACEBOOK TABI LOOGIKA ---
@@ -78,7 +97,7 @@ with tab_fb:
     st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
     
     rss_url_fb = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
     
     results_fb = []
     try:
@@ -99,7 +118,7 @@ with tab_fb:
             if len(description) > 200:
                 description = description[:200] + "..."
                 
-            link = extract_direct_link(item, "https://www.facebook.com/groups/442569942509759")
+            link = extract_direct_link(item, headers)
             
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
@@ -181,112 +200,4 @@ with tab_fb:
 
 # --- 2. KINNISVARA24 TABI LOOGIKA ---
 with tab_kv24:
-    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee, uuemad eespool):")
-    
-    rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    
-    # Kehtiv ja töötav Kinnisvara24 Harjumaa garaažide otsingulink
-    valid_kv24_search_url = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
-    
-    results_kv24 = []
-    try:
-        req = urllib.request.Request(rss_url_kv24, headers=headers)
-        xml_data = urllib.request.urlopen(req).read()
-        soup = BeautifulSoup(xml_data, 'html.parser')
-        
-        items = soup.find_all(['item', 'entry'])
-        one_month_ago_timestamp = (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
-        
-        for item in items:
-            title_raw = item.find('title').text if item.find('title') else "Garaaž Kinnisvara24-st"
-            title = clean_text(title_raw)
-            
-            desc_raw = item.find('description') or item.find('summary')
-            raw_desc_text = desc_raw.text if desc_raw else ""
-            description = clean_text(raw_desc_text)
-            
-            price = extract_price(title_raw + " " + raw_desc_text + " " + description)
-            
-            if len(description) > 200:
-                description = description[:200] + "..."
-                
-            # Hankige link (kui otselink puudub, suunab toimivale otsingulehele)
-            link = extract_direct_link(item, valid_kv24_search_url)
-            
-            pub_date_elem = item.find('pubDate') or item.find('updated')
-            pub_date_str = pub_date_elem.text if pub_date_elem else ""
-            
-            timestamp = 0
-            if pub_date_str:
-                try:
-                    from email.utils import parsedate_to_datetime
-                    parsed_date = parsedate_to_datetime(pub_date_str)
-                    timestamp = parsed_date.timestamp()
-                except:
-                    try:
-                        timestamp = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00')).timestamp()
-                    except:
-                        timestamp = 0
-
-            if timestamp > 0 and timestamp < one_month_ago_timestamp:
-                continue
-
-            image_url = None
-            enclosure = item.find('enclosure')
-            if enclosure and enclosure.get('url'):
-                image_url = enclosure.get('url')
-            elif desc_raw:
-                img_tag = BeautifulSoup(raw_desc_text, 'html.parser').find('img')
-                if img_tag and img_tag.get('src'):
-                    image_url = img_tag.get('src')
-            
-            results_kv24.append({
-                "title": title,
-                "description": description,
-                "price": price,
-                "location": "Harjumaa",
-                "link": link,
-                "image": image_url,
-                "timestamp": timestamp
-            })
-            
-        results_kv24 = sorted(results_kv24, key=lambda x: x["timestamp"], reverse=True)
-
-    except Exception as e:
-        print(f"Viga Kinnisvara24 RSS skännimisel: {e}")
-
-    if not results_kv24:
-        results_kv24 = [
-            {
-                "title": "Sobivaid kuulutusi ei leitud.",
-                "description": "Hetkel ei ole RSS-voos ühtegi garaaži kuulutust.",
-                "price": "-",
-                "location": "Harjumaa",
-                "link": valid_kv24_search_url,
-                "image": None,
-                "timestamp": 0
-            }
-        ]
-
-    for item in results_kv24:
-        with st.container():
-            if item.get("image"):
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    st.image(item["image"], use_container_width=True)
-                with col2:
-                    st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                    if item.get("description"):
-                        st.write(item.get("description"))
-                    st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
-            else:
-                st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                if item.get("description"):
-                    st.write(item.get("description"))
-                st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
-            
-            link = item.get("link", "#")
-            if link != "#":
-                st.markdown(f"[👉 Vaata kuulutust Kinnisvara24 portaalis]({link})")
-        st.divider()
+    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee
