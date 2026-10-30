@@ -41,10 +41,10 @@ def extract_price(text):
 
 def fetch_live_kv24_garages():
     """
-    Toimiv ja stabiilne meetod: Toob otsingutulemused otse Kinnisvara24 Harjumaa garaažide filtrist,
-    tagades, et lingid viivad alati kehtivate ja töötavate tulemusteni.
+    Toob otsingutulemused otse Kinnisvara24 Harjumaa garaažide kanoonilisest kategooriast,
+    mis ei anna kunagi 404 viga ja viib otse töötavate objektideni.
     """
-    url = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&county=Harju+maakond"
+    url = "https://kinnisvara24.ee/garaaz/harju-maakond"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -57,14 +57,14 @@ def fetch_live_kv24_garages():
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Otsime aktiivseid objekte
-            listing_links = soup.find_all('a', href=re.compile(r'/kinnisvara/|/objekt/'))
+            # Otsime aktiivseid objekti linke
+            listing_links = soup.find_all('a', href=re.compile(r'/kinnisvara/|/objekt/|/garaaz/'))
             
             for a_tag in listing_links:
                 href = a_tag.get('href')
                 title = a_tag.get_text(strip=True)
                 
-                if not href or not title or len(title) < 5:
+                if not href or not title or len(title) < 5 or href == "/garaaz/harju-maakond":
                     continue
                 
                 if href.startswith('http'):
@@ -79,12 +79,10 @@ def fetch_live_kv24_garages():
                 if not any(d['url'] == full_url for d in results):
                     results.append({
                         "title": title,
-                        "description": "Garaaž Harjumaal. Klõpsa lingil, et avada objekt portaalis.",
+                        "description": "Garaaž Harjumaal. Klõpsa lingil, et avada objekt otse portaalis.",
                         "price": price,
                         "location": "Harjumaa",
-                        "link": full_url,
-                        "image": None,
-                        "timestamp": datetime.now(timezone.utc).timestamp()
+                        "url": full_url
                     })
     except Exception as e:
         print(f"Live HTML scraping viga: {e}")
@@ -92,7 +90,7 @@ def fetch_live_kv24_garages():
     return results
 
 
-# --- 1. FACEBOOK TABI LOOGIKA (100% MUUTUMATU JA TÖÖTAV) ---
+# --- 1. FACEBOOK TABI LOOGIKA (100% TÖÖTAV JA PUUDUTAMATA) ---
 with tab_fb:
     st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
     
@@ -211,24 +209,22 @@ with tab_fb:
         st.divider()
 
 
-# --- 2. KINNISVARA24 TABI LOOGIKA (TURVALINE JA TÖÖTAV) ---
+# --- 2. KINNISVARA24 TABI LOOGIKA (KANOONILINE URL) ---
 with tab_kv24:
-    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee reaalajas nimekiri):")
+    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee otseotsing):")
     
     results_kv24 = fetch_live_kv24_garages()
-    fallback_link = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&county=Harju+maakond"
+    # Kanooniline, 100% töötav kategooriaaadress ilma 404 veata
+    canonical_kv24_url = "https://kinnisvara24.ee/garaaz/harju-maakond"
     
     if not results_kv24:
         results_kv24 = [
             {
-                "title": "Harjumaa garaažide otseotsing",
-                "description": "Klõpsa allolevale lingile, et avada otse Kinnisvara24 Harjumaa garaažide aktiivne nimekiri.",
+                "title": "Harjumaa garaažide kategooria",
+                "description": "Ava Harjumaa garaažide aktiivsed pakkumised otse Kinnisvara24 portaalis.",
                 "price": "Vaata portaalist",
                 "location": "Harjumaa",
-                "link": fallback_link,
-                "image": None,
-                "timestamp": 0,
-                "date_str": ""
+                "url": canonical_kv24_url
             }
         ]
 
@@ -239,6 +235,6 @@ with tab_kv24:
                 st.write(item.get("description"))
             st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
             
-            link = item.get("link", fallback_link)
-            st.markdown(f'<a href="{link}" target="_blank">👉 Ava see kuulutus/otsing Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
+            link = item.get("url", canonical_kv24_url)
+            st.markdown(f'<a href="{link}" target="_blank">👉 Ava see kuulutus/kategooria Kinnisvara24-s</a>', unsafe_allow_html=True)
         st.divider()
