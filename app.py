@@ -1,12 +1,11 @@
 import streamlit as st
-import json
-import os
 import urllib.request
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime, timedelta, timezone
 import urllib.parse
 
+# Lehe seadistus
 st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
 
 st.title("⚡ AI Kuulutuste Skänner (Tallinn & Harjumaa)")
@@ -15,6 +14,7 @@ st.title("⚡ AI Kuulutuste Skänner (Tallinn & Harjumaa)")
 tab_fb, tab_kv24 = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 Kinnisvara24: Garaažid Harjumaal"])
 
 def clean_text(text):
+    """Eemaldab HTML märgised ja CDATA ning puhastab teksti."""
     if not text:
         return ""
     text = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', text, flags=re.DOTALL)
@@ -22,28 +22,31 @@ def clean_text(text):
     return clean_soup.get_text(strip=True)
 
 def extract_price(text):
+    """Leiab hinnad tekstist."""
     if not text:
         return "Hind puudub"
     
+    # Proovi leida hind kujul XXX € või XXX EUR
     match = re.search(r'(\d[\d\s\.]*)\s*(?:€|EUR)(?:\s*/\s*[a-zA-ZäöüõÄÖÜÕ]+)?', text, re.IGNORECASE)
     if match:
         return match.group(0).strip()
     
+    # Proovi leida hind pärast sõna 'hind:'
     match_label = re.search(r'(?:hind|hind:)\s*(\d[\d\s\.]*)', text, re.IGNORECASE)
     if match_label:
         return f"{match_label.group(1).strip()} €"
         
+    # Üldine muster
     match_generic = re.search(r'(\d[\d\s]{2,})\s*(?:eur|euro|eurot)', text, re.IGNORECASE)
     if match_generic:
         return f"{match_generic.group(1).strip()} €"
 
-    return "Hind kokkuleppel / puudub tekstis"
+    return "Hind kokkuleppel / puudub"
 
 def get_kv24_search_link(title):
-    """Loob pealkirja põhjal töötava ja spetsiifilise Kinnisvara24 otsingu lingi."""
+    """Loob pealkirja põhjal töötava Kinnisvara24 otsingu lingi."""
     base_url = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
     if title and title != "Garaaž Kinnisvara24-st":
-        # Võtame pealkirjast esimese olulise sõna/piirkonna (nt "Tallinn" või "Kesklinn")
         query = title.split(',')[0].strip()
         encoded_query = urllib.parse.quote(query)
         return f"https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond&keyword={encoded_query}"
@@ -191,7 +194,6 @@ with tab_kv24:
             if len(description) > 200:
                 description = description[:200] + "..."
                 
-            # Genereerime antud kuulutuse pealkirja põhjal töötava otsetee
             specific_link = get_kv24_search_link(title)
             
             pub_date_elem = item.find('pubDate') or item.find('updated')
