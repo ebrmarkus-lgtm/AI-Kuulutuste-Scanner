@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 
 # -----------------------------------------------------------------------------
-# 1. LEHE KONFIGURATSIOON & TÖÖKORRAS UI/UX DISAIN
+# 1. RAKENDUSE SEADISTUS JA TÖÖKORRAS UI/UX DISAIN
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Kuulutuste Skänner Pro", 
@@ -19,51 +19,55 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-PRO_UI_CSS = """
+APP_THEME_CSS = """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
     html, body, [class*="css"] {
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     .stApp {
-        background: #f8fafc;
+        background-color: #f8fafc;
         color: #0f172a;
     }
     
-    /* Pealkirja ja päise kujundus */
+    /* Päis */
     .hero-container {
-        padding: 1rem 0 1.5rem 0;
+        padding: 0.5rem 0 1.25rem 0;
         border-bottom: 1px solid #e2e8f0;
         margin-bottom: 1.5rem;
     }
     
     .main-title {
-        font-size: 2.2rem;
+        font-size: 2rem;
         font-weight: 800;
         color: #0f172a;
-        letter-spacing: -0.03em;
-        margin-bottom: 0.3rem;
+        letter-spacing: -0.025em;
+        margin-bottom: 0.25rem;
     }
     
     .sub-title {
-        font-size: 1rem;
+        font-size: 0.95rem;
         color: #64748b;
         font-weight: 400;
     }
 
-    /* Vahelehtede stiil - tagab teksti nähtavuse kõigis seadmetes */
+    /* Vahelehed (Tabs) - Tagab täieliku loetavuse ilma kokku surumata */
     .stTabs [data-baseweb="tab-list"] {
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
     }
 
     .stTabs [data-baseweb="tab"] {
         font-weight: 600;
         font-size: 1rem;
         color: #475569;
-        padding: 10px 20px;
+        padding: 12px 20px;
+        white-space: nowrap;
     }
 
     .stTabs [aria-selected="true"] {
@@ -75,11 +79,11 @@ PRO_UI_CSS = """
     .pro-card {
         background: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-        transition: all 0.25s ease;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+        transition: all 0.2s ease;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -87,45 +91,45 @@ PRO_UI_CSS = """
 
     .pro-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
         border-color: #cbd5e1;
     }
 
     .card-title {
-        font-size: 1.2rem;
+        font-size: 1.15rem;
         font-weight: 700;
         color: #0f172a;
         line-height: 1.4;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
     }
 
     .card-date {
-        font-size: 0.825rem;
+        font-size: 0.8rem;
         font-weight: 500;
         color: #94a3b8;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }
 
     .card-desc {
-        font-size: 0.95rem;
+        font-size: 0.925rem;
         color: #334155;
-        line-height: 1.6;
-        margin-bottom: 18px;
+        line-height: 1.55;
+        margin-bottom: 16px;
     }
 
-    /* Märgised (Badges) */
+    /* Märgised */
     .card-tags {
         display: flex;
         align-items: center;
         gap: 8px;
         flex-wrap: wrap;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
     }
 
     .badge-pill {
-        padding: 6px 14px;
-        border-radius: 30px;
-        font-size: 0.8rem;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.775rem;
         font-weight: 600;
     }
 
@@ -153,35 +157,34 @@ PRO_UI_CSS = """
         align-items: center;
         justify-content: center;
         width: 100%;
-        padding: 12px 20px;
+        padding: 10px 18px;
         background: #0f172a;
         color: #ffffff !important;
-        font-size: 0.9rem;
+        font-size: 0.875rem;
         font-weight: 600;
-        border-radius: 12px;
+        border-radius: 10px;
         text-decoration: none !important;
         transition: all 0.2s ease;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
     }
 
     .pro-btn:hover {
         background: #2563eb;
-        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
     }
 </style>
 """
-st.markdown(PRO_UI_CSS, unsafe_allow_html=True)
+st.markdown(APP_THEME_CSS, unsafe_allow_html=True)
 
 # Päise plokk
 st.markdown("""
     <div class="hero-container">
         <div class="main-title">⚡ AI Kuulutuste Skänner</div>
-        <div class="sub-title">Reaalajas agregeeritud intelligentne voog: Facebook Free & Kinnisvara24 Harjumaal</div>
+        <div class="sub-title">Reaalajas agregeeritud voog: Facebook Marketplace & Kinnisvara24 Harjumaal</div>
     </div>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. ROBUSTNE SESSION, TÕLGE JA PARALLEELNE VALIDEERIMINE
+# 2. VÕRGU SEADISTUS, TÕLGE JA PARALLEELNE VALIDEERIMINE
 # -----------------------------------------------------------------------------
 def get_robust_session():
     session = requests.Session()
@@ -253,7 +256,7 @@ def extract_price(text):
     return "Hind kokkuleppel"
 
 # -----------------------------------------------------------------------------
-# 3. ANDMETE KORJE (KV24 & REITINGUD)
+# 3. ANDMEKORJE LOOGIKA (KINNISVARA24 & REITINGUD)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
@@ -287,7 +290,7 @@ def fetch_live_kv24_garages():
                 if not any(d['url'] == full_url for d in results):
                     results.append({
                         "title": title,
-                        "description": "Aktiivne garaaži/boksi müügipakkumine Harju maakonnas.",
+                        "description": "Aktiivne garaaži või boksi müügipakkumine Harju maakonnas.",
                         "price": price,
                         "location": "Harju maakond",
                         "url": full_url
@@ -322,12 +325,12 @@ def fetch_reitingud_html():
     return None
 
 # -----------------------------------------------------------------------------
-# 4. VAHELEHED (TABS) - PUHTAD TEXT-NIMED ILMA SÕLMEDA CSS-ita
+# 4. VAHELEHED (TABS) - OPTIMEERITUD EMOJID JA SELGED PEALIRJAD
 # -----------------------------------------------------------------------------
 tab_fb, tab_kv24, tab_reitingud = st.tabs([
-    "📌 Facebook Marketplace", 
-    "🏠 Kinnisvara24 Garaažid",
-    "📊 Reitingud"
+    "🎁 Tasuta asjad (Facebook)", 
+    "🏢 Harjumaa garaažid (KV24)",
+    "📈 Reitingud reaalajas"
 ])
 
 # --- TAB 1: FACEBOOK MARKETPLACE ---
