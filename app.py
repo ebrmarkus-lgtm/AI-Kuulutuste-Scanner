@@ -46,7 +46,7 @@ def extract_price(text):
 
     return "Hind kokkuleppel / puudub"
 
-# Vahemällu salvestamine 24 tunniks (86400 sekundit), et tagada igapäevane automaatne uuenemine
+# Vahemällu salvestamine 24 tunniks (86400 sekundit)
 @st.cache_data(ttl=86400)
 def fetch_live_kv24_garages():
     """Skännib otse Kinnisvara24 Harjumaa garaažide müügikategooriat."""
@@ -102,9 +102,7 @@ def fetch_reitingud_html():
         res = requests.get(url, headers=headers, timeout=10)
         if res.status_code == 200:
             html = res.text
-            # Asendab kõik 'Norstat' viited (nii suurte kui väikeste tähtedega)
             html = re.sub(r'Norstat', 'Eesti reitingud globaalselt', html, flags=re.IGNORECASE)
-            # Lisab kanoonilise baas-URLi, et stiilid ja pildid laeksid korrektselt
             html = html.replace('<head>', '<head><base href="https://reitingud.ee/">')
             return html
     except Exception as e:
@@ -227,7 +225,7 @@ with tab_fb:
             
             link = item.get("link", "#")
             if link != "#":
-                st.markdown(f'<a href="{link}" target="_blank">👉 Vaata kuulutust originaalportaalis</a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link}" target="_blank">👉 Vaata kuulutust</a>', unsafe_allow_html=True)
         st.divider()
 
 
@@ -273,5 +271,4 @@ with tab_reitingud:
     if reitingud_html:
         components.html(reitingud_html, height=850, scrolling=True)
     else:
-        # Fallback juhtudeks, kui otselaadimine on piiratud
         components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
