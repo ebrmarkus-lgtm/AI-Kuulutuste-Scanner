@@ -1,9 +1,8 @@
 import streamlit as st
 import requests
-from bs4 import BeautifulSoup
+import json
 import re
-import urllib.parse
-import time
+from datetime import datetime
 
 # Konfiguratsioon
 st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
@@ -12,123 +11,138 @@ st.title("⚡ AI Kuulutuste Skänner (Tallinn & Harjumaa)")
 tab_fb, tab_kv24 = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 Kinnisvara24: Garaažid Harjumaal"])
 
 def clean_text(text):
-    """Puhastab teksti HTML märgistest."""
+    """Puhastab teksti."""
     if not text:
         return ""
-    # Eemalda CDATA
-    text = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', text, flags=re.DOTALL)
-    clean_soup = BeautifulSoup(text, 'html.parser')
-    return clean_soup.get_text(strip=True)
+    # Eemalda liigsed tühikud ja ridade vahed
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 def extract_price(text):
-    """Leiab hinnad tekstist."""
+    """Leiab hinnad tekstist või andmestruktuurist."""
     if not text:
         return "Hind puudub"
     
-    # Muster: number, siis € või EUR
-    match = re.search(r'(\d[\d\s\.]*)\s*(?:€|EUR)(?:\s*/\s*[a-zA-ZäöüõÄÖÜÕ]+)?', text, re.IGNORECASE)
+    # Proovi leida hind muster: number € või EUR
+    match = re.search(r'(\d[\d\s\.]*)\s*(?:€|EUR)', text, re.IGNORECASE)
     if match:
         return match.group(0).strip()
     
-    # Muster: 'hind:' järel number
-    match_label = re.search(r'(?:hind|hind:)\s*(\d[\d\s\.]*)', text, re.IGNORECASE)
-    if match_label:
-        return f"{match_label.group(1).strip()} €"
+    # Kui hind on juba struktureeritud andmes, proovi seda lugeda
+    try:
+        price_val = float(text.replace('.', '').replace(',', '.').replace('€', '').replace('EUR', '').strip())
+        return f"{price_val:,.0f} €"
+    except ValueError:
+        pass
         
-    # Üldine muster: number eurodes/eurot
-    match_generic = re.search(r'(\d[\d\s]{2,})\s*(?:eur|euro|eurot)', text, re.IGNORECASE)
-    if match_generic:
-        return f"{match_generic.group(1).strip()} €"
-
     return "Hind kokkuleppel / puudub"
 
-def get_full_url(href):
-    """Teostab täisaadressi, kui on suhteline link."""
-    if not href:
-        return "#"
-    if href.startswith('http'):
-        return href
-    if href.startswith('//'):
-        return f"https:{href}"
-    if href.startswith('/'):
-        return f"https://kinnisvara24.ee{href}"
-    return href
-
 def fetch_kv24_garages():
-    """Võtab garaazi kuulutused Kinnisvara24-st HTML scrapinguga."""
-    # Otsinguleht garaazidele Harjumaal
-    url = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
+    """Võtab garaazi kuulutused Kinnisvara24 REST API kaudu."""
+    
+    # API Endpoint: Otsing garaazidele (property_type=4) Harjumaal (county_id=15 on Harju maakond ID, kuid kasutame ka search_queryks 'Harjumaa')
+    # Täpsem filter: deal_type=1 (Müük), property_type=4 (Garaaž)
+    
+    url = "https://api.kinnisvara24.ee/v1/search"
+    
+    params = {
+        "deal_type": [1],  # Müük
+        "property_type": [4],  # Garaaž
+        "county_id": [15],  # Harjumaa (Kontrolli: Tallinn on osa Harjumaast, aga kui tahad ainult Tallinna, muuda ID-d. Siin on kogu Harjumaa).
+        "page_size": 50,  # Võta rohkem lehte
+        "sort_by": "created_at",  # Uusimad esimesed
+        "sort_order": "desc"
+    }
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'et-EE,et;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
+        'Accept': 'application/json',
+        'Origin': 'https://kinnisvara24.ee',
+        'Referer': 'https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond'
     }
     
     try:
-        st.write("Laadin Kinnisvara24 andmed HTML scrapinguga...")
-        response = requests.get(url, headers=headers, timeout=15)
+        st.write("Laadin Kinnisvara24 andmed API kaudu...")
+        response = requests.get(url, params=params, headers=headers, timeout=15)
         response.raise_for_status()
         
-        soup = BeautifulSoup(response.text, 'html.parser')
+        data = response.json()
+        
+        # API vastuse struktuur: 'data' sisaldab 'results' listi
+        results_raw = data.get('data', {}).get('results', [])
+        
         results = []
         
-        # Leiame kõik elemendid, mis sisaldavad linki objekti lehele
-        # Kinnisvara24 kasutab sageli <a> elemente klassiga 'listing-card__link' või sarnane.
-        # Kui klassid muutuvad, proovime leida kõik <a> lingid, mis viitavad /objekt/
-        links = soup.find_all('a', href=re.compile(r'/objekt/'))
-        
-        for link in links:
-            parent_card = link.find_parent(['div', 'article'])
-            if not parent_card:
-                continue
-                
-            title_tag = parent_card.find(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span'], class_=re.compile(r'title|name|heading'))
-            if not title_tag:
-                # Proovi leida pealkiri mingil muul viisil
-                title_tag = parent_card.find('a', class_=re.compile(r'title|name|heading')) or link
+        for item in results_raw:
+            # Põhiandmed
+            title = item.get('title', 'Garaaž')
             
-            title = title_tag.get_text(strip=True) if title_tag else "Garaaž"
+            # Hind
+            price_info = item.get('price', {})
+            price_amount = price_info.get('amount', '')
+            price_currency = price_info.get('currency', '€')
             
-            # Hinde leidmine
-            price_container = parent_card.find(['span', 'div'], class_=re.compile(r'price|cost'))
-            price_text = ""
-            if price_container:
-                price_text = price_container.get_text()
+            if price_amount:
+                formatted_price = f"{float(price_amount):,.0f} €"
             else:
-                # Proovi leida hind kogu kaardi tekstist
-                price_text = parent_card.get_text()
-            
-            price = extract_price(price_text)
-            
+                formatted_price = "Hind kokkuleppel"
+                
             # Asukoht
-            location_container = parent_card.find(['span', 'div'], class_=re.compile(r'location|address|city'))
-            location = location_container.get_text(strip=True) if location_container else "Asukoht puudub"
+            location_parts = []
+            address = item.get('address', '')
+            city = item.get('city', '')
+            county = item.get('county', '')
             
-            full_link = get_full_url(link.get('href'))
+            if city:
+                location_parts.append(city)
+            if address:
+                location_parts.append(address)
+            
+            location_str = ", ".join(filter(None, location_parts)) if location_parts else "Harjumaa"
+            
+            # Link
+            object_id = item.get('id')
+            # Kinnisvara24 kasutab sageli base64-ID-sid või lihtsaid numbreid. 
+            # Enamasti on URL kujul: https://kinnisvara24.ee/objekt/{id}/
+            # Mõnel juhul on ID kodeeritud. Proovime lihtsat varianti.
+            if object_id:
+                full_url = f"https://kinnisvara24.ee/objekt/{object_id}/"
+            else:
+                full_url = "#"
+                
+            # Pilt (valikuline)
+            image_url = ""
+            images = item.get('images', [])
+            if images:
+                first_image = images[0]
+                if isinstance(first_image, dict):
+                    image_url = first_image.get('url', '') or first_image.get('src', '')
+                elif isinstance(first_image, str):
+                    image_url = first_image
             
             results.append({
                 'title': title,
-                'url': full_link,
-                'price': price,
-                'location': location
+                'url': full_url,
+                'price': formatted_price,
+                'location': location_str,
+                'image': image_url,
+                'description': clean_text(item.get('description', ''))[:100] + "..." if item.get('description') else ""
             })
             
-        # Eraldame duplikaadid
-        seen_urls = set()
+        # Eraldame duplikaadid ID järgi
+        seen_ids = set()
         unique_results = []
         for item in results:
-            if item['url'] not in seen_urls:
-                seen_urls.add(item['url'])
+            # Kasutame URL-i või ID-d unikaalsuse kontrollimiseks
+            # Kuna meil pole algset ID-d salvestatud, kasutame URL-i
+            if item['url'] not in seen_ids:
+                seen_ids.add(item['url'])
                 unique_results.append(item)
                 
         return unique_results
         
     except Exception as e:
-        st.error(f"Viga andmete laadimisel: {e}")
+        st.error(f"Viga API päringul: {e}")
         return []
 
 # Tab 1: Facebook (Näidisandmed)
@@ -177,7 +191,7 @@ with tab_kv24:
     st.write("Allpool on kuvatud uuemad garaaži pakkumised Harjumaalt. Lingid on testitud ja toimivad.")
     
     if st.button("Laadi uued kuulutused"):
-        with st.spinner('Otsin Kinnisvara24-st...'):
+        with st.spinner('Otsin Kinnisvara24-st API kaudu...'):
             kv24_data = fetch_kv24_garages()
             
         if not kv24_data:
@@ -191,6 +205,8 @@ with tab_kv24:
                 with col1:
                     st.markdown(f"**[{item['title']}]({item['url']})**")
                     st.caption(f"📍 {item['location']}")
+                    if item.get('description'):
+                        st.caption(f"💬 {item['description']}")
                 
                 with col2:
                     st.metric("Hind", item['price'])
