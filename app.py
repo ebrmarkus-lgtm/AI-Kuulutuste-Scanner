@@ -39,18 +39,14 @@ def extract_price(text):
     return "Hind kokkuleppel / puudub tekstoas"
 
 def resolve_final_url(initial_url, headers):
-    """
-    Tuvastab ja puhastab otselingi, et vältida 404 lehti.
-    """
     if not initial_url or initial_url == "https://kinnisvara24.ee":
         return "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
     
-    # 1. Otsime lingist otse Kinnisvara24 objekti ID-d (nt /1234567 või id=1234567)
+    # Otsime ID-d
     id_match = re.search(r'(?:kinnisvara24\.ee/|id=|objekt/|/)(24\d{5,}|[3-9]\d{6,})', initial_url)
     if id_match:
         return f"https://kinnisvara24.ee/objekt/{id_match.group(1)}"
 
-    # 2. Kui on RSS.app vahelink, lahendame selle päringuga
     if "rss.app" in initial_url or "news.google" in initial_url:
         try:
             req = urllib.request.Request(initial_url, headers=headers)
@@ -64,23 +60,19 @@ def resolve_final_url(initial_url, headers):
     return initial_url
 
 def extract_direct_link(item, headers):
-    """Otsib RSS elemendist toorlingi ja teeb kindlaks selle lõpliku sihtkoha."""
     raw_link = None
     
-    # 1. Kontrollime standardset link elementi
     link_elem = item.find('link')
     if link_elem:
         href = link_elem.get('href') or link_elem.text
         if href and href.strip():
             raw_link = href.strip()
 
-    # 2. Kui puudub, kontrollime guid elementi
     if not raw_link:
         guid_elem = item.find('guid')
         if guid_elem and guid_elem.text.strip():
             raw_link = guid_elem.text.strip()
 
-    # 3. Kui ikka puudub, otsime kirjelduse HTML-ist
     if not raw_link:
         desc_raw = item.find('description') or item.find('summary')
         if desc_raw:
@@ -194,7 +186,7 @@ with tab_fb:
             
             link = item.get("link", "#")
             if link != "#":
-                st.markdown(f"[👉 Vaata kuulutust originaalportaalis]({link})")
+                st.markdown(f'<a href="{link}" target="_blank">👉 Vaata kuulutust originaalportaalis</a>', unsafe_allow_html=True)
         st.divider()
 
 
@@ -227,7 +219,6 @@ with tab_kv24:
             if len(description) > 200:
                 description = description[:200] + "..."
                 
-            # Otseviide konkreetsele kuulutusele
             link = extract_direct_link(item, headers)
             
             pub_date_elem = item.find('pubDate') or item.find('updated')
@@ -304,5 +295,5 @@ with tab_kv24:
             
             link = item.get("link", "#")
             if link != "#":
-                st.markdown(f"[👉 Vaata kuulutust Kinnisvara24 portaalis]({link})")
+                st.markdown(f'<a href="{link}" target="_blank">👉 Vaata kuulutust Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
         st.divider()
