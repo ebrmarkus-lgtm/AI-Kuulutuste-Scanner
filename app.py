@@ -39,23 +39,23 @@ def extract_price(text):
     return "Hind kokkuleppel / puudub tekstoas"
 
 def extract_direct_link(item, default_url):
-    """Otsib RSS elemendist kõige täpsema otselinki kuulutuseni ja väldib pelgalt kodulehele suunamist."""
+    """Otsib RSS elemendist täpse lingi või ümbersuunamislingi kuulutuseni."""
     candidate_links = []
     
-    # 1. Otsime kõiki <a> silte kirjelduse seest (RSS.app paneb otselingi siia)
+    # 1. Otsime <a> silte kirjelduse seest
     desc_raw = item.find('description') or item.find('summary')
     if desc_raw:
         soup_desc = BeautifulSoup(desc_raw.text, 'html.parser')
         for a_tag in soup_desc.find_all('a', href=True):
             href = a_tag['href'].strip()
-            if href and href != "https://kinnisvara24.ee" and href != "https://kinnisvara24.ee/":
+            if href and not href.endswith('/garaazid-muuk/harju-maakond') and href != "https://kinnisvara24.ee":
                 candidate_links.append(href)
 
     # 2. Kontrollime guid elementi
     guid_elem = item.find('guid')
     if guid_elem:
         guid_text = guid_elem.text.strip()
-        if (guid_text.startswith('http://') or guid_text.startswith('https://')) and guid_text != "https://kinnisvara24.ee":
+        if (guid_text.startswith('http://') or guid_text.startswith('https://')) and not guid_text.endswith('/garaazid-muuk/harju-maakond'):
             candidate_links.append(guid_text)
 
     # 3. Kontrollime link elemente
@@ -63,12 +63,11 @@ def extract_direct_link(item, default_url):
         href = link_elem.get('href') or link_elem.text
         if href:
             href = href.strip()
-            if href and href != "https://kinnisvara24.ee" and href != "https://kinnisvara24.ee/":
+            if href and not href.endswith('/garaazid-muuk/harju-maakond') and href != "https://kinnisvara24.ee":
                 candidate_links.append(href)
 
-    # Filtreerime välja lingid, mis viitavad otse kuulutusele (nt sisaldavad ID-d või sõna /kinnisvara/ /garaaz/ vms)
     for link in candidate_links:
-        if link != "https://kinnisvara24.ee" and link != "https://kinnisvara24.ee/":
+        if link and link != "https://kinnisvara24.ee" and link != "https://kinnisvara24.ee/":
             return link
 
     return default_url
@@ -187,6 +186,9 @@ with tab_kv24:
     rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
+    # Kehtiv ja töötav Kinnisvara24 Harjumaa garaažide otsingulink
+    valid_kv24_search_url = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
+    
     results_kv24 = []
     try:
         req = urllib.request.Request(rss_url_kv24, headers=headers)
@@ -209,9 +211,8 @@ with tab_kv24:
             if len(description) > 200:
                 description = description[:200] + "..."
                 
-            # Täpse otselinki hankimine (vaikeväärtuseks Kinnisvara24 Harjumaa garaažide otsinguleht)
-            default_kv24_search = "https://kinnisvara24.ee/garaazid-muuk/harju-maakond"
-            link = extract_direct_link(item, default_kv24_search)
+            # Hankige link (kui otselink puudub, suunab toimivale otsingulehele)
+            link = extract_direct_link(item, valid_kv24_search_url)
             
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
@@ -262,7 +263,7 @@ with tab_kv24:
                 "description": "Hetkel ei ole RSS-voos ühtegi garaaži kuulutust.",
                 "price": "-",
                 "location": "Harjumaa",
-                "link": "https://kinnisvara24.ee/garaazid-muuk/harju-maakond",
+                "link": valid_kv24_search_url,
                 "image": None,
                 "timestamp": 0
             }
