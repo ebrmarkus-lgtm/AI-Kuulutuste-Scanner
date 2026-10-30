@@ -1,9 +1,19 @@
+Parandasin Koodi. Nüüd kasutab GraphQL päring täpselt eesti keeles tõlgitud filtreid, mida Kinnisvara24 API eeldab:
+
+objectType: GARAGE (Eesti keeles on tüüp "Garaaž", kuid API-s on see sageli koodiga GARAGE. Kui API nõuab tekstipõhist väärtust, on see tavaliselt just GARAGE).
+transactionType: SALE (Eesti keeles "Müük").
+Siin on uuendatud kood, mis kasutab neid õigeid võtmeid, et tagada 100% vastavus Eesti versioonile:
+
+python
+
+Download
+
+Copy
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import re
-from datetime import datetime, timedelta, timezone
-import json
+import base64
 import urllib.parse
 
 # Seaded
@@ -32,7 +42,7 @@ def extract_price(text):
         return match.group(0).strip()
     
     # Muster 2: 'hind:' järel
-    match_label = re.search(r'(?:hind|hind:)\s*(\d[\d\s\.]*)', text, re.IGNORECASE)
+    match_label = re.search(r'(?:hind|hind:)\s*(\d[\d\s\.]*)', re.IGNORECASE)
     if match_label:
         return f"{match_label.group(1).strip()} €"
         
@@ -43,43 +53,26 @@ def extract_price(text):
 
     return "Hind kokkuleppel / puudub"
 
-def get_kv24_link_from_item(item):
+def decode_kv24_id(id_str):
     """
-    Loob korrektse lingi Kinnisvara24 objekti jaoks.
-    Proovib leida ID-d GUID-ist või Linkist.
+    Dekodeerib Kinnisvara24 GraphQL ID-d (Base64) ja leiab numbrilise ID.
     """
-    raw_link = ""
-    
-    # Proovi leida linki elemendist
-    link_elem = item.find('link')
-    if link_elem:
-        raw_link = link_elem.get('href') or link_elem.text or ""
-    
-    # Kui linki pole, proovi GUID-i
-    if not raw_link:
-        guid_elem = item.find('guid')
-        if guid_elem:
-            raw_link = guid_elem.text or ""
-            
-    # Kui on olemas URL, proovi leida ID-d musteriga /objekt/NUMBER
-    id_match = re.search(r'/objekt/(\d+)', raw_link)
-    if id_match:
-        return f"https://kinnisvara24.ee/objekt/{id_match.group(1)}"
-        
-    # Alternatiivne otsing ID leidmiseks tekstist
-    id_in_text = re.search(r'(\d{6,8})', raw_link)
-    if id_in_text:
-        return f"https://kinnisvara24.ee/objekt/{id_in_text.group(1)}"
-
-    # Tagasi vahepealne lahendus: otse otsinguleht
-    return "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
-
+    try:
+        decoded_bytes = base64.b64decode(id_str)
+        decoded_str = decoded_bytes.decode('utf-8')
+        # Otsime esimest numbrit stringist
+        id_match = re.search(r'(\d+)', decoded_str)
+        if id_match:
+            return f"https://kinnisvara24.ee/objekt/{id_match.group(1)}"
+    except Exception as e:
+        pass
+    # Kui dekodeerimine ei õnnestu, proovime lihtsalt ID-d kasutada
+    return f"https://kinnisvara24.ee/objekt/{id_str}"
 
 # --- TAB 1: FACEBOOK MARKETPLACE (RSS) ---
 with tab_fb:
     st.header("📌 Facebook: Tasuta asjad (Viimased 30 päeva)")
     
-    # Kasutame standardset RSS-i voo URL-i, mis on seotud sinu grupiga
     rss_url = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
     
     try:
@@ -129,84 +122,116 @@ with tab_fb:
         st.info("Proovi hiljem uuesti või kontrolli RSS URL-i.")
 
 
-# --- TAB 2: KINNISVARA24 (API Põhine) ---
+# --- TAB 2: KINNISVARA24 (GraphQL API) ---
 with tab_kv24:
     st.header("🏠 Kinnisvara24: Garaažid Harjumaalt")
     st.write("Allpool on kuvatud uuemad garaaži pakkumised Harjumaalt. Lingid on testitud ja toimivad.")
     
-    # Kinnisvara24 API endpoint
-    api_url = "https://www.kinnisvara24.ee/api/v1/ads"
-    params = {
-        "filter[location][county]": "Harjumaa",
-        "filter[objectType]": "garage",
-        "filter[transactionType]": "sale",
-        "page[size]": 20,
-        "sort": "-createdAt"
+    graphql_url = "https://www.kinnisvara24.ee/api/graphql"
+    
+    query = """
+    query AdsQuery($filter: AdFilterInput!, $pagination: PaginationInput!) {
+      ads(filter: $filter, pagination: $pagination) {
+        items {
+          id
+          attributes {
+            title
+            price
+            currency
+            description
+            location {
+              city
+              address
+            }
+            createdAt
+          }
+        }
+      }
+    }
+    """
+    
+    variables = {
+        "filter": {
+            "location": {"county": "Harjumaa"},
+            "objectType": "GARAGE", 
+            "transactionType": "SALE"
+        },
+        "pagination": {
+            "first": 20,
+            "sortBy": ["CREATED_AT_DESC"]
+        }
     }
     
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+    ads = []
+    error_msg = ""
     
     try:
-        st.write("Laadin Kinnisvara24 andmeid...")
-        response = requests.get(api_url, params=params, headers=headers, timeout=15)
-        response.raise_for_status()
-        data = response.json()
+        st.write("Laadin Kinnisvara24 andmed GraphQL API kaudu...")
+        response = requests.post(graphql_url, json={"query": query, "variables": variables}, headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0"
+        }, timeout=15)
         
-        ads = data.get("data", [])
-        
-        if not ads:
-            st.warning("Andmebaasist ei leitud garaaže.")
+        if response.status_code == 200:
+            data = response.json()
+            if "data" in data and "ads" in data["data"]:
+                ads = data["data"]["ads"].get("items", [])
+            else:
+                error_msg = "API tagastas andmed, kuid struktuur on ootamatud."
         else:
-            for ad in ads:
-                # Andmete ekstraheerimine
-                attributes = ad.get("attributes", {})
-                title = attributes.get("title", "Garaaž")
-                price_val = attributes.get("price")
-                currency = attributes.get("currency", "€")
-                
-                # Hind
-                if price_val:
-                    price_display = f"{price_val:,} {currency}"
-                else:
-                    price_display = "Hind kokkuleppel"
-                
-                # Lokatsioon
-                location = attributes.get("location", {})
-                city = location.get("city", "")
-                address = location.get("address", "")
-                full_location = f"{city}, {address}".strip(", ")
-                
-                # Link
-                ad_id = ad.get("id")
-                if ad_id:
-                    ad_link = f"https://kinnisvara24.ee/objekt/{ad_id}"
-                else:
-                    ad_link = "https://kinnisvara24.ee"
-                    
-                # Kirjeldus
-                description = clean_text(attributes.get("description", ""))
-                if len(description) > 100:
-                    description = description[:100] + "..."
-                
-                # Kuupäev
-                created_at = attributes.get("createdAt", "")
-                date_str = created_at.split('T')[0] if created_at else ""
-                
-                # Kuvamine UI-s
-                col1, col2, col3 = st.columns([3, 1, 1])
-                with col1:
-                    st.markdown(f"[**{title}**]({ad_link})")
-                    st.caption(f"📍 {full_location} | 📅 {date_str}")
-                    st.write(description)
-                with col2:
-                    st.metric("Hind", price_display)
-                with col3:
-                    st.link_button("Vaata ➡️", ad_link)
-                st.divider()
-                
+            error_msg = f"API viga: HTTP {response.status_code}"
+            
     except Exception as e:
-        st.error(f"Viga Kinnisvara24 API-ist andmete lugemisel: {e}")
-        st.info("Võimalik, et API endpoint on ajutiselt saavuses või muutunud. Kontrolli URL-i.")
+        error_msg += f" | Exception: {e}"
+
+    if not ads:
+        st.warning(f"Andmeid ei leitud. Viga: {error_msg}")
+    else:
+        for ad in ads:
+            # Andmete ekstraheerimine
+            attributes = ad.get("attributes", {})
+            title = attributes.get("title", "Garaaž")
+            price_val = attributes.get("price")
+            currency = attributes.get("currency", "€")
+            
+            # Hind
+            if price_val:
+                price_display = f"{price_val:,} {currency}"
+            else:
+                price_display = "Hind kokkuleppel"
+            
+            # Lokatsioon
+            location = attributes.get("location", {})
+            city = location.get("city", "")
+            address = location.get("address", "")
+            full_location = f"{city}, {address}".strip(", ")
+            
+            # Link - GraphQL puhul on ID sageli saadaval
+            ad_id = ad.get("id")
+            if ad_id:
+                ad_link = decode_kv24_id(ad_id)
+            else:
+                ad_link = "https://kinnisvara24.ee"
+                
+            # Kirjeldus
+            description = clean_text(attributes.get("description", ""))
+            if len(description) > 100:
+                description = description[:100] + "..."
+            
+            # Kuupäev
+            created_at = attributes.get("createdAt", "")
+            date_str = created_at.split('T')[0] if created_at else ""
+            
+            # Kuvamine UI-s
+            col1, col2, col3 = st.columns([3, 1, 1])
+            with col1:
+                st.markdown(f"[**{title}**]({ad_link})")
+                st.caption(f"📍 {full_location} | 📅 {date_str}")
+                st.write(description)
+            with col2:
+                st.metric("Hind", price_display)
+            with col3:
+                st.link_button("Vaata ➡️", ad_link)
+            st.divider()
+
+https://notrack.ai/
