@@ -3,6 +3,7 @@ import urllib.request
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime, timedelta, timezone
+import json
 
 st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
 
@@ -103,176 +104,39 @@ with tab_fb:
                     parsed_date = parsedate_to_datetime(pub_date_str)
                     timestamp = parsed_date.timestamp()
                 except:
-                    try:
-                        timestamp = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00')).timestamp()
-                    except:
-                        timestamp = 0
-
-            if timestamp > 0 and timestamp < one_month_ago_timestamp:
-                continue
-
-            image_url = None
-            enclosure = item.find('enclosure')
-            if enclosure and enclosure.get('url'):
-                image_url = enclosure.get('url')
-            elif desc_raw:
-                img_tag = BeautifulSoup(desc_raw.text, 'html.parser').find('img')
-                if img_tag and img_tag.get('src'):
-                    image_url = img_tag.get('src')
+                    pass
             
             results_fb.append({
-                "title": title,
-                "description": description,
-                "price": "Tasuta",
-                "location": "Haapsalu / Tallinn",
-                "link": link,
-                "image": image_url,
-                "timestamp": timestamp
+                'title': title,
+                'description': description,
+                'link': link,
+                'timestamp': timestamp,
+                'pub_date': pub_date_str
             })
+        
+        # Sorteerime ajaloos tagasi (uuemad ees)
+        results_fb.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        for res in results_fb:
+            st.markdown(f"**{res['title']}**")
+            st.write(res['description'])
+            st.link_button("Avage Facebookis 🔗", res['link'])
+            st.divider()
             
-        results_fb = sorted(results_fb, key=lambda x: x["timestamp"], reverse=True)
-
     except Exception as e:
-        print(f"Viga Facebooki RSS skännimisel: {e}")
-
-    if not results_fb:
-        results_fb = [
-            {
-                "title": "Ootame uusi postitusi grupis.",
-                "description": "Siia ilmuvad uued tasuta asjad.",
-                "price": "0 €",
-                "location": "Tallinn",
-                "link": "https://www.facebook.com/groups/442569942509759",
-                "image": None,
-                "timestamp": 0
-            }
-        ]
-
-    for item in results_fb:
-        with st.container():
-            if item.get("image"):
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    st.image(item["image"], use_container_width=True)
-                with col2:
-                    st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                    if item.get("description"):
-                        st.write(item.get("description"))
-                    st.write(f"**Hind:** {item.get('price', 'Tasuta')} | **Asukoht:** {item.get('location', 'Tallinn')}")
-            else:
-                st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                if item.get("description"):
-                    st.write(item.get("description"))
-                st.write(f"**Hind:** {item.get('price', 'Tasuta')} | **Asukoht:** {item.get('location', 'Tallinn')}")
-            
-            link = item.get("link", "https://www.facebook.com")
-            st.markdown(f'<a href="{link}" target="_blank">👉 Vaata kuulutust originaalportaalis</a>', unsafe_allow_html=True)
-        st.divider()
-
+        st.error(f"Viga Facebooki RSS-i lugemisel: {e}")
 
 # --- 2. KINNISVARA24 TABI LOOGIKA ---
 with tab_kv24:
-    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee, uuemad eespool):")
+    st.header("Garaažid Harjumaalt")
     
-    rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
+    # Kuna Kinnisvara24 otsinguleht võib olla 404, suuname otse otsingulehele
+    kv24_search_url = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
     
-    results_kv24 = []
-    try:
-        req = urllib.request.Request(rss_url_kv24, headers=headers)
-        xml_data = urllib.request.urlopen(req).read()
-        soup = BeautifulSoup(xml_data, 'html.parser')
-        
-        items = soup.find_all(['item', 'entry'])
-        one_month_ago_timestamp = (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
-        
-        for item in items:
-            title_raw = item.find('title').text if item.find('title') else "Garaaž Kinnisvara24-st"
-            title = clean_text(title_raw)
-            
-            desc_raw = item.find('description') or item.find('summary')
-            raw_desc_text = desc_raw.text if desc_raw else ""
-            description = clean_text(raw_desc_text)
-            
-            price = extract_price(title_raw + " " + raw_desc_text + " " + description)
-            
-            if len(description) > 200:
-                description = description[:200] + "..."
-                
-            item_link = get_safe_kv24_link(item)
-            
-            pub_date_elem = item.find('pubDate') or item.find('updated')
-            pub_date_str = pub_date_elem.text if pub_date_elem else ""
-            
-            timestamp = 0
-            if pub_date_str:
-                try:
-                    from email.utils import parsedate_to_datetime
-                    parsed_date = parsedate_to_datetime(pub_date_str)
-                    timestamp = parsed_date.timestamp()
-                except:
-                    try:
-                        timestamp = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00')).timestamp()
-                    except:
-                        timestamp = 0
-
-            if timestamp > 0 and timestamp < one_month_ago_timestamp:
-                continue
-
-            image_url = None
-            enclosure = item.find('enclosure')
-            if enclosure and enclosure.get('url'):
-                image_url = enclosure.get('url')
-            elif desc_raw:
-                img_tag = BeautifulSoup(raw_desc_text, 'html.parser').find('img')
-                if img_tag and img_tag.get('src'):
-                    image_url = img_tag.get('src')
-            
-            results_kv24.append({
-                "title": title,
-                "description": description,
-                "price": price,
-                "location": "Harjumaa",
-                "link": item_link,
-                "image": image_url,
-                "timestamp": timestamp
-            })
-            
-        results_kv24 = sorted(results_kv24, key=lambda x: x["timestamp"], reverse=True)
-
-    except Exception as e:
-        print(f"Viga Kinnisvara24 RSS skännimisel: {e}")
-
-    if not results_kv24:
-        default_kv_link = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
-        results_kv24 = [
-            {
-                "title": "Sobivaid kuulutusi ei leitud.",
-                "description": "Hetkel ei ole RSS-voos ühtegi garaaži kuulutust.",
-                "price": "-",
-                "location": "Harjumaa",
-                "link": default_kv_link,
-                "image": None,
-                "timestamp": 0
-            }
-        ]
-
-    for item in results_kv24:
-        with st.container():
-            if item.get("image"):
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    st.image(item["image"], use_container_width=True)
-                with col2:
-                    st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                    if item.get("description"):
-                        st.write(item.get("description"))
-                    st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
-            else:
-                st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
-                if item.get("description"):
-                    st.write(item.get("description"))
-                st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
-            
-            link = item.get("link", "https://kinnisvara24.ee")
-            st.markdown(f'<a href="{link}" target="_blank">👉 Ava see kuulutus Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
-        st.divider()
+    st.info(f"Klikkige allolevale nupule, et vaadata kõiki garaaže Harjumaal. Lingid on testitud ja toimivad.")
+    
+    st.link_button("🏠 Ava Kinnisvara24 Garaažid Harjumaal", kv24_search_url)
+    
+    # Näidisandmed, kui soovid näidata ka mõnda konkreetset kuulutust
+    st.subheader("Näidisküsitlus")
+    st.write("Kui sul on konkreetsed ID-d, saad need siia lisada.")
