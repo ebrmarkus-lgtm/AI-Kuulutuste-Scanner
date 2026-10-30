@@ -22,12 +22,25 @@ def clean_text(text):
 
 def extract_price(text):
     if not text:
-        return "Hind ebaselge"
-    # Otsime mustrit nagu "15000 €", "15 000€" vms
-    match = re.search(r'(\d[\d\s]*)\s*(?:€|EUR)', text, re.IGNORECASE)
+        return "Hind puudub"
+    
+    # 1. Otsime numbreid koos euro tähisega (nt "15 000 €", "150 €/kuu", "15000€")
+    match = re.search(r'(\d[\d\s\.]*)\s*(?:€|EUR)(?:\s*/\s*[a-zA-ZäöüõÄÖÜÕ]+)?', text, re.IGNORECASE)
     if match:
-        return match.group(0).strip()
-    return "Vaata hinda portaalist"
+        clean_num = match.group(0).strip()
+        return clean_num
+    
+    # 2. Otsime sõna "Hind:" järel olevaid numbreid (nt "Hind: 15000")
+    match_label = re.search(r'(?:hind|hind:)\s*(\d[\d\s\.]*)', text, re.IGNORECASE)
+    if match_label:
+        return f"{match_label.group(1).strip()} €"
+        
+    # 3. Otsime üldist numbrit teksti algusest või keskelt, kui esineb euro märge teises vormis
+    match_generic = re.search(r'(\d[\d\s]{2,})\s*(?:eur|euro|eurot)', text, re.IGNORECASE)
+    if match_generic:
+        return f"{match_generic.group(1).strip()} €"
+
+    return "Hind kokkuleppel / puudub tekstoas"
 
 # --- 1. FACEBOOK TABI LOOGIKA ---
 with tab_fb:
@@ -145,7 +158,6 @@ with tab_fb:
 with tab_kv24:
     st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee, uuemad eespool):")
     
-    # Uus Kinnisvara24 RSS link
     rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
     
     results_kv24 = []
@@ -162,10 +174,11 @@ with tab_kv24:
             title = clean_text(title_raw)
             
             desc_raw = item.find('description') or item.find('summary')
-            description = clean_text(desc_raw.text) if desc_raw else ""
+            raw_desc_text = desc_raw.text if desc_raw else ""
+            description = clean_text(raw_desc_text)
             
-            # Automaatne hinna ekstraheerimine pealkirjast ja kirjeldusest
-            price = extract_price(title + " " + description)
+            # Ekstraheerime hinna toorest XML tektist (võtab arvesse pealkirja ja kirjeldust enne puhastamist)
+            price = extract_price(title_raw + " " + raw_desc_text + " " + description)
             
             if len(description) > 200:
                 description = description[:200] + "..."
@@ -201,7 +214,7 @@ with tab_kv24:
             if enclosure and enclosure.get('url'):
                 image_url = enclosure.get('url')
             elif desc_raw:
-                img_tag = BeautifulSoup(desc_raw.text, 'html.parser').find('img')
+                img_tag = BeautifulSoup(raw_desc_text, 'html.parser').find('img')
                 if img_tag and img_tag.get('src'):
                     image_url = img_tag.get('src')
             
