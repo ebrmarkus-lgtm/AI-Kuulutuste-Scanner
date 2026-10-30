@@ -28,7 +28,6 @@ def scrape_fb_group_rss():
         xml_data = urllib.request.urlopen(req).read()
         soup = BeautifulSoup(xml_data, 'html.parser')
         
-        # Võtame kõik elemendid ilma limiidita
         items = soup.find_all(['item', 'entry'])
         
         for item in items:
@@ -49,20 +48,21 @@ def scrape_fb_group_rss():
                 elif link_elem.text.strip():
                     link = link_elem.get_text(strip=True)
             
-            # Kuupäeva lugemine järjestamiseks
+            # Ohutu kuupäeva lugemine
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
             
-            parsed_date = datetime.min
+            timestamp = 0
             if pub_date_str:
                 try:
                     from email.utils import parsedate_to_datetime
                     parsed_date = parsedate_to_datetime(pub_date_str)
+                    timestamp = parsed_date.timestamp()
                 except:
                     try:
-                        parsed_date = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00'))
+                        timestamp = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00')).timestamp()
                     except:
-                        pass
+                        timestamp = 0
 
             image_url = None
             enclosure = item.find('enclosure')
@@ -80,10 +80,10 @@ def scrape_fb_group_rss():
                 "location": "Haapsalu / Tallinn",
                 "link": link,
                 "image": image_url,
-                "timestamp": parsed_date.timestamp() if isinstance(parsed_date, datetime) else 0
+                "timestamp": timestamp
             })
             
-        # Sorteerime tulemused: uuemad postitused esimesena (suurem timestamp eespool)
+        # Sorteerime tulemused: uuemad eespool
         results = sorted(results, key=lambda x: x["timestamp"], reverse=True)
 
     except Exception as e:
