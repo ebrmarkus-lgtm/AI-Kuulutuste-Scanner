@@ -11,7 +11,7 @@ st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout=
 st.title("⚡ AI Kuulutuste Skänner (Tallinn & Harjumaa)")
 
 # Ülemine kategooriate riba (tabs)
-tab_fb, tab_kv24 = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 Kinnisvara24: Eraldi kinnistul garaažid"])
+tab_fb, tab_kv24 = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 Kinnisvara24: Garaažid Harjumaal"])
 
 def clean_text(text):
     if not text:
@@ -143,7 +143,7 @@ with tab_fb:
 
 # --- 2. KINNISVARA24 TABI LOOGIKA ---
 with tab_kv24:
-    st.write("Garaažid eraldi kinnistutel Harjumaal (Kinnisvara24.ee, uuemad eespool):")
+    st.write("Garaažide kuulutused Harjumaal (kirjelduses peab sisalduma 'garaaž'):")
     
     rss_url_kv24 = "https://rss.app/feeds/aWV2VpetQuPw0DhO.xml"
     
@@ -163,13 +163,12 @@ with tab_kv24:
             desc_raw = item.find('description') or item.find('summary')
             description = clean_text(desc_raw.text) if desc_raw else ""
             
-            # --- FILTREERIMINE: Ainult garaažid eraldi kinnistutel ---
-            full_text = (title + " " + description).lower()
-            is_garage = "garaaž" in full_text or "garaaz" in full_text
-            is_separate_property = any(word in full_text for word in ["eraldi", "omaette", "kinnistul", "kinnistu"])
+            # --- FILTREERIMINE: Kirjelduses PEAB sisalduma sõna "garaaž" ---
+            desc_lower = description.lower()
+            is_garage = "garaaž" in desc_lower or "garaaz" in desc_lower
             
-            if not (is_garage and is_separate_property):
-                continue  # Jäta vahele, kui ei vasta tingimusele
+            if not is_garage:
+                continue  # Jäta vahele, kui kirjelduses pole sõna garaaž
             
             price = extract_price(title + " " + description)
             
@@ -230,7 +229,7 @@ with tab_kv24:
         results_kv24 = [
             {
                 "title": "Sobivaid kuulutusi ei leitud.",
-                "description": "Hetkel ei ole RSS-voos ühtegi garaaži, mis mainiks eraldi kinnistut.",
+                "description": "Hetkel ei ole RSS-voos ühtegi kuulutust, mille kirjelduses sisalduks sõna 'garaaž'.",
                 "price": "-",
                 "location": "Harjumaa",
                 "link": "https://kinnisvara24.ee",
