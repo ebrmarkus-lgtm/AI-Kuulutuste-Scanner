@@ -4,6 +4,11 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    ZoneInfo = None
+
 import requests
 import streamlit as st
 from bs4 import BeautifulSoup
@@ -16,6 +21,13 @@ tab_fb, tab_kv24 = st.tabs(["📌 Facebook: Tasuta asjad", "🏠 Kinnisvara24: G
 RSS_URL_FB = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
 FB_GROUP_URL = "https://www.facebook.com/groups/442569942509759"
 KV24_HARJU_URL = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
+# Uuendamise intervallid. TTL on veidi lühem kui run_every, et vahemälu
+# oleks automaatse uuenduse hetkel kindlasti aegunud.
+FB_REFRESH_SEC = 60 * 60            # Facebook: iga 1 h
+KV24_REFRESH_SEC = 24 * 60 * 60     # Kinnisvara24: iga 24 h
+FB_CACHE_TTL = FB_REFRESH_SEC - 60
+KV24_CACHE_TTL = KV24_REFRESH_SEC - 60
+
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -72,6 +84,14 @@ def normalize_fb_link(link):
     return link, "other"
 
 
+def now_str():
+    tz = ZoneInfo("Europe/Tallinn") if ZoneInfo else timezone.utc
+    try:
+        return datetime.now(tz).strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+
+
 def parse_date(s):
     if not s:
         return 0
@@ -85,16 +105,17 @@ def parse_date(s):
         return 0
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=FB_CACHE_TTL, show_spinner=False)
 def fetch_fb_items():
-    """Loeb RSS-i (RSS 2.0 ja Atom) ja tagastab (kuulutused, veateade)."""
+    """
+    Loeb RSS-i (RSS 2.0 ja Atom). Tulemus on vahemälus 1 h.
+    Vea korral visatakse erand (seda ei vahemälutata, nii et järgmine
+    katse proovib uuesti).
+    """
     results = []
-    try:
-        resp = requests.get(RSS_URL_FB, headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        root = ET.fromstring(resp.content)
-    except Exception as e:
-        return [], f"Facebooki RSS-i lugemine ebaõnnestus: {e}"
+    resp = requests.get(RSS_URL_FB, headers=HEADERS, timeout=15)
+    resp.raise_for_status()
+    root = ET.fromstring(resp.content)
 
     month_ago = (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
 
@@ -146,16 +167,23 @@ def fetch_fb_items():
         })
 
     results.sort(key=lambda x: x["timestamp"], reverse=True)
-    return results, None
+    return results, now_str()
 
 
 # ---------- 1. FACEBOOK ----------
-with tab_fb:
+@st.fragment(run_every=FB_REFRESH_SEC)
+def render_facebook():
     st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
-
-    results_fb, fb_error = fetch_fb_items()
+    try:
+        results_fb, updated_at = fetch_fb_items()
+        fb_error = None
+    except Exception as e:
+        results_fb, updated_at = [], None
+        fb_error = f"Facebooki RSS-i lugemine ebaõnnestus: {e}"
     if fb_error:
         st.warning(fb_error)
+    else:
+        st.caption(f"🔄 Viimati uuendatud: {updated_at} (uueneb automaatselt iga 1 h)")
 
     if not results_fb:
         st.info("Ootame uusi postitusi grupis.")
@@ -205,17 +233,53 @@ with tab_fb:
             st.divider()
 
 
+
+
+with tab_fb:
+    render_facebook()
+
+
 # ---------- 2. KINNISVARA24 (ainult Harjumaa) ----------
-with tab_kv24:
+@st.cache_data(ttl=KV24_CACHE_TTL, show_spinner=False)
+def fetch_kv24_info():
+    """
+    Tõmbab Harjumaa garaažide lehe iga 24 h tagant ja proovib leida
+    kuulutuste arvu. Vea korral visatakse erand (ei vahemälutata).
+    """
+    resp = requests.get(KV24_HARJU_URL, headers=HEADERS, timeout=15)
+    resp.raise_for_status()
+    text = BeautifulSoup(resp.text, "html.parser").get_text(" ", strip=True)
+    m = re.search(r"(\d[\d\s]*)\s*(?:kuulutust|kuulutus|tulemust|tulemus|objekti|objekt)", text, re.IGNORECASE)
+    count = re.sub(r"\s+", "", m.group(1)) if m else None
+    return {"count": count}, now_str()
+
+
+@st.fragment(run_every=KV24_REFRESH_SEC)
+def render_kv24():
     st.write("Garaažide müügipakkumised Harjumaal (Kinnisvara24.ee):")
+
+    info, updated_at = {"count": None}, None
+    try:
+        info, updated_at = fetch_kv24_info()
+    except Exception as e:
+        st.warning(f"Kinnisvara24 lehe lugemine ebaõnnestus: {e}")
+
+    if updated_at:
+        st.caption(f"🔄 Viimati uuendatud: {updated_at} (uueneb automaatselt iga 24 h)")
 
     with st.container():
         st.subheader("Garaažid Harju maakonnas, müük")
         st.write("Aktiivsed garaažide müügipakkumised ja boksid Harjumaal.")
         st.write("**Asukoht:** Harjumaa")
+        if info.get("count"):
+            st.write(f"**Leitud kuulutusi lehel:** {info['count']}")
         st.markdown(
             f'<a href="{KV24_HARJU_URL}" target="_blank" rel="noopener">'
             "👉 Ava Harjumaa garaažid Kinnisvara24 portaalis</a>",
             unsafe_allow_html=True,
         )
     st.divider()
+
+
+with tab_kv24:
+    render_kv24()
