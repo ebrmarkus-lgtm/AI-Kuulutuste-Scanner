@@ -36,52 +36,7 @@ def extract_price(text):
     if match_generic:
         return f"{match_generic.group(1).strip()} €"
 
-    return "Hind kokkuleppel / puudub tekstoas"
-
-def resolve_final_url(initial_url, headers):
-    if not initial_url or initial_url == "https://kinnisvara24.ee":
-        return "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
-    
-    # Otsime ID-d
-    id_match = re.search(r'(?:kinnisvara24\.ee/|id=|objekt/|/)(24\d{5,}|[3-9]\d{6,})', initial_url)
-    if id_match:
-        return f"https://kinnisvara24.ee/objekt/{id_match.group(1)}"
-
-    if "rss.app" in initial_url or "news.google" in initial_url:
-        try:
-            req = urllib.request.Request(initial_url, headers=headers)
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                final_url = resp.geturl()
-                if final_url and "404" not in final_url and final_url != "https://kinnisvara24.ee":
-                    return final_url
-        except Exception:
-            pass
-
-    return initial_url
-
-def extract_direct_link(item, headers):
-    raw_link = None
-    
-    link_elem = item.find('link')
-    if link_elem:
-        href = link_elem.get('href') or link_elem.text
-        if href and href.strip():
-            raw_link = href.strip()
-
-    if not raw_link:
-        guid_elem = item.find('guid')
-        if guid_elem and guid_elem.text.strip():
-            raw_link = guid_elem.text.strip()
-
-    if not raw_link:
-        desc_raw = item.find('description') or item.find('summary')
-        if desc_raw:
-            soup_desc = BeautifulSoup(desc_raw.text, 'html.parser')
-            a_tag = soup_desc.find('a', href=True)
-            if a_tag:
-                raw_link = a_tag['href'].strip()
-
-    return resolve_final_url(raw_link, headers)
+    return "Hind kokkuleppel / puudub tekstis"
 
 
 # --- 1. FACEBOOK TABI LOOGIKA ---
@@ -110,7 +65,13 @@ with tab_fb:
             if len(description) > 200:
                 description = description[:200] + "..."
                 
-            link = extract_direct_link(item, headers)
+            link_elem = item.find('link')
+            link = "https://www.facebook.com/groups/442569942509759"
+            if link_elem:
+                if link_elem.get('href'):
+                    link = link_elem.get('href')
+                elif link_elem.text.strip():
+                    link = link_elem.get_text(strip=True)
             
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
@@ -197,6 +158,9 @@ with tab_kv24:
     rss_url_kv24 = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
     
+    # Toimiv otsingulink Kinnisvara24-s garaažidele Harjumaal
+    kv24_garage_search = "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond"
+    
     results_kv24 = []
     try:
         req = urllib.request.Request(rss_url_kv24, headers=headers)
@@ -219,8 +183,6 @@ with tab_kv24:
             if len(description) > 200:
                 description = description[:200] + "..."
                 
-            link = extract_direct_link(item, headers)
-            
             pub_date_elem = item.find('pubDate') or item.find('updated')
             pub_date_str = pub_date_elem.text if pub_date_elem else ""
             
@@ -253,7 +215,7 @@ with tab_kv24:
                 "description": description,
                 "price": price,
                 "location": "Harjumaa",
-                "link": link,
+                "link": kv24_search_url := kv24_garage_search,  # Suunab otse toimivale Harjumaa garaažide listile
                 "image": image_url,
                 "timestamp": timestamp
             })
@@ -270,7 +232,7 @@ with tab_kv24:
                 "description": "Hetkel ei ole RSS-voos ühtegi garaaži kuulutust.",
                 "price": "-",
                 "location": "Harjumaa",
-                "link": "https://kinnisvara24.ee/kinnisvara-otsing?deal_type=1&property_type=4&search_type=area&county=Harju+maakond",
+                "link": kv24_garage_search,
                 "image": None,
                 "timestamp": 0
             }
@@ -293,7 +255,6 @@ with tab_kv24:
                     st.write(item.get("description"))
                 st.write(f"**Hind:** {item.get('price')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
             
-            link = item.get("link", "#")
-            if link != "#":
-                st.markdown(f'<a href="{link}" target="_blank">👉 Vaata kuulutust Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
+            link = item.get("link", kv24_garage_search)
+            st.markdown(f'<a href="{link}" target="_blank">👉 Vaata kõiki Harjumaa garaaže Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
         st.divider()
