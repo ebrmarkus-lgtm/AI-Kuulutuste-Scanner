@@ -245,8 +245,8 @@ with tab_kv24:
 
 # --- 3. REITINGUD TABI LOOGIKA ---
 with tab_reitingud:
-    st.header("📊 Erakondade reitingud ja statistika")
-    st.write("Andmed pärinevad veebilehelt [reitingud.ee](https://reitingud.ee/reitingud/).")
+    st.markdown("### Eesti reitingud reaalajas praegu")
+    st.markdown("---")
     
-    # Visuaalne iframe sisestus reitingud.ee lehest
+    # Visuaalne iframe sisestus puhta ja stiilse raamiga
     components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
