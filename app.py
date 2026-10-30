@@ -8,20 +8,7 @@ from datetime import datetime, timedelta, timezone
 import urllib.parse
 
 # Lehe seadistus
-st.set_page_config(
-    page_title="AI Kuulutuste Skänner", 
-    page_icon="⚡", 
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Külgriba teave ja seaded
-st.sidebar.title("⚡ Skänneri Seaded")
-st.sidebar.info("Automaatne kuulutuste voog Tallinnas ja Harjumaal.")
-st.sidebar.markdown("**Aktiivsed filtrid:**")
-st.sidebar.markdown("- FB: Tasuta asjad (viimased 30 päeva)")
-st.sidebar.markdown("- KV24: Garaažide müük Harjumaal")
-st.sidebar.markdown("- Reitingud: Politoloogia statistika")
+st.set_page_config(page_title="AI Kuulutuste Skänner", page_icon="⚡", layout="wide")
 
 st.title("⚡ AI Kuulutuste Skänner (Tallinn & Harjumaa)")
 
@@ -60,10 +47,7 @@ def extract_price(text):
     return "Hind kokkuleppel / puudub"
 
 def fetch_live_kv24_garages():
-    """
-    Skännib otse Kinnisvara24 Harjumaa garaažide müügikategooriat,
-    et kuvada AINULT reaalseid ja avalikke garaažipakkumisi.
-    """
+    """Skännib otse Kinnisvara24 Harjumaa garaažide müügikategooriat."""
     url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -76,8 +60,6 @@ def fetch_live_kv24_garages():
         response = requests.get(url, headers=headers, timeout=12)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Otsime aktiivseid objekte
             listing_links = soup.find_all('a', href=re.compile(r'/kinnisvara/|/objekt/|/garaaz/'))
             
             for a_tag in listing_links:
@@ -96,7 +78,6 @@ def fetch_live_kv24_garages():
                 container_text = parent_container.get_text() if parent_container else title
                 price = extract_price(container_text)
                 
-                # Väldime duplikaate
                 if not any(d['url'] == full_url for d in results):
                     results.append({
                         "title": title,
@@ -106,14 +87,14 @@ def fetch_live_kv24_garages():
                         "url": full_url
                     })
     except Exception as e:
-        print(f"KV24 live-päringu viga: {e}")
+        print(f"KV24 viga: {e}")
         
     return results
 
 
 # --- 1. FACEBOOK TABI LOOGIKA ---
 with tab_fb:
-    st.subheader("📌 Viimase 30 päeva tasuta asjade kuulutused (FB)")
+    st.write("Skännitakse viimase 1 kuu tasuta kuulutusi FB grupist (uuemad eespool)...")
     
     rss_url_fb = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
@@ -187,7 +168,7 @@ with tab_fb:
         results_fb = sorted(results_fb, key=lambda x: x["timestamp"], reverse=True)
 
     except Exception as e:
-        st.error(f"Viga Facebooki RSS voo skännimisel: {e}")
+        print(f"Viga Facebooki RSS skännimisel: {e}")
 
     if not results_fb:
         results_fb = [
@@ -215,38 +196,31 @@ with tab_fb:
                         st.caption(f"📅 {item.get('date_str')}")
                     if item.get("description"):
                         st.write(item.get("description"))
-                    
-                    c_price, c_loc = st.columns(2)
-                    c_price.metric("Hind", item.get('price', 'Tasuta'))
-                    c_loc.metric("Asukoht", item.get('location', 'Tallinn'))
+                    st.write(f"**Hind:** {item.get('price', 'Tasuta')} | **Asukoht:** {item.get('location', 'Tallinn')}")
             else:
                 st.subheader(item.get("title", "Kuulutus ilma pealkirjata"))
                 if item.get("date_str"):
                     st.caption(f"📅 {item.get('date_str')}")
                 if item.get("description"):
                     st.write(item.get("description"))
-                
-                c_price, c_loc = st.columns(2)
-                c_price.metric("Hind", item.get('price', 'Tasuta'))
-                c_loc.metric("Asukoht", item.get('location', 'Tallinn'))
+                st.write(f"**Hind:** {item.get('price', 'Tasuta')} | **Asukoht:** {item.get('location', 'Tallinn')}")
             
             link = item.get("link", "#")
             if link != "#":
-                st.markdown(f'<a href="{link}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #0066cc; color: white; border-radius: 6px; text-decoration: none;">👉 Vaata kuulutust originaalportaalis</a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link}" target="_blank">👉 Vaata kuulutust originaalportaalis</a>', unsafe_allow_html=True)
         st.divider()
 
 
 # --- 2. KINNISVARA24 TABI LOOGIKA ---
 with tab_kv24:
-    st.subheader("🏠 Kinnisvara24: Avalikud garaažide müügipakkumised Harjumaal")
+    st.write("Garaažide kuulutused Harjumaal (Kinnisvara24.ee, uuemad eespool):")
     
-    with st.spinner("Skännin reaalajas Kinnisvara24 garaažide pakkumisi..."):
+    with st.spinner("Laen Kinnisvara24 andmeid..."):
         kv24_items = fetch_live_kv24_garages()
     
     canonical_kv24_url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
     
     if not kv24_items:
-        st.info("Reaalajas otsingus ei tagastatud hetkel ühtegi eraldi objekti või on portaali päring piiratud. Saad avada otse aktiivse Harjumaa garaažide kategooria lehe:")
         kv24_items = [
             {
                 "title": "Garaažide müügipakkumised Harju maakonnas",
@@ -257,26 +231,22 @@ with tab_kv24:
             }
         ]
 
-    st.success(f"Kuvatakse avalikud pakkumised märksõna 'Garaaž' alusel Harjumaal.")
-
     for item in kv24_items:
         with st.container():
-            st.subheader(item["title"])
-            st.write(item["description"])
-            
-            m1, m2 = st.columns(2)
-            m1.metric("Hind", item.get("price", "Vaata portaalist"))
-            m2.metric("Asukoht", item.get("location", "Harjumaa"))
+            st.subheader(item.get("title", "Garaaž Kinnisvara24-st"))
+            if item.get("description"):
+                st.write(item.get("description"))
+            st.write(f"**Hind:** {item.get('price', 'Kokkuleppel')} | **Asukoht:** {item.get('location', 'Harjumaa')}")
             
             target_link = item.get("url", canonical_kv24_url)
-            st.markdown(f'<a href="{target_link}" target="_blank" style="display: inline-block; padding: 8px 16px; background-color: #ff4b4b; color: white; border-radius: 6px; text-decoration: none; font-weight: bold;">👉 Ava see pakkumine Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
+            st.markdown(f'<a href="{target_link}" target="_blank">👉 Ava see pakkumine Kinnisvara24 portaalis</a>', unsafe_allow_html=True)
         st.divider()
 
 
 # --- 3. REITINGUD TABI LOOGIKA ---
 with tab_reitingud:
     st.header("📊 Erakondade reitingud ja statistika")
-    st.write("Andmed pärinevad reaalajas veebilehelt [reitingud.ee](https://reitingud.ee/reitingud/).")
+    st.write("Andmed pärinevad veebilehelt [reitingud.ee](https://reitingud.ee/reitingud/).")
     
     # Visuaalne iframe sisestus reitingud.ee lehest
     components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
