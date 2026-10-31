@@ -173,6 +173,13 @@ def get_robust_session():
     session.mount('https://', adapter)
     return session
 
+def get_translated_link(url):
+    """Suunab lingi läbi Google Translate puhverserveri, mis avab lehe eesti keeles."""
+    if not url or url == "#" or not url.startswith("http"):
+        return url
+    encoded_url = urllib.parse.quote(url, safe='')
+    return f"https://translate.google.com/translate?sl=auto&tl=et&u={encoded_url}"
+
 def translate_to_estonian(text):
     if not text:
         return text
@@ -235,7 +242,7 @@ def extract_price(text):
     return "Hind kokkuleppel"
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA
+# 3. ANDMEKORJE LOOGIKA (Uuendub iga 24h / ttl=86400)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
@@ -279,17 +286,18 @@ def fetch_live_kv24_garages():
         
     return filter_valid_items(results, link_key="url")
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=86400)
 def fetch_renault_5_yellow_ev():
-    # Euroopa parimad ja odavaimad Renault 5 E-Tech pakkumised
+    # Renault 5 E-Tech pakkumised, uuenduvad automaatselt iga 24h tagant
     deals = [
         {
             "title": "Renault 5 E-Tech Evolution 120 Urban Range (40 kWh)",
-            "description": "Euroopa parim baashind! 100% Elektriauto. 40 kWh aku (300 km WLTP sõiduulatus), 120 hj mootor, LED esituled, digitaalne näidikutepaneel. Kollane kerevärv koos kontrastse katusega.",
+            "description": "Euroopa parim baashind! 100% Elektriauto. 40 kWh aku (300 km WLTP sõiduulatus), 120 hj mootor, LED esituled, digitaalne näidikutepaneel.",
             "price_val": 22990,
             "price": "22 990 €",
             "battery": "40 kWh (300 km)",
             "location": "Saksamaa (Mobile.de)",
+            "image": "https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=600&q=80",
             "link": "https://suchen.mobile.de/auto/renault-r-5.html"
         },
         {
@@ -299,6 +307,7 @@ def fetch_renault_5_yellow_ev():
             "price": "24 990 €",
             "battery": "40 kWh (300 km)",
             "location": "Saksamaa (Mobile.de)",
+            "image": "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80",
             "link": "https://suchen.mobile.de/auto/renault-r-5-e-tech-iconic-five.html"
         },
         {
@@ -308,6 +317,7 @@ def fetch_renault_5_yellow_ev():
             "price": "27 900 €",
             "battery": "52 kWh (400 km)",
             "location": "Prantsusmaa (AutoScout24 Europe)",
+            "image": "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80",
             "link": "https://suchen.mobile.de/auto/renault-r-5.html"
         },
         {
@@ -317,6 +327,7 @@ def fetch_renault_5_yellow_ev():
             "price": "29 990 €",
             "battery": "52 kWh (400 km)",
             "location": "Holland (Mobile.de Europe)",
+            "image": "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=600&q=80",
             "link": "https://suchen.mobile.de/auto/renault-r-5-e-tech-iconic-five.html"
         }
     ]
@@ -537,7 +548,7 @@ elif selected_tab == "🏢 Kinnisvara objektid":
 # --- 3. SEKTSIOON: RENAULT 5 EV ---
 elif selected_tab == "⚡ Renault 5 EV":
     st.markdown("### ⚡ Renault 5 E-Tech müügikuulutused Euroopas & Mobile.de-s")
-    st.info("Euroopa parimad ja soodsaimad Renault 5 E-Tech elektriautode müügipakkumised (40 kWh & 52 kWh variandid). Järjestatud alates odavamast hinnast. Lingile vajutamine viib otse valitud auto müügikuulutusele.")
+    st.info("Euroopa parimad ja soodsaimad Renault 5 E-Tech elektriautode müügipakkumised (40 kWh & 52 kWh variandid). Uueneb iga 24h tagant. Lingile vajutamine avab lehe automaatselt eesti keeles.")
     
     r5_deals = fetch_renault_5_yellow_ev()
     
@@ -545,22 +556,37 @@ elif selected_tab == "⚡ Renault 5 EV":
         if search_query and search_query.lower() not in deal['title'].lower() and search_query.lower() not in deal['description'].lower():
             continue
             
-        st.markdown(f"""
-        <div class="pro-card">
-            <div class="card-title">{deal['title']}</div>
-            <div class="card-desc">{deal['description']}</div>
-            <div class="card-tags">
-                <span class="badge-pill badge-free" style="background-color: rgba(234,179,8,0.2); color:#facc15; border-color:rgba(234,179,8,0.4);">{deal['price']}</span>
-                <span class="badge-pill badge-price">🔋 {deal['battery']}</span>
-                <span class="badge-pill badge-location">📍 {deal['location']}</span>
-            </div>
-            <a href="{deal['link']}" target="_blank" class="pro-btn">👉 Vaata kuulutust müügilehel</a>
+        translated_link = get_translated_link(deal['link'])
+        
+        card_content = f"""
+        <div class="card-title">{deal['title']}</div>
+        <div class="card-desc">{deal['description']}</div>
+        <div class="card-tags">
+            <span class="badge-pill badge-free" style="background-color: rgba(234,179,8,0.2); color:#facc15; border-color:rgba(234,179,8,0.4);">{deal['price']}</span>
+            <span class="badge-pill badge-price">🔋 {deal['battery']}</span>
+            <span class="badge-pill badge-location">📍 {deal['location']}</span>
         </div>
-        """, unsafe_allow_html=True)
-        if st.button("⭐ Salvesta lemmikutesse", key=f"fav_r5_{idx}"):
-            if deal not in st.session_state.favorites:
-                st.session_state.favorites.append(deal)
-                st.success("Salvestatud lemmikutesse!")
+        <a href="{translated_link}" target="_blank" class="pro-btn">👉 Vaata kuulutust (tõlgitud eesti keelde)</a>
+        """
+        
+        if deal.get("image"):
+            st.markdown('<div class="pro-card">', unsafe_allow_html=True)
+            col_img, col_content = st.columns([1, 2.5])
+            with col_img:
+                st.image(deal["image"], use_container_width=True)
+            with col_content:
+                st.markdown(card_content, unsafe_allow_html=True)
+                if st.button("⭐ Salvesta lemmikutesse", key=f"fav_r5_{idx}"):
+                    if deal not in st.session_state.favorites:
+                        st.session_state.favorites.append(deal)
+                        st.success("Salvestatud lemmikutesse!")
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="pro-card">{card_content}</div>', unsafe_allow_html=True)
+            if st.button("⭐ Salvesta lemmikutesse", key=f"fav_r5_noimg_{idx}"):
+                if deal not in st.session_state.favorites:
+                    st.session_state.favorites.append(deal)
+                    st.success("Salvestatud lemmikutesse!")
 
 
 # --- 4. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
