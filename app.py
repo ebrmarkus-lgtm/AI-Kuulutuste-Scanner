@@ -47,10 +47,6 @@ DARK_MODE_CSS = """
     .card-row { display: flex; gap: 20px; align-items: flex-start; }
     .card-img { flex: 0 0 240px; max-width: 240px; }
     .card-img img { width: 100%; border-radius: 12px; display: block; object-fit: cover; aspect-ratio: 4 / 3; }
-    .card-img-placeholder {
-        width: 100%; border-radius: 12px; display: flex; align-items: center; justify-content: center;
-        background: #1e293b; color: #64748b; font-size: 2.5rem; aspect-ratio: 4 / 3;
-    }
     .card-body { flex: 1; min-width: 0; }
     
     @media (max-width: 768px) {
@@ -160,43 +156,34 @@ def matches(query, *fields):
     return any(q in str(f or "").lower() for f in fields)
 
 def extract_image_from_rss_item(item, raw_desc):
-    """Leiab päris pildi RSS-i erinevatest väljadest (enclosure, media:content, img tag, og:image)."""
-    # 1. Enclosure tag
     enclosure = item.find("enclosure")
     if enclosure and enclosure.get("url"):
         return enclosure.get("url")
-    
-    # 2. Media:content või media:thumbnail
     media = item.find(["media:content", "media:thumbnail"])
     if media and media.get("url"):
         return media.get("url")
-
-    # 3. HTML kirjeldusest img tag
     if raw_desc:
         soup = BeautifulSoup(raw_desc, "html.parser")
         img = soup.find("img")
         if img and img.get("src"):
             return img.get("src")
-            
     return None
 
 def render_card(item, key, button_text, badges="", link=None, secondary=None):
-    """Renderdab kaardi pildiga (või ikooniga) vasakul ja puhastatud tekstiga paremal."""
+    """Renderdab kaardi. Kui pilti POLE, siis pildi kasti ei kuva üldse (ei teki tühja auku ega kasti)."""
     link = link or item.get("link") or item.get("url") or "#"
     img_src = item.get("image")
     
-    if img_src:
+    if img_src and img_src.startswith("http"):
         img_html = (
             f'<div class="card-img"><img src="{esc(img_src)}" loading="lazy" '
             f'referrerpolicy="no-referrer" alt=""></div>'
         )
     else:
-        # Kui pilt puudub, kuvatakse puhas ikoonikast
-        img_html = '<div class="card-img"><div class="card-img-placeholder">📦</div></div>'
+        img_html = "" # Ei kuva tühja kasti
     
     date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
     
-    # Kui pealkiri ja kirjeldus on identseid (nt "Ära anda:"), kuvame ainult ühe
     title = item.get("title") or item.get("store") or "Kuulutus"
     desc = item.get("description") or item.get("desc") or ""
     if title.strip().lower() == desc.strip().lower():
@@ -222,7 +209,7 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     )
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA (REAALNE PARSIMINE & TTL=3600)
+# 3. ANDMEKORJE LOOGIKA
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_live_kv24_garages():
@@ -245,7 +232,6 @@ def fetch_live_kv24_garages():
                 parent = a_tag.find_parent(["div", "article", "li"])
                 price = extract_price(parent.get_text() if parent else title)
                 
-                # Proovime leida objekti päris pilti
                 img_tag = parent.find("img") if parent else None
                 img_url = img_tag.get("src") or img_tag.get("data-src") if img_tag else None
 
@@ -299,10 +285,7 @@ def fetch_free_items(rss_url):
         date_elem = item.find("pubDate") or item.find("updated")
         date_str = date_elem.text if date_elem else ""
 
-        # Päris pildi otsimine
         image_url = extract_image_from_rss_item(item, raw_desc)
-
-        # Kui pealkiri ja kirjeldus on samad, jätta kirjeldus tühjaks
         clean_desc = description if description.lower() != title.lower() else ""
 
         results.append(
@@ -386,19 +369,20 @@ elif selected_tab == "🏢 Kinnisvara objektid":
 elif selected_tab == "⚡ Renault 5 EV":
     st.markdown("### ⚡ Renault 5 E-Tech (kollane) – Euroopa pakkumised")
     
+    # ÕIGED Renault 5 E-Tech kollased pildid
     r5_deals = [
         {
             "title": "Renault 5 E-Tech Evolution 120 (40 kWh)",
-            "description": "Esmane reg. 06/2024 · 2 500 km · Müüja: Esindus · Värv: Kollane",
+            "description": "Esmane reg. 06/2024 · 2 500 km · Müüja: Esindus · Värv: Pop Yellow",
             "price": "27 490 €", "location": "Saksamaa",
-            "image": "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?q=80&w=600&auto=format&fit=crop",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Renault_5_E-Tech_Genf_2024_1Y7A0347.jpg/640px-Renault_5_E-Tech_Genf_2024_1Y7A0347.jpg",
             "link": "https://www.autoscout24.com/lst/renault/r-5/bc_yellow"
         },
         {
             "title": "Renault 5 E-Tech Iconic Five (52 kWh)",
-            "description": "Esmane reg. 09/2024 · 1 200 km · Müüja: Autosalong · Värv: Kollane",
+            "description": "Esmane reg. 09/2024 · 1 200 km · Müüja: Autosalong · Värv: Pop Yellow",
             "price": "32 990 €", "location": "Prantsusmaa",
-            "image": "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=600&auto=format&fit=crop",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Renault_5_E-Tech_Genf_2024_1Y7A0346.jpg/640px-Renault_5_E-Tech_Genf_2024_1Y7A0346.jpg",
             "link": "https://www.autoscout24.com/lst/renault/r-5/bc_yellow"
         }
     ]
@@ -409,7 +393,7 @@ elif selected_tab == "⚡ Renault 5 EV":
         badges = f'<span class="badge-pill badge-yellow">{esc(deal["price"])}</span><span class="badge-pill badge-price">🟡 Kollane</span><span class="badge-pill badge-location">📍 {esc(deal["location"])}</span>'
         render_card(deal, f"fav_r5_{idx}", "👉 Ava kuulutus AutoScout24-s", badges)
 
-# --- 4. SEKTSIOON: TOIDU SOODUSPAKKUMISED (Rimi, Coop, Lidl, Selver) ---
+# --- 4. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Toidu sooduspakkumised (Rimi, Coop, Lidl, Selver)")
     
@@ -418,25 +402,25 @@ elif selected_tab == "🛒 Toidu sooduspakkumised":
             "store": "Rimi", "title": "Jahutatud broilerifilee Rimi 1kg", "price": "4.99 €",
             "desc": "Kodumaine värske broilerifilee soodushinnaga (tavahind 7.49 €).",
             "link": "https://www.rimi.ee",
-            "image": "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?q=80&w=600&auto=format&fit=crop"
+            "image": None
         },
         {
             "store": "Coop", "title": "Kohv Meri Extra 500g", "price": "3.89 €",
             "desc": "Parim pakkumine Coopi kliendikaardiga.",
             "link": "https://www.coop.ee",
-            "image": "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?q=80&w=600&auto=format&fit=crop"
+            "image": None
         },
         {
             "store": "Lidl", "title": "Banaani kg (Lidl)", "price": "0.89 €",
             "desc": "Värsked banaanid eriti soodsa hinnaga kogu nädala vältel.",
             "link": "https://www.lidl.ee",
-            "image": "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?q=80&w=600&auto=format&fit=crop"
+            "image": None
         },
         {
             "store": "Selver", "title": "Eesti Piim 2.5% 1L", "price": "0.79 €",
             "desc": "Päevapakkumine Selveris - kohalik värske piim.",
             "link": "https://www.selver.ee",
-            "image": "https://images.unsplash.com/photo-1550583724-b2692b85b150?q=80&w=600&auto=format&fit=crop"
+            "image": None
         }
     ]
     
@@ -455,14 +439,14 @@ elif selected_tab == "🚗 Kütusehinnad & Parkimine":
             "title": "Alexela / Circle K / Olerex – Keskmised hinnad",
             "description": "• 95 Miles: 1.629 € / l\n• 98 Miles: 1.679 € / l\n• Diisel: 1.549 € / l",
             "price": "Reaalajas seire", "location": "Tallinn",
-            "image": "https://images.unsplash.com/photo-1527018270394-b631e84a7740?q=80&w=600&auto=format&fit=crop",
+            "image": None,
             "link": "https://www.alexela.ee"
         },
         {
             "title": "Tallinna Kesklinna parkimine",
             "description": "Südalinn: 0.08 € / min (4.8 € / h). Kesklinn: 0.025 € / min. Tasuta pühapäeviti.",
             "price": "Info", "location": "Tallinn",
-            "image": "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?q=80&w=600&auto=format&fit=crop",
+            "image": None,
             "link": "https://www.tallinn.ee"
         }
     ]
