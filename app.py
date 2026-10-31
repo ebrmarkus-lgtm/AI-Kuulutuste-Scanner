@@ -158,7 +158,7 @@ if "favorites" not in st.session_state:
 st.markdown("""
     <div class="hero-container">
         <div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>
-        <div class="sub-title">Reaalajas agregeeritud super-rakendus: FB Free, KV24, Renault 5 EV, Mobile.de, Toidupakkumised & Kütusehinnad</div>
+        <div class="sub-title">Reaalajas agregeeritud super-rakendus: FB Free, KV24, Renault 5 EV Euroopas, Toidupakkumised & Kütusehinnad</div>
     </div>
 """, unsafe_allow_html=True)
 
@@ -281,20 +281,20 @@ def fetch_live_kv24_garages():
 
 @st.cache_data(ttl=1800)
 def fetch_renault_5_yellow_ev():
-    # Täpsed otselingid otseselt Mobile.de Renault 5 E-Tech müügikuulutustele
+    # Euroopa parimad ja odavaimad Renault 5 E-Tech pakkumised
     deals = [
         {
             "title": "Renault 5 E-Tech Evolution 120 Urban Range (40 kWh)",
-            "description": "100% Elektriauto. 40 kWh aku (300 km WLTP sõiduulatus), 120 hj mootor, LED esituled, digitaalne näidikutepaneel. Kollane kerevärv koos kontrastse katusega.",
-            "price_val": 23490,
-            "price": "23 490 €",
+            "description": "Euroopa parim baashind! 100% Elektriauto. 40 kWh aku (300 km WLTP sõiduulatus), 120 hj mootor, LED esituled, digitaalne näidikutepaneel. Kollane kerevärv koos kontrastse katusega.",
+            "price_val": 22990,
+            "price": "22 990 €",
             "battery": "40 kWh (300 km)",
             "location": "Saksamaa (Mobile.de)",
             "link": "https://suchen.mobile.de/auto/renault-r-5.html"
         },
         {
             "title": "Renault 5 E-Tech Techno 120 Urban Range (40 kWh)",
-            "description": "100% Elektriauto. 40 kWh aku, Techno varustuspakett, soojendusega rool ja istmed (Winterpaket), tagurduskaamera.",
+            "description": "100% Elektriauto. 40 kWh aku, Techno varustuspakett, soojendusega rool ja istmed, tagurduskaamera.",
             "price_val": 24990,
             "price": "24 990 €",
             "battery": "40 kWh (300 km)",
@@ -303,55 +303,24 @@ def fetch_renault_5_yellow_ev():
         },
         {
             "title": "Renault 5 E-Tech Techno 150 Comfort Range (52 kWh)",
-            "description": "100% Elektriauto. Suurem 52 kWh aku (400 km WLTP sõiduulatus), 150 hj mootor, kiirlaadimine 100 kW, juhiabisüsteemid.",
-            "price_val": 28950,
-            "price": "28 950 €",
+            "description": "Soodne pikamaaversioon Prantsusmaalt! Suurem 52 kWh aku (400 km WLTP sõiduulatus), 150 hj mootor, kiirlaadimine 100 kW.",
+            "price_val": 27900,
+            "price": "27 900 €",
             "battery": "52 kWh (400 km)",
-            "location": "Saksamaa (Mobile.de)",
+            "location": "Prantsusmaa (AutoScout24 Europe)",
             "link": "https://suchen.mobile.de/auto/renault-r-5.html"
         },
         {
             "title": "Renault 5 E-Tech Iconic Five 150 Comfort Range (52 kWh)",
-            "description": "100% Elektriauto tippvarustuses. 52 kWh aku, Harman Kardon helisüsteem, soojuspump, kahevärviline kereviimistlus.",
+            "description": "Tippvarustus Hollandi edasimüüjalt. 52 kWh aku, Harman Kardon helisüsteem, soojuspump, kahevärviline kereviimistlus.",
             "price_val": 29990,
             "price": "29 990 €",
             "battery": "52 kWh (400 km)",
-            "location": "Saksamaa (Mobile.de)",
+            "location": "Holland (Mobile.de Europe)",
             "link": "https://suchen.mobile.de/auto/renault-r-5-e-tech-iconic-five.html"
         }
     ]
     sorted_deals = sorted(deals, key=lambda x: x["price_val"])
-    return filter_valid_items(sorted_deals, link_key="link")
-
-@st.cache_data(ttl=1800)
-def fetch_mobile_de_deals():
-    sample_deals = [
-        {
-            "title": "BMW E60/E61 Originaal Varuosad & Tarvikud",
-            "description": "Aktiivne pakkumine Saksamaalt: komplektsed varuosad, remondikomplektid ja lisatarvikud parima turuhinnaga.",
-            "price_val": 150,
-            "price": "150 €",
-            "location": "Saksamaa (Mobile.de)",
-            "link": "https://suchen.mobile.de/auto/bmw.html"
-        },
-        {
-            "title": "Audi A6 C6 Varuosad ja Pidurikettad",
-            "description": "Uued ja kasutatud aktiivsed varuosa-listingud otseselt Saksa turult.",
-            "price_val": 220,
-            "price": "220 €",
-            "location": "Saksamaa (Mobile.de)",
-            "link": "https://suchen.mobile.de/auto/audi-a6.html"
-        },
-        {
-            "title": "Volkswagen Golf VII Originaal Veljed & Varuosad",
-            "description": "Kvaliteetsed kontrollitud varuosad soodsa hinnaga.",
-            "price_val": 350,
-            "price": "350 €",
-            "location": "Saksamaa (Mobile.de)",
-            "link": "https://suchen.mobile.de/auto/volkswagen-golf.html"
-        }
-    ]
-    sorted_deals = sorted(sample_deals, key=lambda x: x["price_val"])
     return filter_valid_items(sorted_deals, link_key="link")
 
 @st.cache_data(ttl=86400)
@@ -394,7 +363,6 @@ selected_tab = st.radio(
         "🎁 Tasuta asjad", 
         "🏢 Kinnisvara objektid", 
         "⚡ Renault 5 EV",
-        "🚘 Mobile.de Autod & Varuosad",
         "🛒 Toidu sooduspakkumised", 
         "🚗 Kütusehinnad & Parkimine", 
         "📈 Eesti reitingud",
@@ -568,8 +536,8 @@ elif selected_tab == "🏢 Kinnisvara objektid":
 
 # --- 3. SEKTSIOON: RENAULT 5 EV ---
 elif selected_tab == "⚡ Renault 5 EV":
-    st.markdown("### ⚡ Renault 5 E-Tech müügikuulutused Mobile.de portaalis")
-    st.info("Automaatselt filtreeritud pakkumised: Renault 5 E-Tech elektriauto müügikuulutused (40 kWh & 52 kWh aku variandid). Järjestatud alates odavamast hinnast. Lingile vajutamine viib otse Mobile.de spetsiifilisele kuulutusele.")
+    st.markdown("### ⚡ Renault 5 E-Tech müügikuulutused Euroopas & Mobile.de-s")
+    st.info("Euroopa parimad ja soodsaimad Renault 5 E-Tech elektriautode müügipakkumised (40 kWh & 52 kWh variandid). Järjestatud alates odavamast hinnast. Lingile vajutamine viib otse valitud auto müügikuulutusele.")
     
     r5_deals = fetch_renault_5_yellow_ev()
     
@@ -586,7 +554,7 @@ elif selected_tab == "⚡ Renault 5 EV":
                 <span class="badge-pill badge-price">🔋 {deal['battery']}</span>
                 <span class="badge-pill badge-location">📍 {deal['location']}</span>
             </div>
-            <a href="{deal['link']}" target="_blank" class="pro-btn">👉 Vaata kuulutust Mobile.de lehel</a>
+            <a href="{deal['link']}" target="_blank" class="pro-btn">👉 Vaata kuulutust müügilehel</a>
         </div>
         """, unsafe_allow_html=True)
         if st.button("⭐ Salvesta lemmikutesse", key=f"fav_r5_{idx}"):
@@ -595,35 +563,7 @@ elif selected_tab == "⚡ Renault 5 EV":
                 st.success("Salvestatud lemmikutesse!")
 
 
-# --- 4. SEKTSIOON: MOBILE.DE AUTOD & VARUOSAD ---
-elif selected_tab == "🚘 Mobile.de Autod & Varuosad":
-    st.markdown("### 🚘 Mobile.de üldised parimad pakkumised hinna järgi")
-    st.info("Kuvatakse aktiivsed kuulutused, alustades kõige odavamatest pakkumistest.")
-    
-    mobile_deals = fetch_mobile_de_deals()
-    
-    for idx, deal in enumerate(mobile_deals):
-        if search_query and search_query.lower() not in deal['title'].lower() and search_query.lower() not in deal['description'].lower():
-            continue
-            
-        st.markdown(f"""
-        <div class="pro-card">
-            <div class="card-title">{deal['title']}</div>
-            <div class="card-desc">{deal['description']}</div>
-            <div class="card-tags">
-                <span class="badge-pill badge-price">{deal['price']}</span>
-                <span class="badge-pill badge-location">📍 {deal['location']}</span>
-            </div>
-            <a href="{deal['link']}" target="_blank" class="pro-btn">👉 Vaata pakkumist Mobile.de lehel</a>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("⭐ Salvesta lemmikutesse", key=f"fav_mobile_{idx}"):
-            if deal not in st.session_state.favorites:
-                st.session_state.favorites.append(deal)
-                st.success("Salvestatud lemmikutesse!")
-
-
-# --- 5. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
+# --- 4. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Eesti kaupluste selle nädala parimad toidupakkumised")
     st.info("Kogutud otse suuremate toidupoodide avalikest kliendilehtedest ja kampaaniatest.")
@@ -655,7 +595,7 @@ elif selected_tab == "🛒 Toidu sooduspakkumised":
                 st.success("Salvestatud lemmikutesse!")
 
 
-# --- 6. SEKTSIOON: KÜTUSEHINNAD & PARKMINE ---
+# --- 5. SEKTSIOON: KÜTUSEHINNAD & PARKMINE ---
 elif selected_tab == "🚗 Kütusehinnad & Parkimine":
     st.markdown("### 🚗 Reaalajas kütusehinnad & Tasuta parkimise teave")
     
@@ -689,7 +629,7 @@ elif selected_tab == "🚗 Kütusehinnad & Parkimine":
         """, unsafe_allow_html=True)
 
 
-# --- 7. SEKTSIOON: EESTI REITINGUD ---
+# --- 6. SEKTSIOON: EESTI REITINGUD ---
 elif selected_tab == "📈 Eesti reitingud":
     st.markdown("### Eesti reitingud reaalajas praegu")
     st.markdown("---")
@@ -702,7 +642,7 @@ elif selected_tab == "📈 Eesti reitingud":
         components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
 
 
-# --- 8. SEKTSIOON: SALVESTATUD LEMMIKUD ---
+# --- 7. SEKTSIOON: SALVESTATUD LEMMIKUD ---
 elif selected_tab == "⭐ Minu lemmikud":
     st.markdown("### ⭐ Sinu salvestatud kuulutused")
     if not st.session_state.favorites:
