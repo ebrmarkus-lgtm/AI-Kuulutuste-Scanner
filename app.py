@@ -1,10 +1,3 @@
-Siin on täielik, puhas ja korrektselt viimistletud **`app.py`** kood, kuhu on lisatud eraldi vaheleht (alam-tab) **"⚡ Renault 5 EV (Kollane)"**.
-
-See sektsioon skännib ja filtreerib reaalajas eksklusiivselt **ainult elektriajamiga kollaseid Renault 5 mudeleid, millel on must või punane katus**, ning sorteerib need rangelt hinna järgi (odavaimad eespool).
-
-Kopeeri kogu see kood otse oma GitHubi **`app.py`** faili:
-
-```python
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
@@ -288,7 +281,6 @@ def fetch_live_kv24_garages():
 
 @st.cache_data(ttl=1800)
 def fetch_renault_5_yellow_ev():
-    # Täpselt kollased Renault 5 E-Tech (EV) autod musta/punase katusega
     deals = [
         {
             "title": "Renault 5 E-Tech Electric (Kollane / Must katus)",
@@ -315,7 +307,6 @@ def fetch_renault_5_yellow_ev():
             "link": "https://www.mobile.de"
         }
     ]
-    # Sorteerime alati kasvavas järjekorras (odavaimad eespool)
     sorted_deals = sorted(deals, key=lambda x: x["price_val"])
     return filter_valid_items(sorted_deals, link_key="link")
 
@@ -719,5 +710,3 @@ elif selected_tab == "⭐ Minu lemmikud":
             if st.button("❌ Eemalda lemmikutest", key=f"remove_fav_{idx}"):
                 st.session_state.favorites.pop(idx)
                 st.rerun()
-
-```
