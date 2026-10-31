@@ -14,7 +14,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # -----------------------------------------------------------------------------
-# 1. SEADISTUS JA DISAIN
+# 1. RAKENDUSE SEADISTUS JA TUME (DARK MODE) DISAINISÜSTEEM
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Kuulutuste Skänner Pro",
@@ -26,34 +26,48 @@ st.set_page_config(
 DARK_MODE_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
     .stApp { background-color: #0b0f19; color: #f8fafc; }
+
     .hero-container { padding: 0.5rem 0 1.25rem 0; border-bottom: 1px solid #1e293b; margin-bottom: 1.5rem; }
     .main-title { font-size: 2.2rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.025em; margin-bottom: 0.25rem; }
     .sub-title { font-size: 0.95rem; color: #94a3b8; font-weight: 400; }
 
-    .pro-card { background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 24px;
-                margin-bottom: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.4); transition: all .2s ease; }
-    .pro-card:hover { transform: translateY(-2px); border-color: #374151; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+    .pro-card {
+        background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 24px;
+        margin-bottom: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: all 0.2s ease;
+    }
+    .pro-card:hover { transform: translateY(-2px); border-color: #374151; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+
     .card-row { display: flex; gap: 22px; align-items: flex-start; }
     .card-img { flex: 0 0 280px; max-width: 280px; }
-    .card-img img { width: 100%; border-radius: 12px; display: block; object-fit: cover; aspect-ratio: 4/3; }
+    .card-img img { width: 100%; border-radius: 12px; display: block; object-fit: cover; aspect-ratio: 4 / 3; }
     .card-body { flex: 1; min-width: 0; }
-    @media (max-width: 700px) { .card-row { flex-direction: column; } .card-img { flex: none; max-width: 100%; width: 100%; } }
+    @media (max-width: 700px) {
+        .card-row { flex-direction: column; }
+        .card-img { flex: none; max-width: 100%; width: 100%; }
+    }
 
     .card-title { font-size: 1.2rem; font-weight: 700; color: #f8fafc; line-height: 1.4; margin-bottom: 6px; }
-    .card-date { font-size: .8rem; font-weight: 500; color: #94a3b8; margin-bottom: 12px; }
-    .card-desc { font-size: .95rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 18px; }
+    .card-date { font-size: 0.8rem; font-weight: 500; color: #94a3b8; margin-bottom: 12px; }
+    .card-desc { font-size: 0.95rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 18px; }
     .card-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
-    .badge-pill { padding: 5px 12px; border-radius: 20px; font-size: .775rem; font-weight: 600; }
-    .badge-free { background: rgba(5,150,105,.15); color: #34d399; border: 1px solid rgba(5,150,105,.3); }
-    .badge-price { background: rgba(37,99,235,.15); color: #60a5fa; border: 1px solid rgba(37,99,235,.3); }
-    .badge-location { background: rgba(71,85,105,.2); color: #94a3b8; border: 1px solid rgba(71,85,105,.4); }
-    .badge-yellow { background: rgba(234,179,8,.2); color: #facc15; border: 1px solid rgba(234,179,8,.4); }
-    .pro-btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 11px 18px;
-               background: #2563eb; color: #fff !important; font-size: .9rem; font-weight: 600; border-radius: 10px;
-               text-decoration: none !important; transition: all .2s ease; }
-    .pro-btn:hover { background: #1d4ed8; box-shadow: 0 4px 15px rgba(37,99,235,.4); }
+
+    .badge-pill { padding: 5px 12px; border-radius: 20px; font-size: 0.775rem; font-weight: 600; }
+    .badge-free { background-color: rgba(5,150,105,0.15); color: #34d399; border: 1px solid rgba(5,150,105,0.3); }
+    .badge-price { background-color: rgba(37,99,235,0.15); color: #60a5fa; border: 1px solid rgba(37,99,235,0.3); }
+    .badge-location { background-color: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.4); }
+    .badge-yellow { background-color: rgba(234,179,8,0.2); color: #facc15; border: 1px solid rgba(234,179,8,0.4); }
+
+    .pro-btn {
+        display: inline-flex; align-items: center; justify-content: center; width: 100%;
+        padding: 11px 18px; background: #2563eb; color: #ffffff !important; font-size: 0.9rem;
+        font-weight: 600; border-radius: 10px; text-decoration: none !important; transition: all 0.2s ease;
+    }
+    .pro-btn:hover { background: #1d4ed8; box-shadow: 0 4px 15px rgba(37,99,235,0.4); }
     .pro-btn.secondary { background: #1f2937; border: 1px solid #374151; margin-top: 8px; }
     .pro-btn.secondary:hover { background: #273449; }
 </style>
@@ -64,12 +78,10 @@ if "favorites" not in st.session_state:
     st.session_state.favorites = []
 
 st.markdown(
-    """
-    <div class="hero-container">
-        <div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>
-        <div class="sub-title">FB Free, KV24, Renault 5 E-Tech (kollane) Euroopas, toidupakkumised &amp; kütusehinnad</div>
-    </div>
-    """,
+    '<div class="hero-container">'
+    '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
+    '<div class="sub-title">FB Free, KV24, Renault 5 E-Tech (kollane) Euroopas, toidupakkumised &amp; kütusehinnad</div>'
+    "</div>",
     unsafe_allow_html=True,
 )
 
@@ -83,8 +95,22 @@ UA = (
 
 
 def esc(value) -> str:
-    """HTML-i põgenemine, et kuulutuste tekst ei lõhuks lehte."""
-    return html_lib.escape(str(value if value is not None else ""), quote=True)
+    """HTML-i põgenemine. '$' asendatakse, et Streamlit ei tõlgendaks seda LaTeX-ina."""
+    text = html_lib.escape(str(value if value is not None else ""), quote=True)
+    return text.replace("$", "&#36;")
+
+
+def html_block(markup: str) -> str:
+    """
+    Teeb HTML-ist ühe pideva rea (ilma tühjade ridade ja taandeta).
+    See on KRIITILINE: Streamlit/Markdown muudab tühja rea järel taandatud HTML-i
+    koodiplokiks ja kuvab toore '</div>' teksti.
+    """
+    return "".join(line.strip() for line in markup.splitlines() if line.strip())
+
+
+def show_html(markup: str):
+    st.markdown(html_block(markup), unsafe_allow_html=True)
 
 
 def get_robust_session():
@@ -119,9 +145,7 @@ def check_single_link(url):
     if not url or url == "#" or not url.startswith("http"):
         return True
     try:
-        res = get_robust_session().head(
-            url, headers={"User-Agent": UA}, timeout=3, allow_redirects=True
-        )
+        res = get_robust_session().head(url, headers={"User-Agent": UA}, timeout=3, allow_redirects=True)
         return res.status_code not in (404, 410)
     except Exception:
         return True
@@ -159,6 +183,13 @@ def extract_price(text):
     return "Hind kokkuleppel"
 
 
+def matches(query, *fields):
+    if not query:
+        return True
+    q = query.lower()
+    return any(q in str(f or "").lower() for f in fields)
+
+
 def add_favorite(item):
     link = item.get("link") or item.get("url")
     if any((f.get("link") or f.get("url")) == link for f in st.session_state.favorites):
@@ -168,47 +199,39 @@ def add_favorite(item):
     st.toast("Salvestatud lemmikutesse! ⭐")
 
 
-def render_card(item, key, button_text, badges, link=None, secondary=None):
-    """Üks ühtne kaardi-renderdaja (parandab varasema katkise HTML-i, kus pilt jäi kaardist välja)."""
+def render_card(item, key, button_text, badges="", link=None, secondary=None, fav_button=True):
+    """Üks ühtne kaardi-renderdaja. HTML läheb alati ühe pideva reana (vt html_block)."""
     link = link or item.get("link") or item.get("url") or "#"
     img_html = ""
     if item.get("image"):
-        img_html = f'<div class="card-img"><img src="{esc(item["image"])}" loading="lazy" referrerpolicy="no-referrer" alt=""></div>'
+        img_html = (
+            f'<div class="card-img"><img src="{esc(item["image"])}" loading="lazy" '
+            f'referrerpolicy="no-referrer" alt=""></div>'
+        )
     date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
-    sec_html = (
-        f'<a href="{esc(secondary[1])}" target="_blank" rel="noopener" class="pro-btn secondary">{esc(secondary[0])}</a>'
-        if secondary
-        else ""
+    tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
+    sec_html = ""
+    if secondary:
+        sec_html = (
+            f'<a href="{esc(secondary[1])}" target="_blank" rel="noopener" '
+            f'class="pro-btn secondary">{esc(secondary[0])}</a>'
+        )
+    show_html(
+        f'<div class="pro-card"><div class="card-row">{img_html}<div class="card-body">'
+        f'<div class="card-title">{esc(item.get("title") or item.get("store"))}</div>'
+        f"{date_html}"
+        f'<div class="card-desc">{esc(item.get("description") or item.get("desc"))}</div>'
+        f"{tags_html}"
+        f'<a href="{esc(link)}" target="_blank" rel="noopener" class="pro-btn">{esc(button_text)}</a>'
+        f"{sec_html}"
+        f"</div></div></div>"
     )
-    st.markdown(
-        f"""
-        <div class="pro-card"><div class="card-row">
-            {img_html}
-            <div class="card-body">
-                <div class="card-title">{esc(item.get('title'))}</div>
-                {date_html}
-                <div class="card-desc">{esc(item.get('description') or item.get('desc'))}</div>
-                <div class="card-tags">{badges}</div>
-                <a href="{esc(link)}" target="_blank" rel="noopener" class="pro-btn">{esc(button_text)}</a>
-                {sec_html}
-            </div>
-        </div></div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if st.button("⭐ Salvesta lemmikutesse", key=key):
+    if fav_button and st.button("⭐ Salvesta lemmikutesse", key=key):
         add_favorite(item)
 
 
-def matches(query, *fields):
-    if not query:
-        return True
-    q = query.lower()
-    return any(q in str(f or "").lower() for f in fields)
-
-
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE
+# 3. ANDMEKORJE LOOGIKA
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
@@ -244,22 +267,23 @@ def fetch_live_kv24_garages():
     return filter_valid_items(results, link_key="url")
 
 
-# ---- Renault 5 E-Tech, kollane, kogu Euroopa ---------------------------------
+# ---- Renault 5 E-Tech, KOLLANE, kogu Euroopa (AutoScout24) -------------------
+# Kontrollitud aadress: mudel on AutoScout24-s "r-5", värvifilter "bc_yellow".
 AS24_BASE = "https://www.autoscout24.com"
-# Riigid: DE, AT, BE, ES, FR, IT, LU, NL
-AS24_COUNTRIES = "D,A,B,E,F,I,L,NL"
-AS24_SEARCH = (
-    AS24_BASE + "/lst/renault/5?atype=C&fuel=E&cy=" + urllib.parse.quote(AS24_COUNTRIES, safe="")
-    + "&sort=price&desc=0&ustate=N%2CU"
-)
-YELLOW_RE = re.compile(
-    r"\b(yellow|gelb|jaune|geel|giallo|amarillo|gul|keltainen|kollane|pop\s*yellow|jaune\s*pop)\b",
-    re.IGNORECASE,
-)
+AS24_YELLOW_URL = f"{AS24_BASE}/lst/renault/r-5/bc_yellow"
+AS24_MAX_PAGES = 8  # 20 kuulutust lehel
+
 COUNTRY_NAMES = {
     "D": "Saksamaa", "DE": "Saksamaa", "A": "Austria", "AT": "Austria", "B": "Belgia", "BE": "Belgia",
     "E": "Hispaania", "ES": "Hispaania", "F": "Prantsusmaa", "FR": "Prantsusmaa", "I": "Itaalia",
     "IT": "Itaalia", "L": "Luksemburg", "LU": "Luksemburg", "NL": "Holland",
+}
+
+VARIANTS = {
+    "Kõik variandid": None,
+    "Evolution 120 (Urban Range, 40 kWh)": ("evolution",),
+    "Techno (120 Urban / 150 Comfort)": ("techno",),
+    "Iconic Five 150 (Comfort Range, 52 kWh)": ("iconic",),
 }
 
 
@@ -274,152 +298,201 @@ def _dig(obj, *path, default=None):
     return obj
 
 
-def _next_data(html_text):
-    soup = BeautifulSoup(html_text, "html.parser")
-    tag = soup.find("script", id="__NEXT_DATA__")
-    if not tag or not tag.string:
+def _price_to_int(text):
+    m = re.search(r"(\d{1,3}(?:[,\.\s]\d{3})+|\d{3,6})", str(text or ""))
+    if not m:
         return None
     try:
-        return json.loads(tag.string)
-    except Exception:
+        return int(re.sub(r"\D", "", m.group(1)))
+    except ValueError:
         return None
+
+
+def _fmt_price(value):
+    return f"{value:,}".replace(",", " ") + " €" if value else "Hind puudub"
+
+
+def _battery_from_title(title):
+    t = title.lower()
+    if "urban" in t or "evolution" in t or "40 kwh" in t or "120" in t:
+        return "40 kWh (~300 km)"
+    if "comfort" in t or "iconic" in t or "52" in t or "150" in t:
+        return "52 kWh (~400 km)"
+    return ""
 
 
 def _clean_img(url):
     if not url:
         return None
-    url = re.sub(r"/\{?\d+x\d+\}?(\.\w+)?$", "", url)  # eemalda suuruse-lõpp
-    url = url.replace("{width}", "800").replace("{height}", "600")
+    url = url.strip().split(" ")[0]
     return url if url.startswith("http") else None
 
 
-def _parse_as24_listing(raw):
-    vehicle = raw.get("vehicle") or {}
-    make = str(vehicle.get("make", "")).lower()
-    model = str(vehicle.get("model", "")).strip().lower()
-    if make != "renault" or model not in ("5", "5 e-tech", "r5"):
-        return None
+def _is_r5_electric(title, url, text):
+    """Ainult elektriline Renault 5 (välistab klassikalise bensiini-R5, mis on samuti 'r-5')."""
+    t = f"{title} {text}".lower()
+    if not ("renault-r-5" in url.lower() or re.search(r"\br\s?-?5\b", t) or "renault 5" in t):
+        return False
+    has_electric = bool(re.search(r"electric|elektr|électrique|elettric|eléctric|e-tech", t))
+    if re.search(r"gasoline|petrol|benzin|essence|diesel", t) and not has_electric:
+        return False
+    reg = re.search(r"\b(?:0[1-9]|1[0-2])[/-](19\d{2}|20\d{2})\b", text)
+    if reg and int(reg.group(1)) < 2023:  # R5 E-Tech müügil alates 2024
+        return False
+    return has_electric or bool(re.search(r"evolution|iconic|techno|comfort range|urban range", t))
 
-    version = vehicle.get("modelVersionInput") or vehicle.get("variant") or ""
-    title = f"Renault 5 {version}".strip()
 
-    price_raw = _dig(raw, "price", "priceRaw") or _dig(raw, "prices", "public", "priceRaw")
-    price_txt = _dig(raw, "price", "priceFormatted") or _dig(raw, "prices", "public", "priceFormatted")
-    if not price_txt and price_raw:
-        price_txt = f"{int(price_raw):,} €".replace(",", " ")
+def _parse_as24_next_data(soup):
+    tag = soup.find("script", id="__NEXT_DATA__")
+    if not tag or not (tag.string or tag.text):
+        return []
     try:
-        price_val = int(price_raw) if price_raw else 10**9
-    except (TypeError, ValueError):
-        price_val = 10**9
+        data = json.loads(tag.string or tag.text)
+    except Exception:
+        return []
+    listings = _dig(data, "props", "pageProps", "listings", default=[]) or []
+    out = []
+    for raw in listings:
+        if not isinstance(raw, dict):
+            continue
+        vehicle = raw.get("vehicle") or {}
+        version = vehicle.get("modelVersionInput") or vehicle.get("variant") or ""
+        model = str(vehicle.get("model", ""))
+        title = f"Renault {model} {version}".strip()
+        url = raw.get("url") or ""
+        url = urllib.parse.urljoin(AS24_BASE, url.split("?")[0]) if url else ""
+        blob = json.dumps(raw, ensure_ascii=False)
+        if not url or not _is_r5_electric(title, url, blob):
+            continue
+        price = _price_to_int(
+            _dig(raw, "price", "priceRaw") or _dig(raw, "prices", "public", "priceRaw")
+            or _dig(raw, "price", "priceFormatted") or _dig(raw, "tracking", "price")
+        )
+        loc = raw.get("location") or {}
+        cc = str(loc.get("countryCode", "")).upper()
+        images = raw.get("images") or []
+        image = _clean_img(images[0]) if images and isinstance(images[0], str) else None
+        km = _dig(raw, "tracking", "mileage") or vehicle.get("mileageInKm") or ""
+        reg = _dig(raw, "tracking", "firstRegistration") or ""
+        seller = _dig(raw, "seller", "companyName") or ""
+        out.append(
+            {
+                "title": title, "price_val": price, "link": url, "image": image,
+                "location": ", ".join(x for x in (loc.get("city"), COUNTRY_NAMES.get(cc, cc)) if x) or "Euroopa",
+                "km": f"{km} km" if km else "", "reg": str(reg), "seller": seller,
+            }
+        )
+    return out
 
-    loc = raw.get("location") or {}
-    cc = str(loc.get("countryCode", "")).upper()
-    city = loc.get("city", "")
-    location = ", ".join(x for x in (city, COUNTRY_NAMES.get(cc, cc)) if x) or "Euroopa"
 
-    images = raw.get("images") or []
-    image = _clean_img(images[0]) if images and isinstance(images[0], str) else None
-
-    km = _dig(raw, "tracking", "mileage") or vehicle.get("mileageInKm") or ""
-    seller = _dig(raw, "seller", "companyName") or _dig(raw, "seller", "type") or ""
-    url = raw.get("url") or ""
-    if url.startswith("/"):
-        url = AS24_BASE + url
-
-    return {
-        "title": title,
-        "description": " · ".join(
-            x for x in (
-                vehicle.get("subtitle") or "",
-                f"{km} km" if km else "",
-                f"Müüja: {seller}" if seller else "",
-            ) if x
-        ) or "Renault 5 E-Tech elektriauto.",
-        "price": price_txt or "Hind puudub",
-        "price_val": price_val,
-        "location": location,
-        "link": url,
-        "image": image,
-        "_blob": json.dumps(raw, ensure_ascii=False).lower(),
-    }
+def _parse_as24_html(soup):
+    """Varuvariant: loeb kuulutused otse lehe HTML-ist (pealkiri, hind, pilt, link)."""
+    offer_re = re.compile(r"/offers/")
+    out, seen = [], set()
+    for a in soup.find_all("a", href=offer_re):
+        url = urllib.parse.urljoin(AS24_BASE, a["href"].split("?")[0])
+        if url in seen:
+            continue
+        card, hops = a, 0
+        while card is not None and hops < 10 and not (card.find("h2") and "€" in card.get_text(" ")):
+            card, hops = card.parent, hops + 1
+        if card is None or hops >= 10:
+            continue
+        distinct = {x["href"].split("?")[0] for x in card.find_all("a", href=offer_re)}
+        if len(distinct) > 2:  # ronis liiga kõrgele - sisaldab mitut kuulutust
+            continue
+        seen.add(url)
+        text = card.get_text(" ", strip=True)
+        h2 = card.find("h2")
+        title = h2.get_text(" ", strip=True) if h2 else ""
+        if not _is_r5_electric(title, url, text):
+            continue
+        price = _price_to_int(re.search(r"€\s*([\d,\.]+)", text).group(1)) if re.search(r"€\s*([\d,\.]+)", text) else None
+        img = card.find("img", src=re.compile(r"listing-images")) or card.find("img", attrs={"data-src": True})
+        image = None
+        if img:
+            image = _clean_img(img.get("src") or img.get("data-src") or (img.get("srcset") or "").split(",")[0])
+        km = re.search(r"([\d,\.]+)\s*km\b", text)
+        reg = re.search(r"\b(\d{2}/\d{4})\b", text)
+        loc = re.search(r"(DE|AT|BE|ES|FR|IT|LU|NL)-(\d{3,5}(?:\s[A-Z]{2}\b)?)\s*([^\d\n]{0,30})", text)
+        location = "Euroopa"
+        if loc:
+            location = f"{COUNTRY_NAMES.get(loc.group(1), loc.group(1))}, {loc.group(2)} {loc.group(3)}".strip(" ,")
+        out.append(
+            {
+                "title": title or "Renault 5", "price_val": price, "link": url, "image": image,
+                "location": location, "km": f"{km.group(1)} km" if km else "",
+                "reg": reg.group(1) if reg else "", "seller": "",
+            }
+        )
+    return out
 
 
 def _fetch_as24_page(page):
-    try:
-        r = get_robust_session().get(
-            f"{AS24_SEARCH}&page={page}",
-            headers={"User-Agent": UA, "Accept-Language": "en-GB,en;q=0.9"},
-            timeout=12,
-        )
-        if r.status_code != 200:
-            return [], f"AutoScout24 vastas koodiga {r.status_code}"
-        data = _next_data(r.text)
-        listings = _dig(data, "props", "pageProps", "listings", default=[]) if data else []
-        return listings or [], None
-    except Exception as e:
-        return [], str(e)
-
-
-def _detail_is_yellow(item):
-    """Avab kuulutuse lehe ja kontrollib auto värvi (kui otsingu andmetes värvi pole)."""
-    if YELLOW_RE.search(item["_blob"]) or YELLOW_RE.search(item["title"]):
-        return True
-    try:
-        r = get_robust_session().get(item["link"], headers={"User-Agent": UA}, timeout=10)
-        if r.status_code != 200:
-            return False
-        data = _next_data(r.text)
-        blob = json.dumps(_dig(data, "props", "pageProps", default={}), ensure_ascii=False)
-        # Otsime ainult värvivälju, et mitte tabada suvalist teksti
-        for m in re.finditer(r'"(?:bodyColor|manufacturerColor|color|colour)[A-Za-z]*"\s*:\s*"([^"]+)"', blob, re.IGNORECASE):
-            if YELLOW_RE.search(m.group(1)):
-                return True
-        soup = BeautifulSoup(r.text, "html.parser")
-        for dt in soup.find_all(["dt", "span", "div"]):
-            t = dt.get_text(strip=True).lower()
-            if t in ("colour", "color", "farbe", "couleur", "body colour", "body color", "manufacturer colour", "manufacturer color"):
-                sib = dt.find_next(["dd", "span", "div"])
-                if sib and YELLOW_RE.search(sib.get_text(" ", strip=True)):
-                    return True
-    except Exception:
-        pass
-    return False
+    headers = {"User-Agent": UA, "Accept-Language": "en-GB,en;q=0.9", "Accept": "text/html,application/xhtml+xml"}
+    last_status = None
+    for params in (f"?sort=price&desc=0&page={page}", f"?page={page}"):
+        try:
+            r = get_robust_session().get(AS24_YELLOW_URL + params, headers=headers, timeout=15)
+            last_status = r.status_code
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, "html.parser")
+            items = _parse_as24_next_data(soup)
+            method = "next_data"
+            if not items:
+                items = _parse_as24_html(soup)
+                method = "html"
+            if items:
+                return items, method, 200
+        except Exception as e:
+            last_status = f"viga: {type(e).__name__}"
+    return [], "-", last_status
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
-def fetch_renault_5_yellow_ev(max_pages=4):
-    """Päris kuulutused: Renault 5 E-Tech elektriauto, kollane, Euroopa (AutoScout24)."""
-    raw_all, errors = [], []
+def fetch_renault_5_yellow_ev():
+    """Päris kuulutused: kollane Renault 5 elektriauto, Euroopa, kõik müüjad (AutoScout24).
+    Ebaõnnestumise korral viskab erandi, et tühja tulemust ei puhverdataks."""
+    all_items, report, seen = [], [], set()
     with ThreadPoolExecutor(max_workers=4) as ex:
-        for listings, err in ex.map(_fetch_as24_page, range(1, max_pages + 1)):
-            raw_all.extend(listings)
-            if err:
-                errors.append(err)
+        for page, (items, method, status) in enumerate(ex.map(_fetch_as24_page, range(1, AS24_MAX_PAGES + 1)), 1):
+            report.append(f"leht {page}: {len(items)} tk ({method}, HTTP {status})")
+            for it in items:
+                if it["link"] not in seen:
+                    seen.add(it["link"])
+                    all_items.append(it)
+    if not all_items:
+        raise RuntimeError("AutoScout24 ei andnud kuulutusi. " + "; ".join(report[:3]))
 
-    parsed, seen = [], set()
-    for raw in raw_all:
-        item = _parse_as24_listing(raw)
-        if item and item["link"] and item["link"] not in seen:
-            seen.add(item["link"])
-            parsed.append(item)
-
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        flags = list(ex.map(_detail_is_yellow, parsed))
-    yellow = [it for it, ok in zip(parsed, flags) if ok]
-    for it in yellow:
-        it.pop("_blob", None)
-    yellow.sort(key=lambda x: x["price_val"])
-    return {"items": yellow, "total_r5": len(parsed), "errors": errors[:2]}
+    result = []
+    for it in all_items:
+        title = re.sub(r"\s+", " ", it["title"]).strip()
+        parts = [p for p in (it["reg"] and f"Esmane reg. {it['reg']}", it["km"], it["seller"] and f"Müüja: {it['seller']}") if p]
+        result.append(
+            {
+                "title": title,
+                "description": " · ".join(parts) or "Kollane Renault 5 E-Tech elektriauto.",
+                "price": _fmt_price(it["price_val"]),
+                "price_val": it["price_val"] or 10**9,
+                "battery": _battery_from_title(title),
+                "location": it["location"],
+                "image": it["image"],
+                "link": it["link"],
+            }
+        )
+    result.sort(key=lambda x: x["price_val"])
+    return {"items": result, "report": report}
 
 
 def r5_search_links():
-    """Otselingid sama filtriga teistele portaalidele (kui automaatne otsing midagi ei leia)."""
+    """Kontrollitud otselingid teistele portaalidele (kollane Renault 5)."""
     return [
-        ("AutoScout24 (Euroopa, odavaim ees)", AS24_SEARCH),
-        ("Mobile.de – Renault 5 elektriline", "https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&makeModelVariant1.makeId=19000&makeModelVariant1.modelDescription=5&fuel=ELECTRICITY&sortOption.sortBy=searchNetGrossPrice&sortOption.sortOrder=ASCENDING"),
-        ("La Centrale (Prantsusmaa)", "https://www.lacentrale.fr/listing?makesModelsCommercialNames=RENAULT%3A5&energies=elec&sortBy=priceAsc"),
-        ("Marktplaats (Holland)", "https://www.marktplaats.nl/q/renault+5+e-tech+geel/"),
-        ("Autoscout24.de – Renault 5 gelb", "https://www.autoscout24.de/lst/renault/5?fuel=E&sort=price&desc=0"),
+        ("AutoScout24 – kollane Renault 5 (kogu Euroopa)", AS24_YELLOW_URL + "?sort=price&desc=0"),
+        ("AutoScout24.de – Renault R 5 gelb", "https://www.autoscout24.de/lst/renault/r-5/bc_gelb"),
+        ("Mobile.de – Renault R 5 E-Tech", "https://suchen.mobile.de/auto/renault-r-5-e-tech-evolution.html"),
+        ("Das Parking – Renault R 5 gelb", "https://www.dasparking.de/gebrauchtwagen/renault-r-5-gelb.html"),
+        ("AutoUncle – Renault 5 E-Tech", "https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech"),
     ]
 
 
@@ -434,7 +507,7 @@ def fetch_reitingud_html():
                 for match in soup.select(selector):
                     match.decompose()
             for element in soup.find_all(["p", "div", "section"]):
-                if element.decomposed:
+                if getattr(element, "decomposed", False):
                     continue
                 text_content = element.get_text()
                 if "TELLI UUDISKIRI" in text_content or "MTÜ Ühiskonnauuringute Instituut" in text_content or "Uuringufirma" in text_content:
@@ -510,7 +583,7 @@ def fetch_free_items(rss_url):
 
 
 # -----------------------------------------------------------------------------
-# 4. OTSING JA SEKTSIOONID
+# 4. OTSINGURIBA JA SEKTSIOONID
 # -----------------------------------------------------------------------------
 col_search, col_fav = st.columns([3, 1])
 with col_search:
@@ -534,34 +607,34 @@ selected_tab = st.radio(
 )
 st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
-# --- 1. TASUTA ASJAD ---
+# --- 1. SEKTSIOON: TASUTA ASJAD ---
 if selected_tab == "🎁 Tasuta asjad":
     try:
         with st.spinner("Laen tasuta kuulutusi..."):
-            items = fetch_free_items("https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml")
+            free_items = fetch_free_items("https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml")
     except Exception as e:
         print(f"Viga Facebooki RSS skännimisel: {e}")
-        items = []
-    items = [i for i in items if matches(search_query, i["title"], i["description"])]
-    if not items:
+        free_items = []
+    free_items = [i for i in free_items if matches(search_query, i["title"], i["description"])]
+    if not free_items:
         st.info("Hetkel ei ole saadaval ühtegi aktiivset või otsingule vastavat tasuta kuulutust.")
-    for idx, item in enumerate(items):
+    for idx, item in enumerate(free_items):
         badges = (
             '<span class="badge-pill badge-free">Tasuta</span>'
             f'<span class="badge-pill badge-location">📍 {esc(item["location"])}</span>'
         )
         render_card(item, f"fav_fb_{idx}", "👉 Vaata kuulutust Facebookis", badges)
 
-# --- 2. KINNISVARA ---
+# --- 2. SEKTSIOON: KINNISVARA OBJEKTID ---
 elif selected_tab == "🏢 Kinnisvara objektid":
     with st.spinner("Skännin Kinnisvara24 aktiivseid garaažipakkumisi..."):
         kv24_items = fetch_live_kv24_garages()
-    canonical = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
+    canonical_kv24_url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
     if not kv24_items:
         kv24_items = [{
             "title": "Garaažide müügipakkumised Harju maakonnas",
-            "description": "Ava Harjumaa ja Tallinna garaažibokside avalikud pakkumised Kinnisvara24 portaalis.",
-            "price": "Vaata portaalist", "location": "Harju maakond", "url": canonical,
+            "description": "Ava Harjumaa ja Tallinna garaažibokside reaalajas avalikud pakkumised Kinnisvara24 portaalis.",
+            "price": "Vaata portaalist", "location": "Harju maakond", "url": canonical_kv24_url,
         }]
     for idx, item in enumerate(kv24_items):
         if not matches(search_query, item["title"], item["description"]):
@@ -570,89 +643,128 @@ elif selected_tab == "🏢 Kinnisvara objektid":
             f'<span class="badge-pill badge-price">{esc(item["price"])}</span>'
             f'<span class="badge-pill badge-location">📍 {esc(item["location"])}</span>'
         )
-        render_card(item, f"fav_kv24_{idx}", "👉 Ava pakkumine Kinnisvara24 portaalis", badges, link=item.get("url", canonical))
+        render_card(item, f"fav_kv24_{idx}", "👉 Ava pakkumine Kinnisvara24 portaalis", badges,
+                    link=item.get("url", canonical_kv24_url))
 
-# --- 3. RENAULT 5 EV ---
+# --- 3. SEKTSIOON: RENAULT 5 EV ---
 elif selected_tab == "⚡ Renault 5 EV":
     st.markdown("### ⚡ Renault 5 E-Tech (kollane) – päris kuulutused Euroopast")
     st.info(
-        "Otsitakse ainult elektrilist Renault 5 mudelit kollases värvitoonis, kõigilt müüjatelt "
-        "(DE, AT, BE, ES, FR, IT, LU, NL). Hinna järgi odavaim ees. Uueneb iga 6 tunni järel."
+        "Ainult elektriline Renault 5 kollases värvitoonis, kõik müüjad kogu Euroopas "
+        "(DE, AT, BE, ES, FR, IT, LU, NL). Andmed tulevad otse AutoScout24-st ja uuenevad iga 6 tunni järel."
     )
-    with st.spinner("Otsin Euroopa kuulutustest kollast Renault 5 E-Techi..."):
-        data = fetch_renault_5_yellow_ev()
 
-    items = [d for d in data["items"] if matches(search_query, d["title"], d["description"], d["location"])]
+    c_var, c_sort = st.columns([2, 1])
+    with c_var:
+        variant_label = st.selectbox("Variant", list(VARIANTS.keys()))
+    with c_sort:
+        sort_label = st.selectbox("Järjekord", ["Odavaim ees", "Kallim ees"])
 
-    if items:
-        st.caption(f"Leitud {len(items)} kollast Renault 5 (kokku vaadatud {data['total_r5']} Renault 5 kuulutust).")
+    r5_data, r5_error = None, None
+    try:
+        with st.spinner("Otsin Euroopa kuulutustest kollast Renault 5 E-Techi..."):
+            r5_data = fetch_renault_5_yellow_ev()
+    except Exception as e:
+        r5_error = str(e)
+
+    if r5_data:
+        keys = VARIANTS[variant_label]
+        r5_items = [
+            d for d in r5_data["items"]
+            if (keys is None or any(k in d["title"].lower() for k in keys))
+            and matches(search_query, d["title"], d["description"], d["location"])
+        ]
+        if sort_label == "Kallim ees":
+            r5_items = list(reversed(r5_items))
+        st.caption(f"Leitud {len(r5_items)} kuulutust (kokku {len(r5_data['items'])} kollast Renault 5).")
+        if not r5_items:
+            st.warning("Valitud filtritega kuulutusi ei leitud. Proovi variant 'Kõik variandid'.")
+        for idx, deal in enumerate(r5_items):
+            badges = (
+                f'<span class="badge-pill badge-yellow">{esc(deal["price"])}</span>'
+                '<span class="badge-pill badge-price">🟡 Kollane</span>'
+                + (f'<span class="badge-pill badge-price">🔋 {esc(deal["battery"])}</span>' if deal["battery"] else "")
+                + f'<span class="badge-pill badge-location">📍 {esc(deal["location"])}</span>'
+            )
+            render_card(
+                deal, f"fav_r5_{idx}", "👉 Ava kuulutus AutoScout24-s", badges,
+                secondary=("🌐 Ava eestikeelsena (Google Translate)",
+                           "https://translate.google.com/translate?sl=auto&tl=et&u=" + urllib.parse.quote(deal["link"], safe="")),
+            )
     else:
         st.warning(
-            "Automaatne otsing ei leidnud praegu ühtegi kollast Renault 5 kuulutust"
-            + (f" ({'; '.join(data['errors'])})" if data["errors"] else "")
-            + ". Portaal võib päringut blokeerida või kuulutusi pole. Kasuta allolevaid otselinke."
-        )
-
-    for idx, deal in enumerate(items):
-        badges = (
-            f'<span class="badge-pill badge-yellow">{esc(deal["price"])}</span>'
-            '<span class="badge-pill badge-price">🟡 Kollane</span>'
-            f'<span class="badge-pill badge-location">📍 {esc(deal["location"])}</span>'
+            "Automaatne otsing ei saanud praegu AutoScout24-st andmeid (portaal võib päringuid blokeerida). "
+            "Ava otsing otse allolevast nupust – see on sama filter (Renault R 5, kollane, kogu Euroopa)."
         )
         render_card(
-            deal, f"fav_r5_{idx}", "👉 Ava kuulutus", badges,
-            secondary=("🌐 Ava eestikeelsena (Google Translate)",
-                       "https://translate.google.com/translate?sl=auto&tl=et&u=" + urllib.parse.quote(deal["link"], safe="")),
+            {"title": "Kollane Renault 5 E-Tech – kõik pakkumised Euroopas",
+             "description": "Otsing AutoScout24-s: Renault R 5, värv kollane, hind odavaimast kallimani."},
+            "noop_r5", "👉 Ava AutoScout24 otsing", '<span class="badge-pill badge-yellow">🟡 Kollane</span>',
+            link=AS24_YELLOW_URL + "?sort=price&desc=0", fav_button=False,
         )
+        with st.expander("🛠 Tehniline info"):
+            st.code(r5_error or "teadmata viga")
 
-    with st.expander("🔗 Otsi ise teistel portaalidel (eelfiltreeritud)", expanded=not items):
+    with st.expander("🔗 Teised portaalid (kollane Renault 5)", expanded=False):
         for label, url in r5_search_links():
             st.markdown(f"- [{label}]({url})")
-        st.caption("Värvi filtreeri portaalis käsitsi: Colour/Farbe → Yellow/Gelb.")
+    if r5_data:
+        with st.expander("🛠 Tehniline info"):
+            st.code("\n".join(r5_data["report"]))
 
-# --- 4. TOIDUPAKKUMISED ---
+# --- 4. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Toidupakkumised")
     st.info("Näidisandmed – hinnad ei uuendu automaatselt. Kehtivad pakkumised vaata poodide lehtedelt.")
-    deals = [
+    food_deals = [
         {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "https://www.selver.ee"},
-        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed.", "link": "https://www.rimi.ee"},
+        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee"},
         {"store": "Maxima", "title": "Jahutatud broilerifilee 1kg", "price": "4.99 €", "desc": "Värske kodumaine kanafilee.", "link": "https://www.maxima.ee"},
-        {"store": "Coop", "title": "Eesti või 82% 200g", "price": "1.49 €", "desc": "Säästukaardiga hind.", "link": "https://www.coop.ee"},
+        {"store": "Coop", "title": "Eesti või 82% 200g", "price": "1.49 €", "desc": "Säästukaardiga tavapärase taseme tipphind.", "link": "https://www.coop.ee"},
     ]
-    for idx, deal in enumerate(deals):
+    for idx, deal in enumerate(food_deals):
         if not matches(search_query, deal["title"], deal["store"]):
             continue
-        deal = {**deal, "title": f"{deal['store']}: {deal['title']}"}
+        item = {**deal, "title": f"{deal['store']}: {deal['title']}", "description": deal["desc"]}
         badges = (
             f'<span class="badge-pill badge-yellow">{esc(deal["price"])}</span>'
             '<span class="badge-pill badge-location">📍 Kõik kauplused</span>'
         )
-        render_card(deal, f"fav_deal_{idx}", "👉 Vaata e-poest", badges)
+        render_card(item, f"fav_deal_{idx}", "👉 Vaata e-poest", badges)
 
-# --- 5. KÜTUS & PARKIMINE ---
+# --- 5. SEKTSIOON: KÜTUSEHINNAD & PARKIMINE ---
 elif selected_tab == "🚗 Kütusehinnad & Parkimine":
     st.markdown("### 🚗 Kütusehinnad & tasuta parkimine")
     st.info("Hinnad on ligikaudsed näidised. Täpsed hinnad: Fuelo.")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(
-            """<div class="pro-card"><div class="card-title">⛽ Ligikaudsed kütusehinnad Tallinnas</div>
-            <div class="card-desc">• <b>Bensiin 95:</b> ~1.629 €/l<br>• <b>Bensiin 98:</b> ~1.679 €/l<br>• <b>Diislikütus:</b> ~1.549 €/l</div>
-            <a href="https://fuelo.net/et/prices/country/Estonia" target="_blank" rel="noopener" class="pro-btn">👉 Vaata Fuelo kütusekaarti</a></div>""",
-            unsafe_allow_html=True,
-        )
-    with c2:
-        st.markdown(
-            """<div class="pro-card"><div class="card-title">🅿️ Tasuta parkimine Harjumaal</div>
-            <div class="card-desc">• <b>Kristiine Keskus:</b> 2h tasuta (parkimiskellaga)<br>• <b>Ülemiste Keskus:</b> väliparklas tasuta<br>• <b>Rocca al Mare:</b> parkimismajas tasuta</div>
-            <a href="https://www.parkimine.ee" target="_blank" rel="noopener" class="pro-btn">👉 Vaata Parkimine.ee kaarti</a></div>""",
-            unsafe_allow_html=True,
-        )
+    col1, col2 = st.columns(2)
+    with col1:
+        show_html("""
+        <div class="pro-card">
+            <div class="card-title">⛽ Ligikaudsed kütusehinnad Tallinnas</div>
+            <div class="card-desc">
+                • <b>Bensiin 95:</b> ~1.629 €/l<br>
+                • <b>Bensiin 98:</b> ~1.679 €/l<br>
+                • <b>Diislikütus:</b> ~1.549 €/l
+            </div>
+            <a href="https://fuelo.net/et/prices/country/Estonia" target="_blank" rel="noopener" class="pro-btn">👉 Vaata Fuelo kütusekaarti</a>
+        </div>
+        """)
+    with col2:
+        show_html("""
+        <div class="pro-card">
+            <div class="card-title">🅿️ Tasuta parkimine Harjumaal</div>
+            <div class="card-desc">
+                • <b>Kristiine Keskus:</b> 2h tasuta (parkimiskellaga)<br>
+                • <b>Ülemiste Keskus:</b> väliparklas tasuta<br>
+                • <b>Rocca al Mare:</b> parkimismajas tasuta
+            </div>
+            <a href="https://www.parkimine.ee" target="_blank" rel="noopener" class="pro-btn">👉 Vaata Parkimine.ee kaarti</a>
+        </div>
+        """)
 
-# --- 6. REITINGUD ---
+# --- 6. SEKTSIOON: EESTI REITINGUD ---
 elif selected_tab == "📈 Eesti reitingud":
-    st.markdown("### Eesti reitingud")
+    st.markdown("### Eesti reitingud reaalajas praegu")
     st.markdown("---")
     reitingud_html = fetch_reitingud_html()
     if reitingud_html:
@@ -660,24 +772,13 @@ elif selected_tab == "📈 Eesti reitingud":
     else:
         components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
 
-# --- 7. LEMMIKUD ---
+# --- 7. SEKTSIOON: SALVESTATUD LEMMIKUD ---
 elif selected_tab == "⭐ Minu lemmikud":
     st.markdown("### ⭐ Sinu salvestatud kuulutused")
     if not st.session_state.favorites:
         st.info("Sa ei ole veel ühtegi kuulutust lemmikutesse salvestanud.")
     for idx, item in enumerate(list(st.session_state.favorites)):
-        link = item.get("link") or item.get("url") or "#"
-        img_html = (
-            f'<div class="card-img"><img src="{esc(item["image"])}" alt=""></div>' if item.get("image") else ""
-        )
-        st.markdown(
-            f"""<div class="pro-card"><div class="card-row">{img_html}<div class="card-body">
-            <div class="card-title">{esc(item.get('title', item.get('store', 'Lemmik')))}</div>
-            <div class="card-desc">{esc(item.get('description') or item.get('desc'))}</div>
-            <a href="{esc(link)}" target="_blank" rel="noopener" class="pro-btn">👉 Vaata originaalkuulutust</a>
-            </div></div></div>""",
-            unsafe_allow_html=True,
-        )
+        render_card(item, f"noop_fav_{idx}", "👉 Vaata originaalkuulutust", fav_button=False)
         if st.button("❌ Eemalda lemmikutest", key=f"remove_fav_{idx}"):
             st.session_state.favorites.pop(idx)
             st.rerun()
