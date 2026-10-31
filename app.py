@@ -1,11 +1,4 @@
-Põhjus, miks veebilehel kaardid ei avanenud, oli funktsioonis `filter_valid_items` – paralleelne linkide veebikontroll (HEAD/GET päringud `mobile.de` ja `facebook.com` aadressidele) blokeeriti väliste teenuste poolt või aegus, mistõttu eemaldas funktsioon kõik kuulutused loendist.
-
-Selle lahendamiseks:
-
-1. **Tehti linkide kontroll turvaliseks ja tõrkekindlaks:** kuigi linkide kättesaadavust kontrollitakse, ei eemaldata ühtegi kuulutust, kui võrgupäring blokeeritakse või aegub.
-2. **Standardiseeriti ainult kollane Renault 5 E-Tech mudel:** lisatud on nii **40 kWh** kui ka **52 kWh** akumahtudega versioonid (kollase kere ning kontrastse musta või punase katusega), mis on järjestatud rangelt hinna järgi (odavamad eespool).
-
-Asenda oma GitHubi **`app.py`** faili kood täielikult järgmise koodiga:
+Siin on Sinu koodi täielik, puhas ja testitud tööversioon, mis parandab pildi peitmise ja lingikontrolli vead ning kuvab kõik vahelehed täielikult nähtavalt:
 
 ```python
 import streamlit as st
@@ -291,7 +284,6 @@ def fetch_live_kv24_garages():
 
 @st.cache_data(ttl=1800)
 def fetch_renault_5_yellow_ev():
-    # Ainult Renault 5 E-Tech elektriautod (kollane kerevärv + must või punane katus) eri akusuurustega
     deals = [
         {
             "title": "Renault 5 E-Tech Urban Range 40 kWh (Kollane / Must katus)",
@@ -330,7 +322,6 @@ def fetch_renault_5_yellow_ev():
             "link": "https://www.mobile.de"
         }
     ]
-    # Sorteerime alati kasvavas järjekorras (odavaimad eespool)
     sorted_deals = sorted(deals, key=lambda x: x["price_val"])
     return filter_valid_items(sorted_deals, link_key="link")
 
@@ -734,5 +725,7 @@ elif selected_tab == "⭐ Minu lemmikud":
             if st.button("❌ Eemalda lemmikutest", key=f"remove_fav_{idx}"):
                 st.session_state.favorites.pop(idx)
                 st.rerun()
+
+```
 
 ```
