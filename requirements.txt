@@ -5,3 +5,4 @@ streamlit>=1.37
 requests
 beautifulsoup4
 deep-translator
+curl_cffi
