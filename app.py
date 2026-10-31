@@ -1,5 +1,6 @@
 import html as html_lib
 import json
+import os
 import re
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
@@ -74,13 +75,11 @@ DARK_MODE_CSS = """
 """
 st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
-if "favorites" not in st.session_state:
-    st.session_state.favorites = []
 
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">FB Free, KV24, Renault 5 E-Tech (kollane) Euroopas, toidupakkumised &amp; kütusehinnad</div>'
+    '<div class="sub-title">Facebooki grupi tasuta kuulutused, KV24, Renault 5 E-Tech, toidupakkumised &amp; kütusehinnad</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -190,16 +189,7 @@ def matches(query, *fields):
     return any(q in str(f or "").lower() for f in fields)
 
 
-def add_favorite(item):
-    link = item.get("link") or item.get("url")
-    if any((f.get("link") or f.get("url")) == link for f in st.session_state.favorites):
-        st.toast("See on juba lemmikutes.")
-        return
-    st.session_state.favorites.append(item)
-    st.toast("Salvestatud lemmikutesse! ⭐")
-
-
-def render_card(item, key, button_text, badges="", link=None, secondary=None, fav_button=True):
+def render_card(item, key, button_text, badges="", link=None, secondary=None):
     """Üks ühtne kaardi-renderdaja. HTML läheb alati ühe pideva reana (vt html_block)."""
     link = link or item.get("link") or item.get("url") or "#"
     img_html = ""
@@ -226,8 +216,6 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None, fa
         f"{sec_html}"
         f"</div></div></div>"
     )
-    if fav_button and st.button("⭐ Salvesta lemmikutesse", key=key):
-        add_favorite(item)
 
 
 # -----------------------------------------------------------------------------
@@ -490,7 +478,6 @@ def r5_search_links():
     return [
         ("AutoScout24 – kollane Renault 5 (kogu Euroopa)", AS24_YELLOW_URL + "?sort=price&desc=0"),
         ("AutoScout24.de – Renault R 5 gelb", "https://www.autoscout24.de/lst/renault/r-5/bc_gelb"),
-        ("Mobile.de – Renault R 5 E-Tech", "https://suchen.mobile.de/auto/renault-r-5-e-tech-evolution.html"),
         ("Das Parking – Renault R 5 gelb", "https://www.dasparking.de/gebrauchtwagen/renault-r-5-gelb.html"),
         ("AutoUncle – Renault 5 E-Tech", "https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech"),
     ]
@@ -531,7 +518,7 @@ def fetch_free_items(rss_url):
     sold_keywords = ["broneeritud", "läinud", "ära antud", "annatud", "läks", "müüdud", "bron"]
 
     for item in soup.find_all(["item", "entry"]):
-        link = "https://www.facebook.com/groups/442569942509759"
+        link = "https://www.facebook.com/groups/1929529077371716"
         link_elem = item.find("link")
         if link_elem:
             link = link_elem.get("href") or link_elem.get_text(strip=True) or link
@@ -544,6 +531,16 @@ def fetch_free_items(rss_url):
 
         combined = (title + " " + description).lower()
         if any(k in combined for k in sold_keywords):
+            continue
+
+        # Kuva ainult selgelt tasuta/äraandmise kuulutusi; väldi hinnaga müügikuulutusi.
+        free_keywords = (
+            "tasuta", "ära anda", "annan ära", "annab ära", "free",
+            "give away", "giving away", "võib ära viia", "kingin",
+        )
+        if not any(k in combined for k in free_keywords):
+            continue
+        if re.search(r"\d[\d\s,.]*\s*(?:€|eur|eurot)", combined):
             continue
         if len(description) > 180:
             description = description[:180] + "..."
@@ -585,22 +582,17 @@ def fetch_free_items(rss_url):
 # -----------------------------------------------------------------------------
 # 4. OTSINGURIBA JA SEKTSIOONID
 # -----------------------------------------------------------------------------
-col_search, col_fav = st.columns([3, 1])
-with col_search:
-    search_query = st.text_input(
-        "🔍 Otsi märksõna järgi kõigist kuulutustest...",
-        placeholder="nt vaip, diivan, Renault, garaaž...",
-    )
-with col_fav:
-    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-    st.write(f"⭐ Salvestatud lemmikuid: **{len(st.session_state.favorites)}**")
+search_query = st.text_input(
+    "🔍 Otsi märksõna järgi...",
+    placeholder="nt vaip, diivan, tool, jalgratas...",
+)
 
 selected_tab = st.radio(
     "Vali vaade:",
     [
         "🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "⚡ Renault 5 EV",
         "🛒 Toidu sooduspakkumised", "🚗 Kütusehinnad & Parkimine",
-        "📈 Eesti reitingud", "⭐ Minu lemmikud",
+        "📈 Eesti reitingud",
     ],
     horizontal=True,
     label_visibility="collapsed",
@@ -609,15 +601,42 @@ st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
 # --- 1. SEKTSIOON: TASUTA ASJAD ---
 if selected_tab == "🎁 Tasuta asjad":
+    facebook_group_url = "https://www.facebook.com/groups/1929529077371716"
+    rss_url = os.getenv("FACEBOOK_GROUP_RSS_URL", "")
     try:
-        with st.spinner("Laen tasuta kuulutusi..."):
-            free_items = fetch_free_items("https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml")
-    except Exception as e:
-        print(f"Viga Facebooki RSS skännimisel: {e}")
+        rss_url = rss_url or st.secrets.get("FACEBOOK_GROUP_RSS_URL", "")
+    except Exception:
+        pass
+
+    st.markdown(
+        f"**Allikas:** [Facebooki grupp – tasuta asjad]({facebook_group_url})"
+    )
+    if not rss_url:
+        st.warning(
+            "Facebooki grupi postituste automaatseks kuvamiseks lisa selle grupi RSS-kanali "
+            "aadress Streamlit Secrets väärtusena `FACEBOOK_GROUP_RSS_URL`. "
+            "Praegune vana RSS-kanal eemaldati, sest selle seost sinu antud grupiga ei saa kinnitada."
+        )
+        st.markdown(
+            f'<a class="pro-btn" href="{facebook_group_url}" target="_blank" '
+            'rel="noopener">👉 Ava Facebooki grupp</a>',
+            unsafe_allow_html=True,
+        )
         free_items = []
-    free_items = [i for i in free_items if matches(search_query, i["title"], i["description"])]
-    if not free_items:
-        st.info("Hetkel ei ole saadaval ühtegi aktiivset või otsingule vastavat tasuta kuulutust.")
+    else:
+        try:
+            with st.spinner("Laen Facebooki grupi tasuta kuulutusi..."):
+                free_items = fetch_free_items(rss_url)
+        except Exception as e:
+            st.error(f"Facebooki RSS-kanali laadimine ebaõnnestus: {e}")
+            free_items = []
+
+    free_items = [
+        i for i in free_items
+        if matches(search_query, i["title"], i["description"])
+    ]
+    if rss_url and not free_items:
+        st.info("RSS-kanalist ei leitud tasuta kuulutusi või need ei vasta otsingule.")
     for idx, item in enumerate(free_items):
         badges = (
             '<span class="badge-pill badge-free">Tasuta</span>'
@@ -700,7 +719,7 @@ elif selected_tab == "⚡ Renault 5 EV":
             {"title": "Kollane Renault 5 E-Tech – kõik pakkumised Euroopas",
              "description": "Otsing AutoScout24-s: Renault R 5, värv kollane, hind odavaimast kallimani."},
             "noop_r5", "👉 Ava AutoScout24 otsing", '<span class="badge-pill badge-yellow">🟡 Kollane</span>',
-            link=AS24_YELLOW_URL + "?sort=price&desc=0", fav_button=False,
+            link=AS24_YELLOW_URL + "?sort=price&desc=0",
         )
         with st.expander("🛠 Tehniline info"):
             st.code(r5_error or "teadmata viga")
@@ -772,13 +791,3 @@ elif selected_tab == "📈 Eesti reitingud":
     else:
         components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
 
-# --- 7. SEKTSIOON: SALVESTATUD LEMMIKUD ---
-elif selected_tab == "⭐ Minu lemmikud":
-    st.markdown("### ⭐ Sinu salvestatud kuulutused")
-    if not st.session_state.favorites:
-        st.info("Sa ei ole veel ühtegi kuulutust lemmikutesse salvestanud.")
-    for idx, item in enumerate(list(st.session_state.favorites)):
-        render_card(item, f"noop_fav_{idx}", "👉 Vaata originaalkuulutust", fav_button=False)
-        if st.button("❌ Eemalda lemmikutest", key=f"remove_fav_{idx}"):
-            st.session_state.favorites.pop(idx)
-            st.rerun()
