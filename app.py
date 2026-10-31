@@ -15,7 +15,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # -----------------------------------------------------------------------------
-# 1. RAKENDUSE SEADISTUS JA TUME (DARK MODE) DISAINISÜSTEEM
+# 1. RAKENDUSE SEADISTUS JA TUME DISAINISÜSTEEM
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Kuulutuste Skänner Pro",
@@ -39,14 +39,18 @@ DARK_MODE_CSS = """
     .sub-title { font-size: 0.95rem; color: #94a3b8; font-weight: 400; }
 
     .pro-card {
-        background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 24px;
+        background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 20px;
         margin-bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: all 0.2s ease;
     }
     .pro-card:hover { transform: translateY(-2px); border-color: #374151; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
 
-    .card-row { display: flex; gap: 22px; align-items: flex-start; }
-    .card-img { flex: 0 0 260px; max-width: 260px; }
+    .card-row { display: flex; gap: 20px; align-items: flex-start; }
+    .card-img { flex: 0 0 240px; max-width: 240px; }
     .card-img img { width: 100%; border-radius: 12px; display: block; object-fit: cover; aspect-ratio: 4 / 3; }
+    .card-img-placeholder {
+        width: 100%; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+        background: #1e293b; color: #64748b; font-size: 2.5rem; aspect-ratio: 4 / 3;
+    }
     .card-body { flex: 1; min-width: 0; }
     
     @media (max-width: 768px) {
@@ -55,11 +59,11 @@ DARK_MODE_CSS = """
     }
 
     .card-title { font-size: 1.2rem; font-weight: 700; color: #f8fafc; line-height: 1.4; margin-bottom: 6px; }
-    .card-date { font-size: 0.8rem; font-weight: 500; color: #94a3b8; margin-bottom: 12px; }
-    .card-desc { font-size: 0.95rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 18px; }
-    .card-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .card-date { font-size: 0.8rem; font-weight: 500; color: #94a3b8; margin-bottom: 10px; }
+    .card-desc { font-size: 0.95rem; color: #cbd5e1; line-height: 1.5; margin-bottom: 14px; }
+    .card-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 
-    .badge-pill { padding: 5px 12px; border-radius: 20px; font-size: 0.775rem; font-weight: 600; display: inline-block; }
+    .badge-pill { padding: 4px 10px; border-radius: 20px; font-size: 0.775rem; font-weight: 600; display: inline-block; }
     .badge-free { background-color: rgba(5,150,105,0.15); color: #34d399; border: 1px solid rgba(5,150,105,0.3); }
     .badge-price { background-color: rgba(37,99,235,0.15); color: #60a5fa; border: 1px solid rgba(37,99,235,0.3); }
     .badge-location { background-color: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.4); }
@@ -73,6 +77,7 @@ DARK_MODE_CSS = """
     }
     .pro-btn:hover { background: #1d4ed8; box-shadow: 0 4px 15px rgba(37,99,235,0.4); }
     .pro-btn.secondary { background: #1f2937; border: 1px solid #374151; margin-top: 8px; }
+    .pro-btn.secondary:hover { background: #273449; }
 </style>
 """
 st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
@@ -128,24 +133,6 @@ def translate_to_estonian(text):
         pass
     return text
 
-def check_single_link(url):
-    if not url or url == "#" or not url.startswith("http"):
-        return True
-    try:
-        res = get_robust_session().head(url, headers={"User-Agent": UA}, timeout=3, allow_redirects=True)
-        return res.status_code not in (404, 410)
-    except Exception:
-        return True
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def filter_valid_items(items, link_key="link"):
-    if not items:
-        return []
-    urls = [item.get(link_key) for item in items]
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        statuses = list(executor.map(check_single_link, urls))
-    return [item for item, ok in zip(items, statuses) if ok]
-
 def clean_text(text):
     if not text:
         return ""
@@ -172,17 +159,50 @@ def matches(query, *fields):
     q = query.lower()
     return any(q in str(f or "").lower() for f in fields)
 
-def render_card(item, key, button_text, badges="", link=None, secondary=None):
-    """Renderdab professionaalse kaardi: pilt vasakul, tekst ja nupud paremal."""
-    link = link or item.get("link") or item.get("url") or "#"
-    img_src = item.get("image") or "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=600&auto=format&fit=crop"
+def extract_image_from_rss_item(item, raw_desc):
+    """Leiab päris pildi RSS-i erinevatest väljadest (enclosure, media:content, img tag, og:image)."""
+    # 1. Enclosure tag
+    enclosure = item.find("enclosure")
+    if enclosure and enclosure.get("url"):
+        return enclosure.get("url")
     
-    img_html = (
-        f'<div class="card-img"><img src="{esc(img_src)}" loading="lazy" '
-        f'referrerpolicy="no-referrer" alt=""></div>'
-    )
+    # 2. Media:content või media:thumbnail
+    media = item.find(["media:content", "media:thumbnail"])
+    if media and media.get("url"):
+        return media.get("url")
+
+    # 3. HTML kirjeldusest img tag
+    if raw_desc:
+        soup = BeautifulSoup(raw_desc, "html.parser")
+        img = soup.find("img")
+        if img and img.get("src"):
+            return img.get("src")
+            
+    return None
+
+def render_card(item, key, button_text, badges="", link=None, secondary=None):
+    """Renderdab kaardi pildiga (või ikooniga) vasakul ja puhastatud tekstiga paremal."""
+    link = link or item.get("link") or item.get("url") or "#"
+    img_src = item.get("image")
+    
+    if img_src:
+        img_html = (
+            f'<div class="card-img"><img src="{esc(img_src)}" loading="lazy" '
+            f'referrerpolicy="no-referrer" alt=""></div>'
+        )
+    else:
+        # Kui pilt puudub, kuvatakse puhas ikoonikast
+        img_html = '<div class="card-img"><div class="card-img-placeholder">📦</div></div>'
     
     date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
+    
+    # Kui pealkiri ja kirjeldus on identseid (nt "Ära anda:"), kuvame ainult ühe
+    title = item.get("title") or item.get("store") or "Kuulutus"
+    desc = item.get("description") or item.get("desc") or ""
+    if title.strip().lower() == desc.strip().lower():
+        desc = ""
+
+    desc_html = f'<div class="card-desc">{esc(desc)}</div>' if desc else ""
     tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
     sec_html = ""
     if secondary:
@@ -192,9 +212,9 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
         )
     show_html(
         f'<div class="pro-card"><div class="card-row">{img_html}<div class="card-body">'
-        f'<div class="card-title">{esc(item.get("title") or item.get("store"))}</div>'
+        f'<div class="card-title">{esc(title)}</div>'
         f"{date_html}"
-        f'<div class="card-desc">{esc(item.get("description") or item.get("desc"))}</div>'
+        f"{desc_html}"
         f"{tags_html}"
         f'<a href="{esc(link)}" target="_blank" rel="noopener" class="pro-btn">{esc(button_text)}</a>'
         f"{sec_html}"
@@ -202,7 +222,7 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     )
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA (SKÄNNIMINE IGA TUNNI TAGANT / TTL=3600)
+# 3. ANDMEKORJE LOOGIKA (REAALNE PARSIMINE & TTL=3600)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_live_kv24_garages():
@@ -224,6 +244,11 @@ def fetch_live_kv24_garages():
                 seen.add(full_url)
                 parent = a_tag.find_parent(["div", "article", "li"])
                 price = extract_price(parent.get_text() if parent else title)
+                
+                # Proovime leida objekti päris pilti
+                img_tag = parent.find("img") if parent else None
+                img_url = img_tag.get("src") or img_tag.get("data-src") if img_tag else None
+
                 results.append(
                     {
                         "title": title,
@@ -231,12 +256,12 @@ def fetch_live_kv24_garages():
                         "price": price,
                         "location": "Harju maakond",
                         "url": full_url,
-                        "image": "https://images.unsplash.com/photo-1590674899484-d5640e854abe?q=80&w=600&auto=format&fit=crop"
+                        "image": img_url
                     }
                 )
     except Exception as e:
         print(f"KV24 viga: {e}")
-    return filter_valid_items(results, link_key="url")
+    return results
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_free_items(rss_url):
@@ -254,7 +279,9 @@ def fetch_free_items(rss_url):
             link = link_elem.get("href") or link_elem.get_text(strip=True) or link
 
         title_elem = item.find("title")
-        title = translate_to_estonian(clean_text(title_elem.text if title_elem else "Tasuta ese"))
+        raw_title = clean_text(title_elem.text if title_elem else "")
+        title = translate_to_estonian(raw_title)
+
         desc_elem = item.find("description") or item.find("summary")
         raw_desc = desc_elem.text if desc_elem else ""
         description = translate_to_estonian(clean_text(raw_desc))
@@ -271,27 +298,25 @@ def fetch_free_items(rss_url):
 
         date_elem = item.find("pubDate") or item.find("updated")
         date_str = date_elem.text if date_elem else ""
-        ts = 0
-        if date_str:
-            try:
-                ts = parsedate_to_datetime(date_str).timestamp()
-            except Exception:
-                ts = 0
 
-        image_url = "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?q=80&w=600&auto=format&fit=crop"
-        enclosure = item.find("enclosure")
-        if enclosure and enclosure.get("url"):
-            image_url = enclosure.get("url")
+        # Päris pildi otsimine
+        image_url = extract_image_from_rss_item(item, raw_desc)
+
+        # Kui pealkiri ja kirjeldus on samad, jätta kirjeldus tühjaks
+        clean_desc = description if description.lower() != title.lower() else ""
 
         results.append(
             {
-                "title": title, "description": description, "price": "Tasuta",
-                "location": "Tallinn / Harjumaa", "link": link, "image": image_url,
-                "timestamp": ts, "date_str": f"📅 {date_str}" if date_str else "",
+                "title": title or "Tasuta ese",
+                "description": clean_desc,
+                "price": "Tasuta",
+                "location": "Tallinn / Harjumaa",
+                "link": link,
+                "image": image_url,
+                "date_str": f"📅 {date_str}" if date_str else "",
             }
         )
-    results.sort(key=lambda x: x["timestamp"], reverse=True)
-    return filter_valid_items(results, link_key="link")
+    return results
 
 # -----------------------------------------------------------------------------
 # 4. OTSINGURIBA JA VAATED
@@ -322,7 +347,7 @@ if selected_tab == "🎁 Tasuta asjad":
     except Exception:
         pass
 
-    st.markdown(f"**Allikas:** [Facebooki grupp – tasuta asjad]({facebook_group_url}) (Skännitakse automaatselt iga tunni tagant)")
+    st.markdown(f"**Allikas:** [Facebooki grupp – tasuta asjad]({facebook_group_url})")
     if not rss_url:
         st.warning("Facebooki grupi postituste kuvamiseks lisa `FACEBOOK_GROUP_RSS_URL` Streamlit Secrets väärtusena.")
         free_items = []
@@ -349,7 +374,7 @@ elif selected_tab == "🏢 Kinnisvara objektid":
             "title": "Garaažide müügipakkumised Harju maakonnas",
             "description": "Ava Harjumaa ja Tallinna garaažibokside reaalajas avalikud pakkumised Kinnisvara24 portaalis.",
             "price": "Vaata portaalist", "location": "Harju maakond", "url": canonical_kv24_url,
-            "image": "https://images.unsplash.com/photo-1590674899484-d5640e854abe?q=80&w=600&auto=format&fit=crop"
+            "image": None
         }]
     for idx, item in enumerate(kv24_items):
         if not matches(search_query, item["title"], item["description"]):
@@ -387,7 +412,6 @@ elif selected_tab == "⚡ Renault 5 EV":
 # --- 4. SEKTSIOON: TOIDU SOODUSPAKKUMISED (Rimi, Coop, Lidl, Selver) ---
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Toidu sooduspakkumised (Rimi, Coop, Lidl, Selver)")
-    st.info("Reaalajas skänneeritud kampaaniapakkumised suurimatest Eesti kauplustest (uueneb tunni tagant).")
     
     food_deals = [
         {
@@ -425,7 +449,6 @@ elif selected_tab == "🛒 Toidu sooduspakkumised":
 # --- 5. SEKTSIOON: KÜTUSEHINNAD & PARKIMINE ---
 elif selected_tab == "🚗 Kütusehinnad & Parkimine":
     st.markdown("### 🚗 Kütusehinnad & Parkimine")
-    st.info("Tallinna piirkonna tanklate reaalajas hinnaseire ja parkimisteave.")
     
     fuel_items = [
         {
