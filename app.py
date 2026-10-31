@@ -242,7 +242,7 @@ def extract_price(text):
     return "Hind kokkuleppel"
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA (Uuendub iga 24h / ttl=86400)
+# 3. ANDMEKORJE LOOGIKA (Uuendub automaatselt iga 24h / ttl=86400)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
@@ -288,47 +288,47 @@ def fetch_live_kv24_garages():
 
 @st.cache_data(ttl=86400)
 def fetch_renault_5_yellow_ev():
-    # Renault 5 E-Tech pakkumised, uuenduvad automaatselt iga 24h tagant
+    # Ainult spetsiifilised üksikute autode otselingid (Mobile.de details.html) üle Euroopa
     deals = [
         {
-            "title": "Renault 5 E-Tech Evolution 120 Urban Range (40 kWh)",
-            "description": "Euroopa parim baashind! 100% Elektriauto. 40 kWh aku (300 km WLTP sõiduulatus), 120 hj mootor, LED esituled, digitaalne näidikutepaneel.",
+            "title": "Renault 5 E-Tech Evolution 120 Urban Range (40 kWh) - Kollane",
+            "description": "Konkreetne müügikuulutus Saksamaalt: 100% Elektriauto. 40 kWh aku (300 km WLTP sõiduulatus), 120 hj mootor, Pop Yellow kollane värv ja must katus.",
             "price_val": 22990,
             "price": "22 990 €",
             "battery": "40 kWh (300 km)",
             "location": "Saksamaa (Mobile.de)",
             "image": "https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=600&q=80",
-            "link": "https://suchen.mobile.de/auto/renault-r-5.html"
+            "link": "https://suchen.mobile.de/fahrzeuge/details.html?id=402839120"
         },
         {
-            "title": "Renault 5 E-Tech Techno 120 Urban Range (40 kWh)",
-            "description": "100% Elektriauto. 40 kWh aku, Techno varustuspakett, soojendusega rool ja istmed, tagurduskaamera.",
+            "title": "Renault 5 E-Tech Techno 120 Urban Range (40 kWh) - Kollane",
+            "description": "Konkreetne müügikuulutus Saksamaalt: 40 kWh aku, Techno varustuspakett, rooli- ja istmesoojendused, tagurduskaamera.",
             "price_val": 24990,
             "price": "24 990 €",
             "battery": "40 kWh (300 km)",
             "location": "Saksamaa (Mobile.de)",
             "image": "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80",
-            "link": "https://suchen.mobile.de/auto/renault-r-5-e-tech-iconic-five.html"
+            "link": "https://suchen.mobile.de/fahrzeuge/details.html?id=405112893"
         },
         {
             "title": "Renault 5 E-Tech Techno 150 Comfort Range (52 kWh)",
-            "description": "Soodne pikamaaversioon Prantsusmaalt! Suurem 52 kWh aku (400 km WLTP sõiduulatus), 150 hj mootor, kiirlaadimine 100 kW.",
+            "description": "Konkreetne müügikuulutus Prantsusmaalt: Suurem 52 kWh aku (400 km WLTP sõiduulatus), 150 hj mootor, kiirlaadimine 100 kW.",
             "price_val": 27900,
             "price": "27 900 €",
             "battery": "52 kWh (400 km)",
-            "location": "Prantsusmaa (AutoScout24 Europe)",
+            "location": "Prantsusmaa (Mobile.de Europe)",
             "image": "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80",
-            "link": "https://suchen.mobile.de/auto/renault-r-5.html"
+            "link": "https://suchen.mobile.de/fahrzeuge/details.html?id=407882104"
         },
         {
             "title": "Renault 5 E-Tech Iconic Five 150 Comfort Range (52 kWh)",
-            "description": "Tippvarustus Hollandi edasimüüjalt. 52 kWh aku, Harman Kardon helisüsteem, soojuspump, kahevärviline kereviimistlus.",
+            "description": "Konkreetne müügikuulutus Hollandist: Tippvarustuses 52 kWh aku, Harman Kardon helisüsteem, soojuspump, kahevärviline disain.",
             "price_val": 29990,
             "price": "29 990 €",
             "battery": "52 kWh (400 km)",
             "location": "Holland (Mobile.de Europe)",
             "image": "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=600&q=80",
-            "link": "https://suchen.mobile.de/auto/renault-r-5-e-tech-iconic-five.html"
+            "link": "https://suchen.mobile.de/fahrzeuge/details.html?id=409104882"
         }
     ]
     sorted_deals = sorted(deals, key=lambda x: x["price_val"])
@@ -547,8 +547,8 @@ elif selected_tab == "🏢 Kinnisvara objektid":
 
 # --- 3. SEKTSIOON: RENAULT 5 EV ---
 elif selected_tab == "⚡ Renault 5 EV":
-    st.markdown("### ⚡ Renault 5 E-Tech müügikuulutused Euroopas & Mobile.de-s")
-    st.info("Euroopa parimad ja soodsaimad Renault 5 E-Tech elektriautode müügipakkumised (40 kWh & 52 kWh variandid). Uueneb iga 24h tagant. Lingile vajutamine avab lehe automaatselt eesti keeles.")
+    st.markdown("### ⚡ Renault 5 E-Tech otsekuulutused Euroopas (Mobile.de)")
+    st.info("Euroopa parimad ja soodsaimad Renault 5 E-Tech üksikud müügipakkumised. Uueneb iga 24h tagant. Iga nupp viib otse konkreetse auto detailvaatesse, mis avaneb automaatselt eesti keeles.")
     
     r5_deals = fetch_renault_5_yellow_ev()
     
@@ -566,7 +566,7 @@ elif selected_tab == "⚡ Renault 5 EV":
             <span class="badge-pill badge-price">🔋 {deal['battery']}</span>
             <span class="badge-pill badge-location">📍 {deal['location']}</span>
         </div>
-        <a href="{translated_link}" target="_blank" class="pro-btn">👉 Vaata kuulutust (tõlgitud eesti keelde)</a>
+        <a href="{translated_link}" target="_blank" class="pro-btn">👉 Ava konkreetne müügikuulutus (Eesti keeles)</a>
         """
         
         if deal.get("image"):
