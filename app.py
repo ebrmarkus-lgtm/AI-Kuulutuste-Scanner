@@ -1016,3 +1016,4 @@ elif selected_tab == "⭐ Minu lemmikud":
         if st.button("❌ Eemalda lemmikutest", key=f"remove_fav_{idx}"):
             st.session_state.favorites.pop(idx)
             st.rerun()
+
