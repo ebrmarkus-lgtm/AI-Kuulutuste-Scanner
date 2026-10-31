@@ -1,6 +1,3 @@
-Siin on Sinu koodi täielik, puhas ja testitud tööversioon, mis parandab pildi peitmise ja lingikontrolli vead ning kuvab kõik vahelehed täielikult nähtavalt:
-
-```python
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
@@ -725,7 +722,3 @@ elif selected_tab == "⭐ Minu lemmikud":
             if st.button("❌ Eemalda lemmikutest", key=f"remove_fav_{idx}"):
                 st.session_state.favorites.pop(idx)
                 st.rerun()
-
-```
-
-```
