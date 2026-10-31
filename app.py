@@ -13,6 +13,11 @@ from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+try:  # valikuline: jäljendab Chrome'i TLS-i, mobile.de blokeerib tavalist 'requests' sagedamini
+    from curl_cffi import requests as cffi_requests
+except Exception:  # pragma: no cover
+    cffi_requests = None
+
 # -----------------------------------------------------------------------------
 # 1. RAKENDUSE SEADISTUS JA TUME (DARK MODE) DISAINISÜSTEEM
 # -----------------------------------------------------------------------------
@@ -450,25 +455,236 @@ def _fetch_as24_page(page):
     return [], "-", last_status
 
 
-@st.cache_data(ttl=6 * 3600, show_spinner=False)
-def fetch_renault_5_yellow_ev():
-    """Päris kuulutused: kollane Renault 5 elektriauto, Euroopa, kõik müüjad (AutoScout24).
-    Ebaõnnestumise korral viskab erandi, et tühja tulemust ei puhverdataks."""
-    all_items, report, seen = [], [], set()
+def _collect_as24():
+    """AutoScout24: tagastab (toorkuulutused, aruanne). Ebaõnnestumisel tühi list."""
+    items, report, seen = [], [], set()
     with ThreadPoolExecutor(max_workers=4) as ex:
-        for page, (items, method, status) in enumerate(ex.map(_fetch_as24_page, range(1, AS24_MAX_PAGES + 1)), 1):
-            report.append(f"leht {page}: {len(items)} tk ({method}, HTTP {status})")
-            for it in items:
+        for page, (page_items, method, status) in enumerate(ex.map(_fetch_as24_page, range(1, AS24_MAX_PAGES + 1)), 1):
+            report.append(f"AutoScout24 leht {page}: {len(page_items)} tk ({method}, HTTP {status})")
+            for it in page_items:
                 if it["link"] not in seen:
                     seen.add(it["link"])
-                    all_items.append(it)
+                    it["source"] = "AutoScout24"
+                    items.append(it)
+    return items, report
+
+
+# ---- mobile.de ---------------------------------------------------------------
+# Kontrollitud aadress: 'renault-gelb.html' = kõik kollased Renault'd (Außenfarbe: Gelb).
+# 'renault-r-5-gelb.html' proovitakse esimesena (kui leht on olemas, sisaldab ainult kollast R5).
+MOBILE_BASE = "https://suchen.mobile.de"
+MOBILE_YELLOW_URLS = [
+    f"{MOBILE_BASE}/auto/renault-r-5-gelb.html",
+    f"{MOBILE_BASE}/auto/renault-gelb.html",
+]
+MOBILE_MAX_PAGES = 6
+# Kui mobile.de blokeerib otsepäringu, proovitakse lugeda lehte avaliku r.jina.ai vahendaja kaudu.
+# Seab False, kui sa seda ei soovi (siis läheb päring ainult otse mobile.de-sse).
+MOBILE_USE_PROXY_FALLBACK = True
+
+MOBILE_ID_RE = re.compile(r"(?:details\.html\?(?:[^\"'#]*&)?id=(\d+))|(?:/auto-inserat/[^\"'?#]*?/(\d+)\.html)")
+BLOCK_MARKERS = ("access denied", "zugriff verweigert", "captcha", "pardon our interruption", "bot or not", "unusual traffic")
+
+
+def _http_get(url, headers, timeout=15):
+    """Esmalt Chrome-TLS (curl_cffi, kui paigaldatud), siis tavaline requests."""
+    if cffi_requests is not None:
+        try:
+            r = cffi_requests.get(url, headers=headers, impersonate="chrome", timeout=timeout)
+            return r.status_code, r.text
+        except Exception:
+            pass
+    r = get_robust_session().get(url, headers=headers, timeout=timeout)
+    return r.status_code, r.text
+
+
+def _looks_blocked(status, text):
+    if status in (401, 403, 429):
+        return True
+    head = (text or "")[:4000].lower()
+    return any(m in head for m in BLOCK_MARKERS) and "<h2" not in (text or "").lower()
+
+
+def _mobile_get(url):
+    """Tagastab (html | None, märkus). 404 -> ('', '404') et kutsuja saaks järgmist URL-i proovida."""
+    headers = {
+        "User-Agent": UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "de-DE,de;q=0.9,en;q=0.7",
+        "Referer": "https://www.mobile.de/",
+    }
+    note = ""
+    try:
+        status, text = _http_get(url, headers)
+        if status == 404:
+            return "", "404"
+        if status == 200 and not _looks_blocked(status, text):
+            return text, "otse"
+        note = f"otse HTTP {status}{' (blokeeritud)' if _looks_blocked(status, text) else ''}"
+    except Exception as e:
+        note = f"otse viga: {type(e).__name__}"
+
+    if MOBILE_USE_PROXY_FALLBACK:
+        try:
+            r = get_robust_session().get(
+                "https://r.jina.ai/" + url,
+                headers={"X-Return-Format": "html", "X-No-Cache": "true", "Accept": "text/html"},
+                timeout=40,
+            )
+            if r.status_code == 200 and "<h2" in r.text.lower() and not _looks_blocked(200, r.text):
+                return r.text, "vahendaja"
+            note += f"; vahendaja HTTP {r.status_code}"
+        except Exception as e:
+            note += f"; vahendaja viga: {type(e).__name__}"
+    return None, note
+
+
+def _clean_mobile_title(raw):
+    t = re.sub(r"\s+", " ", raw or "").strip()
+    t = re.sub(r"^(?:(?:Gesponsert|Sponsored|NEU|NEW)\s*)+", "", t)
+    t = re.sub(r"\b(R 5) 5 (?=E-Tech|Electric|Techno|Evolution|Iconic|Urban)", r"\1 ", t, flags=re.I)
+    t = re.sub(r"^(Renault R 5)(?=[A-Z0-9])", r"\1 ", t)
+    return t.strip()
+
+
+def _parse_mobile_html(html_text):
+    """Tagastab (R5 elektriautod, kaartide koguarv lehel). Jätab välja 'Andere Farbe' soovitused."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    out, seen, total_cards = [], set(), 0
+    for a in soup.find_all("a", href=True):
+        m = MOBILE_ID_RE.search(a["href"])
+        if not m:
+            continue
+        ad_id = m.group(1) or m.group(2)
+        if ad_id in seen:
+            continue
+        card, hops = a, 0
+        while card is not None and hops < 10 and not (card.find("h2") and "€" in card.get_text(" ")):
+            card, hops = card.parent, hops + 1
+        if card is None or hops >= 10:
+            continue
+        ids = set()
+        for x in card.find_all("a", href=True):
+            mm = MOBILE_ID_RE.search(x["href"])
+            if mm:
+                ids.add(mm.group(1) or mm.group(2))
+        if len(ids) > 1:  # ronis liiga kõrgele - mitu kuulutust korraga
+            continue
+        seen.add(ad_id)
+        total_cards += 1
+
+        text = card.get_text(" ", strip=True)
+        if re.search(r"Andere Farbe|Other colou?r", text, re.I):  # mobile.de lisab teise värvi soovitusi
+            continue
+        h2 = card.find("h2")
+        title = _clean_mobile_title(h2.get_text(" ", strip=True) if h2 else "")
+        if not re.search(r"\bR\s?5\b|Renault 5", title, re.I) or not re.search(r"Elektro|Electric", text, re.I):
+            continue
+        reg = re.search(r"\bEZ\s*(\d{2}/\d{4}|\d{4})\b", text)
+        if reg and int(reg.group(1)[-4:]) < 2023:  # klassikaline R5
+            continue
+
+        price_m = re.search(r"(\d{1,3}(?:\.\d{3})+)\s*€", text)
+        price = int(price_m.group(1).replace(".", "")) if price_m else None
+        km = re.search(r"(\d{1,3}(?:\.\d{3})*)\s*km\b", text)
+        flags = [w for w in ("Neuwagen", "Tageszulassung", "Vorführfahrzeug", "Unfallfrei") if w in text]
+
+        seller, logo = "", card.find("img", alt=re.compile(r"^Logo "))
+        if logo:
+            seller = logo["alt"][5:].strip()
+        loc_m = re.search(r"(AT|BE|ES|FR|IT|LU|NL|SI|PL|CZ|DK|DE)-(\d{3,5})\s+([^\d]{2,30})", text)
+        de_m = re.search(r"(?<!\d)(\d{5})\s*([A-ZÄÖÜ][A-Za-zäöüÄÖÜß\-\./ ]{2,30})", text)
+        location = "Saksamaa"
+        if loc_m:
+            city = re.sub(r"\s*(Ohne Bewertung|Kontakt|Parken|Sterne).*$", "", loc_m.group(3)).strip()
+            location = f"{COUNTRY_NAMES.get(loc_m.group(1), loc_m.group(1))}, {loc_m.group(2)} {city}".strip()
+        elif de_m:
+            city = re.sub(r"\s*(Ohne Bewertung|Kontakt|Parken|Sterne).*$", "", de_m.group(2)).strip()
+            location = f"Saksamaa, {de_m.group(1)} {city}".strip()
+
+        image = None
+        for img in card.find_all("img"):
+            src = img.get("src") or img.get("data-src") or (img.get("srcset") or "").split(" ")[0]
+            if src and "classistatic" in src and not (img.get("alt") or "").startswith("Logo"):
+                image = _clean_img(src)
+                break
+
+        out.append(
+            {
+                "title": title, "price_val": price,
+                "link": f"{MOBILE_BASE}/fahrzeuge/details.html?id={ad_id}",
+                "image": image, "location": location,
+                "km": f"{km.group(1).replace('.', ' ')} km" if km else "",
+                "reg": reg.group(1) if reg else "", "seller": seller,
+                "flags": flags, "source": "mobile.de",
+            }
+        )
+    return out, total_cards
+
+
+def _collect_mobile():
+    """mobile.de: tagastab (kuulutused, aruanne). Ebaõnnestumisel tühi list - AutoScout24 töötab edasi."""
+    report, items, seen = [], [], set()
+    for base in MOBILE_YELLOW_URLS:
+        name = base.rsplit("/", 1)[-1]
+        html_text, note = _mobile_get(base)
+        if html_text == "":  # 404 - proovi järgmist aadressi
+            report.append(f"mobile.de {name}: lehte pole (404)")
+            continue
+        if not html_text:
+            report.append(f"mobile.de {name}: ei õnnestunud ({note})")
+            break  # blokeeritud - teised aadressid annavad sama tulemuse
+        pages = {1: html_text}
+        report.append(f"mobile.de {name} lk 1: laetud ({note})")
+
+        def load(p, base=base):
+            return p, _mobile_get(f"{base}?pageNumber={p}")
+
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            for p, (h, n) in ex.map(load, range(2, MOBILE_MAX_PAGES + 1)):
+                if h:
+                    pages[p] = h
+                else:
+                    report.append(f"mobile.de {name} lk {p}: {n or 'tühi'}")
+
+        for p in sorted(pages):
+            page_items, cards = _parse_mobile_html(pages[p])
+            new = [i for i in page_items if i["link"] not in seen]
+            for i in new:
+                seen.add(i["link"])
+            items.extend(new)
+            report.append(f"mobile.de {name} lk {p}: {cards} kaarti, {len(new)} uut kollast R5")
+        if items:
+            break
+    return items, report
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def fetch_renault_5_yellow_ev():
+    """Päris kuulutused: kollane Renault 5 elektriauto, Euroopa, kõik müüjad (AutoScout24 + mobile.de).
+    Kui MÕLEMAD ebaõnnestuvad, viskab erandi, et tühja tulemust ei puhverdataks."""
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_as, f_mo = ex.submit(_collect_as24), ex.submit(_collect_mobile)
+        try:
+            as_items, as_report = f_as.result()
+        except Exception as e:
+            as_items, as_report = [], [f"AutoScout24 viga: {type(e).__name__}: {e}"]
+        try:
+            mo_items, mo_report = f_mo.result()
+        except Exception as e:
+            mo_items, mo_report = [], [f"mobile.de viga: {type(e).__name__}: {e}"]
+    report = as_report + mo_report
+    all_items = as_items + mo_items
     if not all_items:
-        raise RuntimeError("AutoScout24 ei andnud kuulutusi. " + "; ".join(report[:3]))
+        raise RuntimeError("Kumbki portaal ei andnud kuulutusi.\n" + "\n".join(report[:10]))
 
     result = []
     for it in all_items:
         title = re.sub(r"\s+", " ", it["title"]).strip()
-        parts = [p for p in (it["reg"] and f"Esmane reg. {it['reg']}", it["km"], it["seller"] and f"Müüja: {it['seller']}") if p]
+        parts = [p for p in (
+            it["reg"] and f"Esmane reg. {it['reg']}", it["km"],
+            ", ".join(it.get("flags") or []), it["seller"] and f"Müüja: {it['seller']}",
+        ) if p]
         result.append(
             {
                 "title": title,
@@ -479,10 +695,14 @@ def fetch_renault_5_yellow_ev():
                 "location": it["location"],
                 "image": it["image"],
                 "link": it["link"],
+                "source": it.get("source", "AutoScout24"),
             }
         )
     result.sort(key=lambda x: x["price_val"])
-    return {"items": result, "report": report}
+    counts = {}
+    for r in result:
+        counts[r["source"]] = counts.get(r["source"], 0) + 1
+    return {"items": result, "report": report, "counts": counts}
 
 
 def r5_search_links():
@@ -490,7 +710,8 @@ def r5_search_links():
     return [
         ("AutoScout24 – kollane Renault 5 (kogu Euroopa)", AS24_YELLOW_URL + "?sort=price&desc=0"),
         ("AutoScout24.de – Renault R 5 gelb", "https://www.autoscout24.de/lst/renault/r-5/bc_gelb"),
-        ("Mobile.de – Renault R 5 E-Tech", "https://suchen.mobile.de/auto/renault-r-5-e-tech-evolution.html"),
+        ("Mobile.de – kollased Renault'd (otsi R 5)", "https://suchen.mobile.de/auto/renault-gelb.html"),
+        ("Mobile.de – Renault R 5 E-Tech Evolution", "https://suchen.mobile.de/auto/renault-r-5-e-tech-evolution.html"),
         ("Das Parking – Renault R 5 gelb", "https://www.dasparking.de/gebrauchtwagen/renault-r-5-gelb.html"),
         ("AutoUncle – Renault 5 E-Tech", "https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech"),
     ]
@@ -651,12 +872,14 @@ elif selected_tab == "⚡ Renault 5 EV":
     st.markdown("### ⚡ Renault 5 E-Tech (kollane) – päris kuulutused Euroopast")
     st.info(
         "Ainult elektriline Renault 5 kollases värvitoonis, kõik müüjad kogu Euroopas "
-        "(DE, AT, BE, ES, FR, IT, LU, NL). Andmed tulevad otse AutoScout24-st ja uuenevad iga 6 tunni järel."
+        "(DE, AT, BE, ES, FR, IT, LU, NL). Andmed tulevad AutoScout24-st ja mobile.de-st ning uuenevad iga 6 tunni järel."
     )
 
-    c_var, c_sort = st.columns([2, 1])
+    c_var, c_src, c_sort = st.columns([2, 1, 1])
     with c_var:
         variant_label = st.selectbox("Variant", list(VARIANTS.keys()))
+    with c_src:
+        source_label = st.selectbox("Allikas", ["Kõik allikad", "AutoScout24", "mobile.de"])
     with c_sort:
         sort_label = st.selectbox("Järjekord", ["Odavaim ees", "Kallim ees"])
 
@@ -672,35 +895,46 @@ elif selected_tab == "⚡ Renault 5 EV":
         r5_items = [
             d for d in r5_data["items"]
             if (keys is None or any(k in d["title"].lower() for k in keys))
+            and (source_label == "Kõik allikad" or d["source"] == source_label)
             and matches(search_query, d["title"], d["description"], d["location"])
         ]
         if sort_label == "Kallim ees":
             r5_items = list(reversed(r5_items))
-        st.caption(f"Leitud {len(r5_items)} kuulutust (kokku {len(r5_data['items'])} kollast Renault 5).")
+        per_source = ", ".join(f"{k}: {v}" for k, v in r5_data["counts"].items())
+        st.caption(f"Leitud {len(r5_items)} kuulutust (kokku {len(r5_data['items'])} kollast Renault 5 – {per_source}).")
+        if "mobile.de" not in r5_data["counts"]:
+            st.caption("ℹ️ mobile.de ei andnud praegu andmeid (portaal blokeerib serveripäringuid) – vaata 'Tehniline info'.")
         if not r5_items:
             st.warning("Valitud filtritega kuulutusi ei leitud. Proovi variant 'Kõik variandid'.")
         for idx, deal in enumerate(r5_items):
             badges = (
                 f'<span class="badge-pill badge-yellow">{esc(deal["price"])}</span>'
                 '<span class="badge-pill badge-price">🟡 Kollane</span>'
+                + f'<span class="badge-pill badge-location">🌐 {esc(deal["source"])}</span>'
                 + (f'<span class="badge-pill badge-price">🔋 {esc(deal["battery"])}</span>' if deal["battery"] else "")
                 + f'<span class="badge-pill badge-location">📍 {esc(deal["location"])}</span>'
             )
             render_card(
-                deal, f"fav_r5_{idx}", "👉 Ava kuulutus AutoScout24-s", badges,
+                deal, f"fav_r5_{idx}", f"👉 Ava kuulutus {deal['source']}-s", badges,
                 secondary=("🌐 Ava eestikeelsena (Google Translate)",
                            "https://translate.google.com/translate?sl=auto&tl=et&u=" + urllib.parse.quote(deal["link"], safe="")),
             )
     else:
         st.warning(
-            "Automaatne otsing ei saanud praegu AutoScout24-st andmeid (portaal võib päringuid blokeerida). "
-            "Ava otsing otse allolevast nupust – see on sama filter (Renault R 5, kollane, kogu Euroopa)."
+            "Automaatne otsing ei saanud praegu AutoScout24-st ega mobile.de-st andmeid (portaalid võivad päringuid blokeerida). "
+            "Ava otsing otse allolevatest nuppudest – need on samad filtrid (Renault R 5, kollane)."
         )
         render_card(
             {"title": "Kollane Renault 5 E-Tech – kõik pakkumised Euroopas",
              "description": "Otsing AutoScout24-s: Renault R 5, värv kollane, hind odavaimast kallimani."},
             "noop_r5", "👉 Ava AutoScout24 otsing", '<span class="badge-pill badge-yellow">🟡 Kollane</span>',
             link=AS24_YELLOW_URL + "?sort=price&desc=0", fav_button=False,
+        )
+        render_card(
+            {"title": "Kollased Renault'd mobile.de-s (otsi R 5)",
+             "description": "mobile.de filter 'Außenfarbe: Gelb', Renault. Vali nimekirjast Renault R 5."},
+            "noop_r5_mobile", "👉 Ava mobile.de otsing", '<span class="badge-pill badge-yellow">🟡 Kollane</span>',
+            link=MOBILE_YELLOW_URLS[1], fav_button=False,
         )
         with st.expander("🛠 Tehniline info"):
             st.code(r5_error or "teadmata viga")
