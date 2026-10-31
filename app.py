@@ -39,7 +39,7 @@ DARK_MODE_CSS = """
 
     .pro-card {
         background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 24px;
-        margin-bottom: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: all 0.2s ease;
+        margin-bottom: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); transition: all 0.2s ease;
     }
     .pro-card:hover { transform: translateY(-2px); border-color: #374151; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
 
@@ -91,25 +91,15 @@ UA = (
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 
-
 def esc(value) -> str:
-    """HTML-i põgenemine. '$' asendatakse, et Streamlit ei tõlgendaks seda LaTeX-ina."""
     text = html_lib.escape(str(value if value is not None else ""), quote=True)
     return text.replace("$", "&#36;")
 
-
 def html_block(markup: str) -> str:
-    """
-    Teeb HTML-ist ühe pideva rea (ilma tühjade ridade ja taandeta).
-    See on KRIITILINE: Streamlit/Markdown muudab tühja rea järel taandatud HTML-i
-    koodiplokiks ja kuvab toore '</div>' teksti.
-    """
     return "".join(line.strip() for line in markup.splitlines() if line.strip())
-
 
 def show_html(markup: str):
     st.markdown(html_block(markup), unsafe_allow_html=True)
-
 
 def get_robust_session():
     session = requests.Session()
@@ -118,7 +108,6 @@ def get_robust_session():
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
-
 
 def translate_to_estonian(text):
     if not text or not re.search(r"[\u0400-\u04FF]", text):
@@ -137,9 +126,7 @@ def translate_to_estonian(text):
         pass
     return text
 
-
 def check_single_link(url):
-    """Eemaldab ainult kindlalt kustutatud (404/410) lingid."""
     if not url or url == "#" or not url.startswith("http"):
         return True
     try:
@@ -147,7 +134,6 @@ def check_single_link(url):
         return res.status_code not in (404, 410)
     except Exception:
         return True
-
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def filter_valid_items(items, link_key="link"):
@@ -158,13 +144,11 @@ def filter_valid_items(items, link_key="link"):
         statuses = list(executor.map(check_single_link, urls))
     return [item for item, ok in zip(items, statuses) if ok]
 
-
 def clean_text(text):
     if not text:
         return ""
     text = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=re.DOTALL)
     return BeautifulSoup(text, "html.parser").get_text(" ", strip=True)
-
 
 def extract_price(text):
     if not text:
@@ -180,16 +164,13 @@ def extract_price(text):
         return f"{m.group(1).strip()} €"
     return "Hind kokkuleppel"
 
-
 def matches(query, *fields):
     if not query:
         return True
     q = query.lower()
     return any(q in str(f or "").lower() for f in fields)
 
-
 def render_card(item, key, button_text, badges="", link=None, secondary=None):
-    """Üks ühtne kaardi-renderdaja. HTML läheb alati ühe pideva reana (vt html_block)."""
     link = link or item.get("link") or item.get("url") or "#"
     img_html = ""
     if item.get("image"):
@@ -215,7 +196,6 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
         f"{sec_html}"
         f"</div></div></div>"
     )
-
 
 # -----------------------------------------------------------------------------
 # 3. ANDMEKORJE LOOGIKA
@@ -253,8 +233,6 @@ def fetch_live_kv24_garages():
         print(f"KV24 viga: {e}")
     return filter_valid_items(results, link_key="url")
 
-
-# ---- Renault 5 E-Tech, KOLLANE, kogu Euroopa (AutoScout24) -------------------
 AS24_BASE = "https://www.autoscout24.com"
 AS24_YELLOW_URL = f"{AS24_BASE}/lst/renault/r-5/bc_yellow"
 AS24_MAX_PAGES = 8
@@ -272,7 +250,6 @@ VARIANTS = {
     "Iconic Five 150 (Comfort Range, 52 kWh)": ("iconic",),
 }
 
-
 def _dig(obj, *path, default=None):
     for key in path:
         if isinstance(obj, dict) and key in obj:
@@ -283,7 +260,6 @@ def _dig(obj, *path, default=None):
             return default
     return obj
 
-
 def _price_to_int(text):
     m = re.search(r"(\d{1,3}(?:[,\.\s]\d{3})+|\d{3,6})", str(text or ""))
     if not m:
@@ -293,10 +269,8 @@ def _price_to_int(text):
     except ValueError:
         return None
 
-
 def _fmt_price(value):
     return f"{value:,}".replace(",", " ") + " €" if value else "Hind puudub"
-
 
 def _battery_from_title(title):
     t = title.lower()
@@ -306,13 +280,11 @@ def _battery_from_title(title):
         return "52 kWh (~400 km)"
     return ""
 
-
 def _clean_img(url):
     if not url:
         return None
     url = url.strip().split(" ")[0]
     return url if url.startswith("http") else None
-
 
 def _is_r5_electric(title, url, text):
     t = f"{title} {text}".lower()
@@ -325,7 +297,6 @@ def _is_r5_electric(title, url, text):
     if reg and int(reg.group(1)) < 2023:
         return False
     return has_electric or bool(re.search(r"evolution|iconic|techno|comfort range|urban range", t))
-
 
 def _parse_as24_next_data(soup):
     tag = soup.find("script", id="__NEXT_DATA__")
@@ -369,7 +340,6 @@ def _parse_as24_next_data(soup):
         )
     return out
 
-
 def _parse_as24_html(soup):
     offer_re = re.compile(r"/offers/")
     out, seen = [], set()
@@ -411,7 +381,6 @@ def _parse_as24_html(soup):
         )
     return out
 
-
 def _fetch_as24_page(page):
     headers = {"User-Agent": UA, "Accept-Language": "en-GB,en;q=0.9", "Accept": "text/html,application/xhtml+xml"}
     last_status = None
@@ -432,7 +401,6 @@ def _fetch_as24_page(page):
         except Exception as e:
             last_status = f"viga: {type(e).__name__}"
     return [], "-", last_status
-
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def fetch_renault_5_yellow_ev():
@@ -466,7 +434,6 @@ def fetch_renault_5_yellow_ev():
     result.sort(key=lambda x: x["price_val"])
     return {"items": result, "report": report}
 
-
 def r5_search_links():
     return [
         ("AutoScout24 – kollane Renault 5 (kogu Euroopa)", AS24_YELLOW_URL + "?sort=price&desc=0"),
@@ -475,6 +442,28 @@ def r5_search_links():
         ("AutoUncle – Renault 5 E-Tech", "https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech"),
     ]
 
+@st.cache_data(ttl=86400)
+def fetch_reitingud_html():
+    url = "https://reitingud.ee/reitingud/"
+    try:
+        res = get_robust_session().get(url, headers={"User-Agent": UA}, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, "html.parser")
+            for selector in ["footer", ".newsletter", ".newsletter-form", ".footer-info", "#footer", ".site-footer", ".contact-info", "header", ".site-header"]:
+                for match in soup.select(selector):
+                    match.decompose()
+            for element in soup.find_all(["p", "div", "section"]):
+                if getattr(element, "decomposed", False):
+                    continue
+                text_content = element.get_text()
+                if "TELLI UUDISKIRI" in text_content or "MTÜ Ühiskonnauuringute Instituut" in text_content or "Uuringufirma" in text_content:
+                    element.decompose()
+            out = str(soup)
+            out = re.sub(r"Norstat", "Eesti reitingud globaalselt", out, flags=re.IGNORECASE)
+            return out.replace("<head>", '<head><base href="https://reitingud.ee/">', 1)
+    except Exception as e:
+        print(f"Reitingud laadimise viga: {e}")
+    return None
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_free_items(rss_url):
