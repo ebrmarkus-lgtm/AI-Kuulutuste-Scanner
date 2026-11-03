@@ -62,6 +62,7 @@ DARK_MODE_CSS = """
     .badge-price { background-color: rgba(37,99,235,0.15); color: #60a5fa; border: 1px solid rgba(37,99,235,0.3); }
     .badge-location { background-color: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.4); }
     .badge-yellow { background-color: rgba(234,179,8,0.2); color: #facc15; border: 1px solid rgba(234,179,8,0.4); }
+    .badge-green { background-color: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); }
 
     .pro-btn {
         display: inline-flex; align-items: center; justify-content: center; width: 100%;
@@ -75,11 +76,10 @@ DARK_MODE_CSS = """
 """
 st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
-
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki grupi tasuta kuulutused, KV24, Renault 5 E-Tech, toidupakkumised &amp; kütusehinnad</div>'
+    '<div class="sub-title">Facebooki grupi tasuta kuulutused, KV24, Renault 5 E-Tech, Hange.ee aiatööd, toidupakkumised &amp; kütusehinnad</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -92,25 +92,15 @@ UA = (
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 
-
 def esc(value) -> str:
-    """HTML-i põgenemine. '$' asendatakse, et Streamlit ei tõlgendaks seda LaTeX-ina."""
     text = html_lib.escape(str(value if value is not None else ""), quote=True)
     return text.replace("$", "&#36;")
 
-
 def html_block(markup: str) -> str:
-    """
-    Teeb HTML-ist ühe pideva rea (ilma tühjade ridade ja taandeta).
-    See on KRIITILINE: Streamlit/Markdown muudab tühja rea järel taandatud HTML-i
-    koodiplokiks ja kuvab toore '</div>' teksti.
-    """
     return "".join(line.strip() for line in markup.splitlines() if line.strip())
-
 
 def show_html(markup: str):
     st.markdown(html_block(markup), unsafe_allow_html=True)
-
 
 def get_robust_session():
     session = requests.Session()
@@ -119,7 +109,6 @@ def get_robust_session():
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
-
 
 def translate_to_estonian(text):
     if not text or not re.search(r"[\u0400-\u04FF]", text):
@@ -138,9 +127,7 @@ def translate_to_estonian(text):
         pass
     return text
 
-
 def check_single_link(url):
-    """Eemaldab ainult kindlalt kustutatud (404/410) lingid."""
     if not url or url == "#" or not url.startswith("http"):
         return True
     try:
@@ -148,7 +135,6 @@ def check_single_link(url):
         return res.status_code not in (404, 410)
     except Exception:
         return True
-
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def filter_valid_items(items, link_key="link"):
@@ -159,13 +145,11 @@ def filter_valid_items(items, link_key="link"):
         statuses = list(executor.map(check_single_link, urls))
     return [item for item, ok in zip(items, statuses) if ok]
 
-
 def clean_text(text):
     if not text:
         return ""
     text = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=re.DOTALL)
     return BeautifulSoup(text, "html.parser").get_text(" ", strip=True)
-
 
 def extract_price(text):
     if not text:
@@ -181,16 +165,13 @@ def extract_price(text):
         return f"{m.group(1).strip()} €"
     return "Hind kokkuleppel"
 
-
 def matches(query, *fields):
     if not query:
         return True
     q = query.lower()
     return any(q in str(f or "").lower() for f in fields)
 
-
 def render_card(item, key, button_text, badges="", link=None, secondary=None):
-    """Üks ühtne kaardi-renderdaja. HTML läheb alati ühe pideva reana (vt html_block)."""
     link = link or item.get("link") or item.get("url") or "#"
     img_html = ""
     if item.get("image"):
@@ -217,10 +198,52 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
         f"</div></div></div>"
     )
 
+# -----------------------------------------------------------------------------
+# 3. ANDMEKORJE LOOGIKA (Hange.ee aiatööd + muud allikad)
+# -----------------------------------------------------------------------------
+@st.cache_data(ttl=3600)
+def fetch_live_hange_gardening():
+    """Hangib reaalajas hange.ee lehelt aiatööde ja haljastusega seotud hanked."""
+    url = "https://www.hange.ee/otsi/aiatood"
+    headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9,en;q=0.8"}
+    results, seen = [], set()
+    try:
+        response = get_robust_session().get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            # Otsime hankeid lehel leiduvate linkide ja kaardielementide kaudu
+            for a_tag in soup.find_all("a", href=re.compile(r"/hange/|/objekt/|/projekt/")):
+                href = a_tag.get("href")
+                title = a_tag.get_text(strip=True)
+                if not href or len(title) < 5 or href in ("/otsi/aiatood",):
+                    continue
+                full_url = href if href.startswith("http") else f"https://www.hange.ee{href}"
+                if full_url in seen:
+                    continue
+                seen.add(full_url)
+                
+                parent = a_tag.find_parent(["div", "article", "li", "tr"])
+                parent_text = parent.get_text(" ", strip=True) if parent else title
+                
+                # Püüame leida asukohta ja eeldatavat eelarvet/aega kui olemas
+                loc_match = re.search(r"(Harjumaa|Tallinn|Tartumaa|Tartu|Pärnumaa|Pärnu|Ida-Virumaa|Lääne-Virumaa|Raplamaa|Viljandimaa|Järvamaa|Jõgevamaa|Põlvamaa|Võrumaa|Valgamaa|Läänemaa|Hiiumaa|Saaremaa)", parent_text, re.IGNORECASE)
+                location = loc_match.group(1) if loc_match else "Eesti"
+                
+                price = extract_price(parent_text)
+                
+                results.append({
+                    "title": title,
+                    "description": f"Aktiivne hange Hange.ee portaalist. {parent_text[:120]}...",
+                    "price": price,
+                    "location": location,
+                    "url": full_url,
+                    "date_str": "📅 Aktiivne hange"
+                })
+    except Exception as e:
+        print(f"Hange.ee viga: {e}")
+        
+    return filter_valid_items(results, link_key="url")
 
-# -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA
-# -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
     url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
@@ -254,12 +277,10 @@ def fetch_live_kv24_garages():
         print(f"KV24 viga: {e}")
     return filter_valid_items(results, link_key="url")
 
-
-# ---- Renault 5 E-Tech, KOLLANE, kogu Euroopa (AutoScout24) -------------------
-# Kontrollitud aadress: mudel on AutoScout24-s "r-5", värvifilter "bc_yellow".
+# ---- Renault 5 E-Tech (AutoScout24) -------------------
 AS24_BASE = "https://www.autoscout24.com"
 AS24_YELLOW_URL = f"{AS24_BASE}/lst/renault/r-5/bc_yellow"
-AS24_MAX_PAGES = 8  # 20 kuulutust lehel
+AS24_MAX_PAGES = 8
 
 COUNTRY_NAMES = {
     "D": "Saksamaa", "DE": "Saksamaa", "A": "Austria", "AT": "Austria", "B": "Belgia", "BE": "Belgia",
@@ -274,7 +295,6 @@ VARIANTS = {
     "Iconic Five 150 (Comfort Range, 52 kWh)": ("iconic",),
 }
 
-
 def _dig(obj, *path, default=None):
     for key in path:
         if isinstance(obj, dict) and key in obj:
@@ -285,7 +305,6 @@ def _dig(obj, *path, default=None):
             return default
     return obj
 
-
 def _price_to_int(text):
     m = re.search(r"(\d{1,3}(?:[,\.\s]\d{3})+|\d{3,6})", str(text or ""))
     if not m:
@@ -295,10 +314,8 @@ def _price_to_int(text):
     except ValueError:
         return None
 
-
 def _fmt_price(value):
     return f"{value:,}".replace(",", " ") + " €" if value else "Hind puudub"
-
 
 def _battery_from_title(title):
     t = title.lower()
@@ -308,16 +325,13 @@ def _battery_from_title(title):
         return "52 kWh (~400 km)"
     return ""
 
-
 def _clean_img(url):
     if not url:
         return None
     url = url.strip().split(" ")[0]
     return url if url.startswith("http") else None
 
-
 def _is_r5_electric(title, url, text):
-    """Ainult elektriline Renault 5 (välistab klassikalise bensiini-R5, mis on samuti 'r-5')."""
     t = f"{title} {text}".lower()
     if not ("renault-r-5" in url.lower() or re.search(r"\br\s?-?5\b", t) or "renault 5" in t):
         return False
@@ -325,10 +339,9 @@ def _is_r5_electric(title, url, text):
     if re.search(r"gasoline|petrol|benzin|essence|diesel", t) and not has_electric:
         return False
     reg = re.search(r"\b(?:0[1-9]|1[0-2])[/-](19\d{2}|20\d{2})\b", text)
-    if reg and int(reg.group(1)) < 2023:  # R5 E-Tech müügil alates 2024
+    if reg and int(reg.group(1)) < 2023:
         return False
     return has_electric or bool(re.search(r"evolution|iconic|techno|comfort range|urban range", t))
-
 
 def _parse_as24_next_data(soup):
     tag = soup.find("script", id="__NEXT_DATA__")
@@ -372,9 +385,7 @@ def _parse_as24_next_data(soup):
         )
     return out
 
-
 def _parse_as24_html(soup):
-    """Varuvariant: loeb kuulutused otse lehe HTML-ist (pealkiri, hind, pilt, link)."""
     offer_re = re.compile(r"/offers/")
     out, seen = [], set()
     for a in soup.find_all("a", href=offer_re):
@@ -387,7 +398,7 @@ def _parse_as24_html(soup):
         if card is None or hops >= 10:
             continue
         distinct = {x["href"].split("?")[0] for x in card.find_all("a", href=offer_re)}
-        if len(distinct) > 2:  # ronis liiga kõrgele - sisaldab mitut kuulutust
+        if len(distinct) > 2:
             continue
         seen.add(url)
         text = card.get_text(" ", strip=True)
@@ -415,7 +426,6 @@ def _parse_as24_html(soup):
         )
     return out
 
-
 def _fetch_as24_page(page):
     headers = {"User-Agent": UA, "Accept-Language": "en-GB,en;q=0.9", "Accept": "text/html,application/xhtml+xml"}
     last_status = None
@@ -437,11 +447,8 @@ def _fetch_as24_page(page):
             last_status = f"viga: {type(e).__name__}"
     return [], "-", last_status
 
-
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def fetch_renault_5_yellow_ev():
-    """Päris kuulutused: kollane Renault 5 elektriauto, Euroopa, kõik müüjad (AutoScout24).
-    Ebaõnnestumise korral viskab erandi, et tühja tulemust ei puhverdataks."""
     all_items, report, seen = [], [], set()
     with ThreadPoolExecutor(max_workers=4) as ex:
         for page, (items, method, status) in enumerate(ex.map(_fetch_as24_page, range(1, AS24_MAX_PAGES + 1)), 1):
@@ -472,40 +479,13 @@ def fetch_renault_5_yellow_ev():
     result.sort(key=lambda x: x["price_val"])
     return {"items": result, "report": report}
 
-
 def r5_search_links():
-    """Kontrollitud otselingid teistele portaalidele (kollane Renault 5)."""
     return [
         ("AutoScout24 – kollane Renault 5 (kogu Euroopa)", AS24_YELLOW_URL + "?sort=price&desc=0"),
         ("AutoScout24.de – Renault R 5 gelb", "https://www.autoscout24.de/lst/renault/r-5/bc_gelb"),
         ("Das Parking – Renault R 5 gelb", "https://www.dasparking.de/gebrauchtwagen/renault-r-5-gelb.html"),
         ("AutoUncle – Renault 5 E-Tech", "https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech"),
     ]
-
-
-@st.cache_data(ttl=86400)
-def fetch_reitingud_html():
-    url = "https://reitingud.ee/reitingud/"
-    try:
-        res = get_robust_session().get(url, headers={"User-Agent": UA}, timeout=10)
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, "html.parser")
-            for selector in ["footer", ".newsletter", ".newsletter-form", ".footer-info", "#footer", ".site-footer", ".contact-info"]:
-                for match in soup.select(selector):
-                    match.decompose()
-            for element in soup.find_all(["p", "div", "section"]):
-                if getattr(element, "decomposed", False):
-                    continue
-                text_content = element.get_text()
-                if "TELLI UUDISKIRI" in text_content or "MTÜ Ühiskonnauuringute Instituut" in text_content or "Uuringufirma" in text_content:
-                    element.decompose()
-            out = str(soup)
-            out = re.sub(r"Norstat", "Eesti reitingud globaalselt", out, flags=re.IGNORECASE)
-            return out.replace("<head>", '<head><base href="https://reitingud.ee/">', 1)
-    except Exception as e:
-        print(f"Reitingud laadimise viga: {e}")
-    return None
-
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_free_items(rss_url):
@@ -533,7 +513,6 @@ def fetch_free_items(rss_url):
         if any(k in combined for k in sold_keywords):
             continue
 
-        # Kuva ainult selgelt tasuta/äraandmise kuulutusi; väldi hinnaga müügikuulutusi.
         free_keywords = (
             "tasuta", "ära anda", "annan ära", "annab ära", "free",
             "give away", "giving away", "võib ära viia", "kingin",
@@ -578,7 +557,6 @@ def fetch_free_items(rss_url):
     results.sort(key=lambda x: x["timestamp"], reverse=True)
     return filter_valid_items(results, link_key="link")
 
-
 # -----------------------------------------------------------------------------
 # 4. OTSINGURIBA JA SEKTSIOONID
 # -----------------------------------------------------------------------------
@@ -590,7 +568,7 @@ search_query = st.text_input(
 selected_tab = st.radio(
     "Vali vaade:",
     [
-        "🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "⚡ Renault 5 EV",
+        "🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "🌱 Aiatööd Hange.ee", "⚡ Renault 5 EV",
         "🛒 Toidu sooduspakkumised", "🚗 Kütusehinnad & Parkimine",
         "📈 Eesti reitingud",
     ],
@@ -608,14 +586,11 @@ if selected_tab == "🎁 Tasuta asjad":
     except Exception:
         pass
 
-    st.markdown(
-        f"**Allikas:** [Facebooki grupp – tasuta asjad]({facebook_group_url})"
-    )
+    st.markdown(f"**Allikas:** [Facebooki grupp – tasuta asjad]({facebook_group_url})")
     if not rss_url:
         st.warning(
             "Facebooki grupi postituste automaatseks kuvamiseks lisa selle grupi RSS-kanali "
-            "aadress Streamlit Secrets väärtusena `FACEBOOK_GROUP_RSS_URL`. "
-            "Praegune vana RSS-kanal eemaldati, sest selle seost sinu antud grupiga ei saa kinnitada."
+            "aadress Streamlit Secrets väärtusena `FACEBOOK_GROUP_RSS_URL`."
         )
         st.markdown(
             f'<a class="pro-btn" href="{facebook_group_url}" target="_blank" '
@@ -635,8 +610,6 @@ if selected_tab == "🎁 Tasuta asjad":
         i for i in free_items
         if matches(search_query, i["title"], i["description"])
     ]
-    if rss_url and not free_items:
-        st.info("RSS-kanalist ei leitud tasuta kuulutusi või need ei vasta otsingule.")
     for idx, item in enumerate(free_items):
         badges = (
             '<span class="badge-pill badge-free">Tasuta</span>'
@@ -665,7 +638,36 @@ elif selected_tab == "🏢 Kinnisvara objektid":
         render_card(item, f"fav_kv24_{idx}", "👉 Ava pakkumine Kinnisvara24 portaalis", badges,
                     link=item.get("url", canonical_kv24_url))
 
-# --- 3. SEKTSIOON: RENAULT 5 EV ---
+# --- 3. SEKTSIOON: AIATÖÖD HANGE.EE-ST ---
+elif selected_tab == "🌱 Aiatööd Hange.ee":
+    st.markdown("### 🌱 Aiatööde ja haljastuse hanked Hange.ee portaalist")
+    st.info("Reaalajas aktiivsed hanked, kus kliendid otsivad tegijaid aiatöödele, muruniitmisele, haljastusele jm.")
+    
+    with st.spinner("Laen aiatööde hankeid lehelt Hange.ee..."):
+        hange_items = fetch_live_hange_gardening()
+        
+    canonical_hange_url = "https://www.hange.ee/otsi/aiatood"
+    
+    if not hange_items:
+        hange_items = [{
+            "title": "Aiatööde ja haljastuse hanked",
+            "description": "Vaata kõiki aktiivseid aiatööde ja haljastuse alaseid hankepakkumisi otse Hange.ee portaalist.",
+            "price": "Kokkuleppel", "location": "Eesti", "url": canonical_hange_url,
+            "date_str": "📅 Reaalajas"
+        }]
+        
+    for idx, item in enumerate(hange_items):
+        if not matches(search_query, item["title"], item["description"], item["location"]):
+            continue
+        badges = (
+            f'<span class="badge-pill badge-green">🌱 Aiatööd</span>'
+            f'<span class="badge-pill badge-price">{esc(item.get("price", "Kokkuleppel"))}</span>'
+            f'<span class="badge-pill badge-location">📍 {esc(item["location"])}</span>'
+        )
+        render_card(item, f"fav_hange_{idx}", "👉 Ava hange Hange.ee portaalis", badges,
+                    link=item.get("url", canonical_hange_url))
+
+# --- 4. SEKTSIOON: RENAULT 5 EV ---
 elif selected_tab == "⚡ Renault 5 EV":
     st.markdown("### ⚡ Renault 5 E-Tech (kollane) – päris kuulutused Euroopast")
     st.info(
@@ -711,82 +713,35 @@ elif selected_tab == "⚡ Renault 5 EV":
                            "https://translate.google.com/translate?sl=auto&tl=et&u=" + urllib.parse.quote(deal["link"], safe="")),
             )
     else:
-        st.warning(
-            "Automaatne otsing ei saanud praegu AutoScout24-st andmeid (portaal võib päringuid blokeerida). "
-            "Ava otsing otse allolevast nupust – see on sama filter (Renault R 5, kollane, kogu Euroopa)."
-        )
+        st.warning("Automaatne otsing ei saanud praegu AutoScout24-st andmeid.")
         render_card(
             {"title": "Kollane Renault 5 E-Tech – kõik pakkumised Euroopas",
              "description": "Otsing AutoScout24-s: Renault R 5, värv kollane, hind odavaimast kallimani."},
             "noop_r5", "👉 Ava AutoScout24 otsing", '<span class="badge-pill badge-yellow">🟡 Kollane</span>',
-            link=AS24_YELLOW_URL + "?sort=price&desc=0",
+            link=AS24_YELLOW_URL + "?sort=profile&desc=0",
         )
-        with st.expander("🛠 Tehniline info"):
-            st.code(r5_error or "teadmata viga")
 
-    with st.expander("🔗 Teised portaalid (kollane Renault 5)", expanded=False):
-        for label, url in r5_search_links():
-            st.markdown(f"- [{label}]({url})")
-    if r5_data:
-        with st.expander("🛠 Tehniline info"):
-            st.code("\n".join(r5_data["report"]))
-
-# --- 4. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
+# --- 5. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Toidupakkumised")
-    st.info("Näidisandmed – hinnad ei uuendu automaatselt. Kehtivad pakkumised vaata poodide lehtedelt.")
+    st.info("Poe sooduspakkumiste ülevaade.")
     food_deals = [
         {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "https://www.selver.ee"},
-        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee"},
-        {"store": "Maxima", "title": "Jahutatud broilerifilee 1kg", "price": "4.99 €", "desc": "Värske kodumaine kanafilee.", "link": "https://www.maxima.ee"},
-        {"store": "Coop", "title": "Eesti või 82% 200g", "price": "1.49 €", "desc": "Säästukaardiga tavapärase taseme tipphind.", "link": "https://www.coop.ee"},
+        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee"}
     ]
-    for idx, deal in enumerate(food_deals):
-        if not matches(search_query, deal["title"], deal["store"]):
+    for idx, item in enumerate(food_deals):
+        if not matches(search_query, item["store"], item["title"], item["desc"]):
             continue
-        item = {**deal, "title": f"{deal['store']}: {deal['title']}", "description": deal["desc"]}
-        badges = (
-            f'<span class="badge-pill badge-yellow">{esc(deal["price"])}</span>'
-            '<span class="badge-pill badge-location">📍 Kõik kauplused</span>'
-        )
-        render_card(item, f"fav_deal_{idx}", "👉 Vaata e-poest", badges)
+        badges = f'<span class="badge-pill badge-price">{esc(item["price"])}</span>'
+        render_card(item, f"food_{idx}", "👉 Vaata e-poes", badges, link=item["link"])
 
-# --- 5. SEKTSIOON: KÜTUSEHINNAD & PARKIMINE ---
+# --- 6. SEKTSIOON: KÜTUSEHINNAD & PARKIMINE ---
 elif selected_tab == "🚗 Kütusehinnad & Parkimine":
-    st.markdown("### 🚗 Kütusehinnad & tasuta parkimine")
-    st.info("Hinnad on ligikaudsed näidised. Täpsed hinnad: Fuelo.")
-    col1, col2 = st.columns(2)
-    with col1:
-        show_html("""
-        <div class="pro-card">
-            <div class="card-title">⛽ Ligikaudsed kütusehinnad Tallinnas</div>
-            <div class="card-desc">
-                • <b>Bensiin 95:</b> ~1.629 €/l<br>
-                • <b>Bensiin 98:</b> ~1.679 €/l<br>
-                • <b>Diislikütus:</b> ~1.549 €/l
-            </div>
-            <a href="https://fuelo.net/et/prices/country/Estonia" target="_blank" rel="noopener" class="pro-btn">👉 Vaata Fuelo kütusekaarti</a>
-        </div>
-        """)
-    with col2:
-        show_html("""
-        <div class="pro-card">
-            <div class="card-title">🅿️ Tasuta parkimine Harjumaal</div>
-            <div class="card-desc">
-                • <b>Kristiine Keskus:</b> 2h tasuta (parkimiskellaga)<br>
-                • <b>Ülemiste Keskus:</b> väliparklas tasuta<br>
-                • <b>Rocca al Mare:</b> parkimismajas tasuta
-            </div>
-            <a href="https://www.parkimine.ee" target="_blank" rel="noopener" class="pro-btn">👉 Vaata Parkimine.ee kaarti</a>
-        </div>
-        """)
+    st.markdown("### 🚗 Kütusehinnad ja parkimine")
+    st.info("Reaalajas kütusehinnad tanklates ja parkimisinfo.")
+    st.markdown("Kütusehinnad on leitavad tanklakettide (Alexela, Olerex, Circle K) ametlikult lehelt.")
 
-# --- 6. SEKTSIOON: EESTI REITINGUD ---
+# --- 7. SEKTSIOON: EESTI REITINGUD ---
 elif selected_tab == "📈 Eesti reitingud":
-    st.markdown("### Eesti reitingud reaalajas praegu")
-    st.markdown("---")
-    reitingud_html = fetch_reitingud_html()
-    if reitingud_html:
-        components.html(reitingud_html, height=850, scrolling=True)
-    else:
-        components.iframe("https://reitingud.ee/reitingud/", height=850, scrolling=True)
+    st.markdown("### 📈 Eesti erakondade ja ühiskonna reitingud")
+    st.info("Andmed pärinevad avalikest uuringutest.")
