@@ -1,4 +1,3 @@
-```python
 import html as html_lib
 import json
 import os
