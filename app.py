@@ -8,7 +8,6 @@ from email.utils import parsedate_to_datetime
 
 import requests
 import streamlit as st
-import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
@@ -83,7 +82,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki grupi tasuta kuulutused, Hange.ee aiatööd, KV24, Renault 5 E-Tech, toidupakkumised &amp; kütusehinnad</div>'
+    '<div class="sub-title">Facebooki tasuta kuulutused, Hange.ee aiatööd, KV24 ja Renault 5 E-Tech · toidupakkumised on näidised</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -121,12 +120,22 @@ def show_html(markup: str):
 
 def get_robust_session():
     session = requests.Session()
-    retries = Retry(total=2, backoff_factor=0.3, status_forcelist=[500, 502, 503, 504])
+    retries = Retry(
+        total=2,
+        connect=2,
+        read=2,
+        status=2,
+        backoff_factor=0.3,
+        status_forcelist=(500, 502, 503, 504),
+        allowed_methods=frozenset({"GET", "HEAD"}),
+        respect_retry_after_header=True,
+    )
     adapter = HTTPAdapter(max_retries=retries)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
 
+@st.cache_data(ttl=24 * 60 * 60, show_spinner=False)
 def translate_to_estonian(text):
     if not text or not re.search(r"[\u0400-\u04FF]", text):
         return text
@@ -201,10 +210,7 @@ def paginate_items(items, category_key, filters=None):
     return items[:visible_count]
 
 def render_card(item, key, button_text, badges="", link=None, secondary=None):
-    link = safe_http_url(
-        link or item.get("link") or item.get("url"),
-        fallback="https://www.hange.ee/hanked/",
-    )
+    link = safe_http_url(link or item.get("link") or item.get("url"))
     img_url = safe_http_url(
         item.get("image"),
         fallback="https://picsum.photos/seed/hangeval/600/450",
@@ -225,13 +231,19 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
                 f'<a href="{esc(secondary_url)}" target="_blank" rel="noopener noreferrer" '
                 f'class="pro-btn secondary">{esc(secondary[0])}</a>'
             )
+    primary_html = (
+        f'<a href="{esc(link)}" target="_blank" rel="noopener noreferrer" class="pro-btn">'
+        f"{esc(button_text)}</a>"
+        if link
+        else '<span class="pro-btn secondary" aria-disabled="true">Link puudub</span>'
+    )
     show_html(
         f'<div class="pro-card"><div class="card-row">{img_html}<div class="card-body">'
         f'<div class="card-title">{esc(item.get("title") or item.get("store"))}</div>'
         f"{date_html}"
         f'<div class="card-desc">{esc(item.get("description") or item.get("desc"))}</div>'
         f"{tags_html}"
-            f'<a href="{esc(link)}" target="_blank" rel="noopener noreferrer" class="pro-btn">{esc(button_text)}</a>'
+        f"{primary_html}"
         f"{sec_html}"
         f"</div></div></div>"
     )
@@ -274,8 +286,7 @@ def fetch_live_hange_gardening():
     first_response.raise_for_status()
     first_soup = BeautifulSoup(first_response.content, "html.parser")
 
-    # Read the available pagination links, but cap requests in case the provider
-    # changes its pager or returns an unexpectedly large result set.
+    # Follow only page numbers advertised by the provider and fetch each once.
     page_numbers = {1}
     for anchor in first_soup.select('a[href*="page="]'):
         page_url = urllib.parse.urljoin(HANGE_BASE_URL, anchor.get("href", ""))
@@ -593,25 +604,6 @@ def fetch_renault_5_yellow_ev():
     return {"items": result, "report": report}
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_reitingud_html():
-    url = "https://reitingud.ee/reitingud/"
-    response = get_robust_session().get(url, headers={"User-Agent": UA}, timeout=10)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
-    for selector in ["footer", ".newsletter", ".newsletter-form", ".footer-info", "#footer", ".site-footer", ".contact-info"]:
-        for match in soup.select(selector):
-            match.decompose()
-    for element in soup.find_all(["p", "div", "section"]):
-        if getattr(element, "decomposed", False):
-            continue
-        text_content = element.get_text()
-        if "TELLI UUDISKIRI" in text_content or "MTÜ Ühiskonnauuringute Instituut" in text_content or "Uuringufirma" in text_content:
-            element.decompose()
-    out = str(soup)
-    out = re.sub(r"Norstat", "Eesti reitingud globaalselt", out, flags=re.IGNORECASE)
-    return out.replace("<head>", '<head><base href="https://reitingud.ee/">', 1)
-
-@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_free_items(rss_url):
     results = []
     resp = get_robust_session().get(rss_url, headers={"User-Agent": UA}, timeout=10)
@@ -693,6 +685,7 @@ def _capture_source(fetcher, *args):
 def fetch_hourly_source_snapshot(rss_url):
     """Refresh every configured live source together, at most once per hour."""
     snapshot = {
+        "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "free": (
             _capture_source(fetch_free_items, rss_url)
             if rss_url
@@ -701,7 +694,6 @@ def fetch_hourly_source_snapshot(rss_url):
         "kv24": _capture_source(fetch_live_kv24_garages),
         "hange": _capture_source(fetch_live_hange_gardening),
         "renault": _capture_source(fetch_renault_5_yellow_ev),
-        "ratings": _capture_source(fetch_reitingud_html),
     }
     return snapshot
 
@@ -723,7 +715,24 @@ rss_url = get_secret_value("FACEBOOK_GROUP_RSS_URL")
 with st.spinner("Värskendan tunnipõhiseid andmeallikaid..."):
     source_snapshot = fetch_hourly_source_snapshot(rss_url)
 
-st.caption("Aktiivsed veebiallikad uuenevad automaatselt kuni kord tunnis.")
+checked_at = datetime.fromisoformat(source_snapshot["checked_at"]).astimezone(timezone.utc)
+st.caption(
+    "Viimane allikate kontroll: "
+    f"{checked_at:%d.%m.%Y %H:%M} UTC · automaatne uuendus kord tunnis, kui rakendus on avatud."
+)
+source_labels = {
+    "free": "Facebook RSS",
+    "kv24": "Kinnisvara24",
+    "hange": "Hange.ee",
+    "renault": "AutoScout24",
+}
+source_errors = [
+    label
+    for key, label in source_labels.items()
+    if (key != "free" or rss_url) and source_snapshot[key]["error"]
+]
+if source_errors:
+    st.caption("Allikate tõrge: " + ", ".join(source_errors) + ". Vastav vaade näitab lisateavet.")
 
 search_query = st.text_input(
     "🔍 Otsi märksõna järgi...",
@@ -968,12 +977,12 @@ elif selected_tab == "🚗 Kütusehinnad & Parkimine":
 # --- 7. SEKTSIOON: EESTI REITINGUD ---
 elif selected_tab == "📈 Eesti reitingud":
     st.markdown("### 📈 Eesti erakondade ja ühiskonna reitingud")
-    st.info("Andmed pärinevad avalikest uuringutest.")
-    ratings_result = source_snapshot["ratings"]
-    if ratings_result["error"]:
-        st.error(f"Reitingute andmete laadimine ebaõnnestus ({ratings_result['error']}).")
-    elif ratings_result["data"]:
-        html_content = ratings_result["data"]
-        components.html(html_content, height=800, scrolling=True)
-    else:
-        st.info("Reitingute leht ei tagastanud praegu kuvamiseks sisu.")
+    st.info(
+        "Reitingute interaktiivsed graafikud avanevad väljaandja lehel. "
+        "See väldib kolmanda osapoole HTML-i käivitamist rakenduse sees."
+    )
+    st.link_button(
+        "Ava Eesti reitingud",
+        "https://reitingud.ee/reitingud/",
+        use_container_width=True,
+    )
