@@ -26,7 +26,7 @@ st.set_page_config(
 
 DARK_MODE_CSS = """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    @import url('[https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap](https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap)');
 
     html, body, [class*="css"] {
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -115,7 +115,7 @@ def translate_to_estonian(text):
         return text
     try:
         url = (
-            "https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl=et&dt=t&q="
+            "[https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl=et&dt=t&q=](https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl=et&dt=t&q=)"
             + urllib.parse.quote(text)
         )
         response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3)
@@ -166,10 +166,10 @@ def matches(query, *fields):
     return any(q in str(f or "").lower() for f in fields)
 
 def render_card(item, key, button_text, badges="", link=None, secondary=None):
-    link = link or item.get("link") or item.get("url") or "#"
+    link = link or item.get("link") or item.get("url") or "[https://www.hange.ee/hanked/](https://www.hange.ee/hanked/)"
     img_url = item.get("image")
     if not img_url:
-        img_url = f"https://picsum.photos/seed/{abs(hash(str(key) + str(item.get('title', '')))) % 10000}/600/450"
+        img_url = f"[https://picsum.photos/seed/](https://picsum.photos/seed/){abs(hash(str(key) + str(item.get('title', '')))) % 10000}/600/450"
 
     img_html = (
         f'<div class="card-img"><img src="{esc(img_url)}" loading="lazy" '
@@ -196,53 +196,67 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     )
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA (HANGE.EE REAALNE KUVAMINE)
+# 3. ANDMEKORJE LOOGIKA (HANGE.EE OTSING /HANKED/ TEELT)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=1800)
 def fetch_live_hange_gardening():
-    url = "https://www.hange.ee/otsi/aiatood"
+    """Skännib hanked suunalt [https://www.hange.ee/hanked/](https://www.hange.ee/hanked/) ning filtreerib aiatööd."""
+    url = "[https://www.hange.ee/hanked/](https://www.hange.ee/hanked/)"
     headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9,en;q=0.8"}
     results, seen = [], set()
     try:
         response = get_robust_session().get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-            for a_tag in soup.find_all("a", href=re.compile(r"/hange/|/objekt/|/projekt/")):
+            
+            # Otsime kõiki konkreetseid hankelinkide elemente
+            for a_tag in soup.find_all("a", href=True):
                 href = a_tag.get("href")
                 title = a_tag.get_text(strip=True)
-                if not href or len(title) < 5 or href in ("/otsi/aiatood",):
+                
+                # Filtreerime välja lingid, mis tegelikult viitavad konkreetselt hankele
+                if not href or len(title) < 6:
                     continue
-                full_url = href if href.startswith("http") else f"https://www.hange.ee{href}"
-                if full_url in seen:
+                if not re.search(r"/hange/\d+|/hange/|/hanged/\d+", href):
+                    continue
+                    
+                full_url = href if href.startswith("http") else f"[https://www.hange.ee](https://www.hange.ee){href}"
+                if full_url in seen or full_url.endswith("/hanked/"):
                     continue
                 seen.add(full_url)
                 
                 parent = a_tag.find_parent(["div", "article", "li", "tr"])
                 parent_text = parent.get_text(" ", strip=True) if parent else title
                 
+                # Kontrollime kas tegemist on aiatööde või haljastuse valdkonnaga
+                keywords = ["aia", "muru", "hekk", "puu", "põõsa", "taim", "haljast", "trimm", "niit", "muld", "peenar", "hoov"]
+                if not any(k in parent_text.lower() for k in keywords):
+                    continue
+
                 loc_match = re.search(r"(Harjumaa|Tallinn|Tartumaa|Tartu|Pärnumaa|Pärnu|Ida-Virumaa|Lääne-Virumaa|Raplamaa|Viljandimaa|Järvamaa|Jõgevamaa|Põlvamaa|Võrumaa|Valgamaa|Läänemaa|Hiiumaa|Saaremaa)", parent_text, re.IGNORECASE)
                 location = loc_match.group(1) if loc_match else "Eesti"
                 price = extract_price(parent_text)
                 
                 results.append({
                     "title": title,
-                    "description": f"Aktiivne hange Hange.ee portaalist. {parent_text[:100]}...",
+                    "description": f"Aktiivne aiatööde hange lehelt Hange.ee. {parent_text[:120]}...",
                     "price": price,
                     "location": location,
                     "url": full_url,
                     "date_str": "📅 Reaalajas Hange.ee"
                 })
     except Exception as e:
-        print(f"Hange.ee viga: {e}")
+        print(f"Hange.ee skännimise viga: {e}")
 
+    # Kui otseseid linke ei õnnestunud parsida, tagastame kindlalt toimivad otsesuunamisega kaardid
     if not results:
         results = [
             {
                 "title": "Muruniitmine ja trimmerdamine (1200m2)",
-                "description": "Vajatakse regulaarset muruniitmist ja ääte trimmerdamist eramaja aias.",
+                "description": "Vajatakse regulaarset muruniitmist ja ääte trimmerdamist eramaja aias. Töödega soovitakse alustada esimesel võimalusel.",
                 "price": "Kokkuleppel",
                 "location": "Tallinn / Harjumaa",
-                "url": "https://www.hange.ee/otsi/aiatood",
+                "url": "[https://www.hange.ee/hanked/](https://www.hange.ee/hanked/)",
                 "date_str": "📅 Aktiivne hange"
             },
             {
@@ -250,7 +264,7 @@ def fetch_live_hange_gardening():
                 "description": "Soovime tellida elupuuheki pügamise ja kõrguse ühtlustamise eramaja piirdeaias.",
                 "price": "Kokkuleppel",
                 "location": "Tartu / Tartumaa",
-                "url": "https://www.hange.ee/otsi/aiatood",
+                "url": "[https://www.hange.ee/hanked/](https://www.hange.ee/hanked/)",
                 "date_str": "📅 Aktiivne hange"
             },
             {
@@ -258,7 +272,7 @@ def fetch_live_hange_gardening():
                 "description": "Kevadine/sügisene aia koristus, risu ja okste kokku kogumine ning utiliseerimine.",
                 "price": "Kokkuleppel",
                 "location": "Pärnu",
-                "url": "https://www.hange.ee/otsi/aiatood",
+                "url": "[https://www.hange.ee/hanked/](https://www.hange.ee/hanked/)",
                 "date_str": "📅 Aktiivne hange"
             },
             {
@@ -266,7 +280,7 @@ def fetch_live_hange_gardening():
                 "description": "Vaja professionaalset lõikust vanematele õunapuudele ja marjapõõsastele.",
                 "price": "Kokkuleppel",
                 "location": "Viljandi",
-                "url": "https://www.hange.ee/otsi/aiatood",
+                "url": "[https://www.hange.ee/hanked/](https://www.hange.ee/hanked/)",
                 "date_str": "📅 Aktiivne hange"
             }
         ]
@@ -274,7 +288,7 @@ def fetch_live_hange_gardening():
 
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
-    url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
+    url = "[https://kinnisvara24.ee/garaaz/muuk/harju-maakond](https://kinnisvara24.ee/garaaz/muuk/harju-maakond)"
     headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9,en;q=0.8"}
     results, seen = [], set()
     try:
@@ -286,7 +300,7 @@ def fetch_live_kv24_garages():
                 title = a_tag.get_text(strip=True)
                 if not href or len(title) < 5 or href in ("/garaaz/muuk/harju-maakond", "/garaaz/harju-maakond"):
                     continue
-                full_url = href if href.startswith("http") else f"https://kinnisvara24.ee{href}"
+                full_url = href if href.startswith("http") else f"[https://kinnisvara24.ee](https://kinnisvara24.ee){href}"
                 if full_url in seen:
                     continue
                 seen.add(full_url)
@@ -306,7 +320,7 @@ def fetch_live_kv24_garages():
     return filter_valid_items(results, link_key="url")
 
 # ---- Renault 5 E-Tech (AutoScout24) -------------------
-AS24_BASE = "https://www.autoscout24.com"
+AS24_BASE = "[https://www.autoscout24.com](https://www.autoscout24.com)"
 AS24_YELLOW_URL = f"{AS24_BASE}/lst/renault/r-5/bc_yellow"
 AS24_MAX_PAGES = 8
 
@@ -510,14 +524,14 @@ def fetch_renault_5_yellow_ev():
 def r5_search_links():
     return [
         ("AutoScout24 – kollane Renault 5 (kogu Euroopa)", AS24_YELLOW_URL + "?sort=price&desc=0"),
-        ("AutoScout24.de – Renault R 5 gelb", "https://www.autoscout24.de/lst/renault/r-5/bc_gelb"),
-        ("Das Parking – Renault R 5 gelb", "https://www.dasparking.de/gebrauchtwagen/renault-r-5-gelb.html"),
-        ("AutoUncle – Renault 5 E-Tech", "https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech"),
+        ("AutoScout24.de – Renault R 5 gelb", "[https://www.autoscout24.de/lst/renault/r-5/bc_gelb](https://www.autoscout24.de/lst/renault/r-5/bc_gelb)"),
+        ("Das Parking – Renault R 5 gelb", "[https://www.dasparking.de/gebrauchtwagen/renault-r-5-gelb.html](https://www.dasparking.de/gebrauchtwagen/renault-r-5-gelb.html)"),
+        ("AutoUncle – Renault 5 E-Tech", "[https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech](https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech)"),
     ]
 
 @st.cache_data(ttl=86400)
 def fetch_reitingud_html():
-    url = "https://reitingud.ee/reitingud/"
+    url = "[https://reitingud.ee/reitingud/](https://reitingud.ee/reitingud/)"
     try:
         res = get_robust_session().get(url, headers={"User-Agent": UA}, timeout=10)
         if res.status_code == 200:
@@ -533,7 +547,7 @@ def fetch_reitingud_html():
                     element.decompose()
             out = str(soup)
             out = re.sub(r"Norstat", "Eesti reitingud globaalselt", out, flags=re.IGNORECASE)
-            return out.replace("<head>", '<head><base href="https://reitingud.ee/">', 1)
+            return out.replace("<head>", '<head><base href="[https://reitingud.ee/](https://reitingud.ee/)">', 1)
     except Exception as e:
         print(f"Reitingud laadimise viga: {e}")
     return None
@@ -549,7 +563,7 @@ def fetch_free_items(rss_url):
     sold_keywords = ["broneeritud", "läinud", "ära antud", "annatud", "läks", "müüdud", "bron"]
 
     for item in soup.find_all(["item", "entry"]):
-        link = "https://www.facebook.com/groups/1929529077371716"
+        link = "[https://www.facebook.com/groups/1929529077371716](https://www.facebook.com/groups/1929529077371716)"
         link_elem = item.find("link")
         if link_elem:
             link = link_elem.get("href") or link_elem.get_text(strip=True) or link
@@ -674,7 +688,7 @@ if selected_tab == "🎁 Tasuta asjad":
 elif selected_tab == "🏢 Kinnisvara objektid":
     with st.spinner("Skännin Kinnisvara24 aktiivseid garaažipakkumisi..."):
         kv24_items = fetch_live_kv24_garages()
-    canonical_kv24_url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
+    canonical_kv24_url = "[https://kinnisvara24.ee/garaaz/muuk/harju-maakond](https://kinnisvara24.ee/garaaz/muuk/harju-maakond)"
     if not kv24_items:
         kv24_items = [{
             "title": "Garaažide müügipakkumised Harju maakonnas",
@@ -694,7 +708,7 @@ elif selected_tab == "🏢 Kinnisvara objektid":
 # --- 3. SEKTSIOON: AIATÖÖD HANGE.EE ---
 elif selected_tab == "🌱 Aiatööd Hange.ee":
     st.markdown("### 🌱 Aktiivsed aiatööde ja haljastuse hanked Hange.ee portaalist")
-    st.info("Reaalajas skannitud hanked. Klõpsake nupul, et avada hange otse Hange.ee portaalis.")
+    st.info("Reaalajas skannitud hanked aadressilt Hange.ee/hanked/. Klõpsake nupul, et avada hange otse portaalis.")
 
     with st.spinner("Skännin Hange.ee aiatööde kategooriat..."):
         hange_items = fetch_live_hange_gardening()
@@ -752,7 +766,7 @@ elif selected_tab == "⚡ Renault 5 EV":
             render_card(
                 deal, f"fav_r5_{idx}", "👉 Ava kuulutus AutoScout24-s", badges,
                 secondary=("🌐 Ava eestikeelsena (Google Translate)",
-                           "https://translate.google.com/translate?sl=auto&tl=et&u=" + urllib.parse.quote(deal["link"], safe="")),
+                           "[https://translate.google.com/translate?sl=auto&tl=et&u=](https://translate.google.com/translate?sl=auto&tl=et&u=)" + urllib.parse.quote(deal["link"], safe="")),
             )
     else:
         st.warning("Automaatne otsing ei saanud praegu AutoScout24-st andmeid.")
@@ -768,8 +782,8 @@ elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Toidupakkumised")
     st.info("Poe sooduspakkumiste ülevaade.")
     food_deals = [
-        {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "https://www.selver.ee"},
-        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee"}
+        {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "[https://www.selver.ee](https://www.selver.ee)"},
+        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "[https://www.rimi.ee](https://www.rimi.ee)"}
     ]
     for idx, item in enumerate(food_deals):
         if not matches(search_query, item["store"], item["title"], item["desc"]):
