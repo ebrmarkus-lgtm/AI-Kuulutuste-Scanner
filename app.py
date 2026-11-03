@@ -196,11 +196,10 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     )
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA (HANGE.EE REAALNE SKÄNNIMINE)
+# 3. ANDMEKORJE LOOGIKA (HANGE.EE REAALNE KUVAMINE)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=1800)
 def fetch_live_hange_gardening():
-    """Skännib reaalajas Hange.ee lehelt aiatööde ja haljastuse hanked."""
     url = "https://www.hange.ee/otsi/aiatood"
     headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9,en;q=0.8"}
     results, seen = [], set()
@@ -208,7 +207,6 @@ def fetch_live_hange_gardening():
         response = get_robust_session().get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-            # Otsime kõiki hankeid viitvaid linke lehelt
             for a_tag in soup.find_all("a", href=re.compile(r"/hange/|/objekt/|/projekt/")):
                 href = a_tag.get("href")
                 title = a_tag.get_text(strip=True)
@@ -235,15 +233,13 @@ def fetch_live_hange_gardening():
                     "date_str": "📅 Reaalajas Hange.ee"
                 })
     except Exception as e:
-        print(f"Hange.ee skännimise viga: {e}")
+        print(f"Hange.ee viga: {e}")
 
-    # Fallback/turvavõrk, kui reaalajas kraabitud linke peaks olema vähe, 
-    # toome sisse konkreetsed töötavad kategooria lingid, mis ei too "Lehte ei leitud" viga:
     if not results:
         results = [
             {
                 "title": "Muruniitmine ja trimmerdamine (1200m2)",
-                "description": "Vajatakse regulaarset muruniitmist ja ääte trimmerdamist eramaja aias. Töödega soovitakse alustada esimesel võimalusel.",
+                "description": "Vajatakse regulaarset muruniitmist ja ääte trimmerdamist eramaja aias.",
                 "price": "Kokkuleppel",
                 "location": "Tallinn / Harjumaa",
                 "url": "https://www.hange.ee/otsi/aiatood",
@@ -274,7 +270,6 @@ def fetch_live_hange_gardening():
                 "date_str": "📅 Aktiivne hange"
             }
         ]
-        
     return results
 
 @st.cache_data(ttl=3600)
@@ -712,7 +707,6 @@ elif selected_tab == "🌱 Aiatööd Hange.ee":
             f'<span class="badge-pill badge-price">{esc(item["price"])}</span>'
             f'<span class="badge-pill badge-location">📍 {esc(item["location"])}</span>'
         )
-        # Iga kaart saab unikaalse pildi vastavalt hanke pealkirjale
         render_card(item, f"hange_live_{idx}", "👉 Ava hange Hange.ee portaalis", badges, link=item["url"])
 
 # --- 4. SEKTSIOON: RENAULT 5 EV ---
@@ -795,5 +789,3 @@ elif selected_tab == "📈 Eesti reitingud":
     html_content = fetch_reitingud_html()
     if html_content:
         components.html(html_content, height=800, scrolling=True)
-
-```
