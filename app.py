@@ -96,6 +96,19 @@ def esc(value) -> str:
     text = html_lib.escape(str(value if value is not None else ""), quote=True)
     return text.replace("$", "&#36;")
 
+def safe_http_url(value, fallback=None):
+    """Return an absolute HTTP(S) URL, or a safe fallback for untrusted values."""
+    if not isinstance(value, str):
+        return fallback
+    candidate = value.strip()
+    try:
+        parsed = urllib.parse.urlsplit(candidate)
+    except ValueError:
+        return fallback
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        return fallback
+    return candidate
+
 def html_block(markup: str) -> str:
     return "".join(line.strip() for line in markup.splitlines() if line.strip())
 
@@ -128,7 +141,8 @@ def translate_to_estonian(text):
     return text
 
 def check_single_link(url):
-    if not url or url == "#" or not url.startswith("http"):
+    url = safe_http_url(url)
+    if not url:
         return True
     try:
         res = get_robust_session().head(url, headers={"User-Agent": UA}, timeout=3, allow_redirects=True)
@@ -166,10 +180,14 @@ def matches(query, *fields):
     return any(q in str(f or "").lower() for f in fields)
 
 def render_card(item, key, button_text, badges="", link=None, secondary=None):
-    link = link or item.get("link") or item.get("url") or "https://www.hange.ee/hanked/"
-    img_url = item.get("image")
-    if not img_url:
-        img_url = "https://picsum.photos/seed/hangeval/600/450"
+    link = safe_http_url(
+        link or item.get("link") or item.get("url"),
+        fallback="https://www.hange.ee/hanked/",
+    )
+    img_url = safe_http_url(
+        item.get("image"),
+        fallback="https://picsum.photos/seed/hangeval/600/450",
+    )
 
     img_html = (
         f'<div class="card-img"><img src="{esc(img_url)}" loading="lazy" '
@@ -180,17 +198,19 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
     sec_html = ""
     if secondary:
-        sec_html = (
-            f'<a href="{esc(secondary[1])}" target="_blank" rel="noopener" '
-            f'class="pro-btn secondary">{esc(secondary[0])}</a>'
-        )
+        secondary_url = safe_http_url(secondary[1])
+        if secondary_url:
+            sec_html = (
+                f'<a href="{esc(secondary_url)}" target="_blank" rel="noopener noreferrer" '
+                f'class="pro-btn secondary">{esc(secondary[0])}</a>'
+            )
     show_html(
         f'<div class="pro-card"><div class="card-row">{img_html}<div class="card-body">'
         f'<div class="card-title">{esc(item.get("title") or item.get("store"))}</div>'
         f"{date_html}"
         f'<div class="card-desc">{esc(item.get("description") or item.get("desc"))}</div>'
         f"{tags_html}"
-        f'<a href="{esc(link)}" target="_blank" rel="noopener" class="pro-btn">{esc(button_text)}</a>'
+            f'<a href="{esc(link)}" target="_blank" rel="noopener noreferrer" class="pro-btn">{esc(button_text)}</a>'
         f"{sec_html}"
         f"</div></div></div>"
     )
@@ -200,7 +220,7 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=1800)
 def fetch_live_hange_gardening():
-    """Tagastab rikkaliku nimekirja aktiivsetest aiatööde ja haljastuse hangetest Hange.ee portaalist."""
+    """Tagastab Hange.ee kujunduse näitamiseks staatilised näidisandmed."""
     return [
         {
             "title": "Muruniitmine ja trimmerdamine (1200m2)",
@@ -691,8 +711,11 @@ elif selected_tab == "🏢 Kinnisvara objektid":
 
 # --- 3. SEKTSIOON: AIATÖÖD HANGE.EE ---
 elif selected_tab == "🌱 Aiatööd Hange.ee":
-    st.markdown("### 🌱 Aktiivsed aiatööde ja haljastuse hanked Hange.ee portaalist")
-    st.info("Reaalajas kuvatud hanked. Klõpsake nupul, et avada pakkumised otse Hange.ee portaalis.")
+    st.markdown("### 🌱 Aiatööde näidiskuulutused")
+    st.warning(
+        "Need on staatilised näidisandmed, mitte Hange.ee reaalajas kuulutused. "
+        "Kuulutuse lingid avavad Hange.ee portaali."
+    )
 
     with st.spinner("Laen Hange.ee aiatööde pakkumisi..."):
         hange_items = fetch_live_hange_gardening()
@@ -765,7 +788,10 @@ elif selected_tab == "⚡ Renault 5 EV":
 # --- 5. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Toidupakkumised")
-    st.info("Poe sooduspakkumiste ülevaade.")
+    st.warning(
+        "Allpool on staatilised näidispakkumised. Hinnad võivad olla aegunud; "
+        "kontrolli kehtivat hinda poe veebilehelt."
+    )
     food_deals = [
         {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "https://www.selver.ee", "image": "https://picsum.photos/seed/banaan/600/450"},
         {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee", "image": "https://picsum.photos/seed/karums/600/450"}
@@ -779,7 +805,10 @@ elif selected_tab == "🛒 Toidu sooduspakkumised":
 # --- 6. SEKTSIOON: KÜTUSEHINNAD & PARKIMINE ---
 elif selected_tab == "🚗 Kütusehinnad & Parkimine":
     st.markdown("### 🚗 Kütusehinnad ja parkimine")
-    st.info("Reaalajas kütusehinnad tanklates ja parkimisinfo.")
+    st.info(
+        "Selle vaate reaalajas andmeallikas pole veel ühendatud, seega "
+        "kütusehindu ega parkimisinfot siin praegu ei kuvata."
+    )
 
 # --- 7. SEKTSIOON: EESTI REITINGUD ---
 elif selected_tab == "📈 Eesti reitingud":
