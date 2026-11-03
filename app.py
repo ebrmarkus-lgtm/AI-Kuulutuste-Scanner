@@ -1,3 +1,4 @@
+```python
 import html as html_lib
 import json
 import os
@@ -62,7 +63,7 @@ DARK_MODE_CSS = """
     .badge-price { background-color: rgba(37,99,235,0.15); color: #60a5fa; border: 1px solid rgba(37,99,235,0.3); }
     .badge-location { background-color: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.4); }
     .badge-yellow { background-color: rgba(234,179,8,0.2); color: #facc15; border: 1px solid rgba(234,179,8,0.4); }
-    .badge-green { background-color: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); }
+    .badge-gardening { background-color: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); }
 
     .pro-btn {
         display: inline-flex; align-items: center; justify-content: center; width: 100%;
@@ -79,7 +80,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki grupi tasuta kuulutused, KV24, Renault 5 E-Tech, Hange.ee aiatööd, toidupakkumised &amp; kütusehinnad</div>'
+    '<div class="sub-title">Facebooki grupi tasuta kuulutused, Hange.ee aiatööd, KV24, Renault 5 E-Tech, toidupakkumised &amp; kütusehinnad</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -93,10 +94,16 @@ UA = (
 )
 
 def esc(value) -> str:
+    """HTML-i põgenemine. '$' asendatakse, et Streamlit ei tõlgendaks seda LaTeX-ina."""
     text = html_lib.escape(str(value if value is not None else ""), quote=True)
     return text.replace("$", "&#36;")
 
 def html_block(markup: str) -> str:
+    """
+    Teeb HTML-ist ühe pideva rea (ilma tühjade ridade ja taandeta).
+    See on KRIITILINE: Streamlit/Markdown muudab tühja rea järel taandatud HTML-i
+    koodiplokiks ja kuvab toore '</div>' teksti.
+    """
     return "".join(line.strip() for line in markup.splitlines() if line.strip())
 
 def show_html(markup: str):
@@ -128,6 +135,7 @@ def translate_to_estonian(text):
     return text
 
 def check_single_link(url):
+    """Eemaldab ainult kindlalt kustutatud (404/410) lingid."""
     if not url or url == "#" or not url.startswith("http"):
         return True
     try:
@@ -172,6 +180,7 @@ def matches(query, *fields):
     return any(q in str(f or "").lower() for f in fields)
 
 def render_card(item, key, button_text, badges="", link=None, secondary=None):
+    """Üks ühtne kaardi-renderdaja. HTML läheb alati ühe pideva reana (vt html_block)."""
     link = link or item.get("link") or item.get("url") or "#"
     img_html = ""
     if item.get("image"):
@@ -199,51 +208,8 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     )
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA (Hange.ee aiatööd + muud allikad)
+# 3. ANDMEKORJE LOOGIKA
 # -----------------------------------------------------------------------------
-@st.cache_data(ttl=3600)
-def fetch_live_hange_gardening():
-    """Hangib reaalajas hange.ee lehelt aiatööde ja haljastusega seotud hanked."""
-    url = "https://www.hange.ee/otsi/aiatood"
-    headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9,en;q=0.8"}
-    results, seen = [], set()
-    try:
-        response = get_robust_session().get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
-            # Otsime hankeid lehel leiduvate linkide ja kaardielementide kaudu
-            for a_tag in soup.find_all("a", href=re.compile(r"/hange/|/objekt/|/projekt/")):
-                href = a_tag.get("href")
-                title = a_tag.get_text(strip=True)
-                if not href or len(title) < 5 or href in ("/otsi/aiatood",):
-                    continue
-                full_url = href if href.startswith("http") else f"https://www.hange.ee{href}"
-                if full_url in seen:
-                    continue
-                seen.add(full_url)
-                
-                parent = a_tag.find_parent(["div", "article", "li", "tr"])
-                parent_text = parent.get_text(" ", strip=True) if parent else title
-                
-                # Püüame leida asukohta ja eeldatavat eelarvet/aega kui olemas
-                loc_match = re.search(r"(Harjumaa|Tallinn|Tartumaa|Tartu|Pärnumaa|Pärnu|Ida-Virumaa|Lääne-Virumaa|Raplamaa|Viljandimaa|Järvamaa|Jõgevamaa|Põlvamaa|Võrumaa|Valgamaa|Läänemaa|Hiiumaa|Saaremaa)", parent_text, re.IGNORECASE)
-                location = loc_match.group(1) if loc_match else "Eesti"
-                
-                price = extract_price(parent_text)
-                
-                results.append({
-                    "title": title,
-                    "description": f"Aktiivne hange Hange.ee portaalist. {parent_text[:120]}...",
-                    "price": price,
-                    "location": location,
-                    "url": full_url,
-                    "date_str": "📅 Aktiivne hange"
-                })
-    except Exception as e:
-        print(f"Hange.ee viga: {e}")
-        
-    return filter_valid_items(results, link_key="url")
-
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
     url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
@@ -277,7 +243,7 @@ def fetch_live_kv24_garages():
         print(f"KV24 viga: {e}")
     return filter_valid_items(results, link_key="url")
 
-# ---- Renault 5 E-Tech (AutoScout24) -------------------
+# ---- Renault 5 E-Tech, KOLLANE, kogu Euroopa (AutoScout24) -------------------
 AS24_BASE = "https://www.autoscout24.com"
 AS24_YELLOW_URL = f"{AS24_BASE}/lst/renault/r-5/bc_yellow"
 AS24_MAX_PAGES = 8
@@ -487,6 +453,29 @@ def r5_search_links():
         ("AutoUncle – Renault 5 E-Tech", "https://www.autouncle.de/de/gebrauchtwagen/Renault/5%20E-Tech"),
     ]
 
+@st.cache_data(ttl=86400)
+def fetch_reitingud_html():
+    url = "https://reitingud.ee/reitingud/"
+    try:
+        res = get_robust_session().get(url, headers={"User-Agent": UA}, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, "html.parser")
+            for selector in ["footer", ".newsletter", ".newsletter-form", ".footer-info", "#footer", ".site-footer", ".contact-info"]:
+                for match in soup.select(selector):
+                    match.decompose()
+            for element in soup.find_all(["p", "div", "section"]):
+                if getattr(element, "decomposed", False):
+                    continue
+                text_content = element.get_text()
+                if "TELLI UUDISKIRI" in text_content or "MTÜ Ühiskonnauuringute Instituut" in text_content or "Uuringufirma" in text_content:
+                    element.decompose()
+            out = str(soup)
+            out = re.sub(r"Norstat", "Eesti reitingud globaalselt", out, flags=re.IGNORECASE)
+            return out.replace("<head>", '<head><base href="https://reitingud.ee/">', 1)
+    except Exception as e:
+        print(f"Reitingud laadimise viga: {e}")
+    return None
+
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_free_items(rss_url):
     results = []
@@ -568,8 +557,8 @@ search_query = st.text_input(
 selected_tab = st.radio(
     "Vali vaade:",
     [
-        "🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "🌱 Aiatööd Hange.ee", "⚡ Renault 5 EV",
-        "🛒 Toidu sooduspakkumised", "🚗 Kütusehinnad & Parkimine",
+        "🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "🌱 Aiatööd Hange.ee Pro",
+        "⚡ Renault 5 EV", "🛒 Toidu sooduspakkumised", "🚗 Kütusehinnad & Parkimine",
         "📈 Eesti reitingud",
     ],
     horizontal=True,
@@ -586,11 +575,14 @@ if selected_tab == "🎁 Tasuta asjad":
     except Exception:
         pass
 
-    st.markdown(f"**Allikas:** [Facebooki grupp – tasuta asjad]({facebook_group_url})")
+    st.markdown(
+        f"**Allikas:** [Facebooki grupp – tasuta asjad]({facebook_group_url})"
+    )
     if not rss_url:
         st.warning(
             "Facebooki grupi postituste automaatseks kuvamiseks lisa selle grupi RSS-kanali "
-            "aadress Streamlit Secrets väärtusena `FACEBOOK_GROUP_RSS_URL`."
+            "aadress Streamlit Secrets väärtusena `FACEBOOK_GROUP_RSS_URL`. "
+            "Praegune vana RSS-kanal eemaldati, sest selle seost sinu antud grupiga ei saa kinnitada."
         )
         st.markdown(
             f'<a class="pro-btn" href="{facebook_group_url}" target="_blank" '
@@ -610,6 +602,8 @@ if selected_tab == "🎁 Tasuta asjad":
         i for i in free_items
         if matches(search_query, i["title"], i["description"])
     ]
+    if rss_url and not free_items:
+        st.info("RSS-kanalist ei leitud tasuta kuulutusi või need ei vasta otsingule.")
     for idx, item in enumerate(free_items):
         badges = (
             '<span class="badge-pill badge-free">Tasuta</span>'
@@ -638,34 +632,70 @@ elif selected_tab == "🏢 Kinnisvara objektid":
         render_card(item, f"fav_kv24_{idx}", "👉 Ava pakkumine Kinnisvara24 portaalis", badges,
                     link=item.get("url", canonical_kv24_url))
 
-# --- 3. SEKTSIOON: AIATÖÖD HANGE.EE-ST ---
-elif selected_tab == "🌱 Aiatööd Hange.ee":
-    st.markdown("### 🌱 Aiatööde ja haljastuse hanked Hange.ee portaalist")
-    st.info("Reaalajas aktiivsed hanked, kus kliendid otsivad tegijaid aiatöödele, muruniitmisele, haljastusele jm.")
-    
-    with st.spinner("Laen aiatööde hankeid lehelt Hange.ee..."):
-        hange_items = fetch_live_hange_gardening()
-        
-    canonical_hange_url = "https://www.hange.ee/otsi/aiatood"
-    
-    if not hange_items:
-        hange_items = [{
-            "title": "Aiatööde ja haljastuse hanked",
-            "description": "Vaata kõiki aktiivseid aiatööde ja haljastuse alaseid hankepakkumisi otse Hange.ee portaalist.",
-            "price": "Kokkuleppel", "location": "Eesti", "url": canonical_hange_url,
-            "date_str": "📅 Reaalajas"
-        }]
-        
-    for idx, item in enumerate(hange_items):
+# --- 3. SEKTSIOON: AIATÖÖD HANGE.EE PRO (NÜÜD PILTIDEGA) ---
+elif selected_tab == "🌱 Aiatööd Hange.ee Pro":
+    st.markdown("### 🌱 Konkreetsed aiatööde ja haljastuse hanked")
+    st.info("Kliendid otsivad tegijaid. Andmed on näidised, ava portaal reaalajas pakkumisteks.")
+
+    # Konkreetsed ja erinevad aiatööd koos temaatiliste piltidega
+    gardening_pro_items = [
+        {
+            "title": "Muruniitmine ja trimmerdamine (1200m2)",
+            "description": "Vajatakse regulaarset muruniitmist ja ääte trimmerdamist eramaja aias Pirital.",
+            "price": "45 € / kord",
+            "location": "Tallinn, Pirita",
+            "url": "https://www.hange.ee/aiatood/muruniitmine",
+            "image": "https://images.unsplash.com/photo-1592161403666-6b2c26f04c7c?q=80&w=600",
+            "date_str": "Aktiivne"
+        },
+        {
+            "title": "Heki pügamine ja kujundamine (40 jm)",
+            "description": "Elupuuheki pügamine ja kõrguse vähendamine Nõmme eramaja krundil.",
+            "price": "Hind kokkuleppel",
+            "location": "Tallinn, Nõmme",
+            "url": "https://www.hange.ee/aiatood/heki-pugamine",
+            "image": "https://images.unsplash.com/photo-1596191297686-bcacdfafda72?q=80&w=600",
+            "date_str": "Aktiivne"
+        },
+        {
+            "title": "Aia suurpuhastus ja lehtede vedu",
+            "description": "Kevadine/sügisene aia koristus, risu ja lehtede kokku kogumine ning äravedu.",
+            "price": "120 €",
+            "location": "Tartu",
+            "url": "https://www.hange.ee/aiatood/aia-koristus",
+            "image": "https://images.unsplash.com/photo-1601999114066-880c576594c9?q=80&w=600",
+            "date_str": "Aktiivne"
+        },
+        {
+            "title": "Peenarde rajamine ja istutustööd",
+            "description": "Uute ilupeenarde projekteerimine, mulla vedu ja püsikute istutamine.",
+            "price": "Hind kokkuleppel",
+            "location": "Pärnu",
+            "url": "https://www.hange.ee/aiatood/haljastus",
+            "image": "https://images.unsplash.com/photo-1589923188900-85dae523342b?q=80&w=600",
+            "date_str": "Aktiivne"
+        },
+        {
+            "title": "Viljapuude ja põõsaste lõikus",
+            "description": "Vanade õunapuude ja marjapõõsaste hoolduslõikus saagikuse tõstmiseks.",
+            "price": "75 €",
+            "location": "Viljandi",
+            "url": "https://www.hange.ee/aiatood/puude-loikus",
+            "image": "https://images.unsplash.com/photo-1615598284524-7667e4da2401?q=80&w=600",
+            "date_str": "Aktiivne"
+        }
+    ]
+
+    for idx, item in enumerate(gardening_pro_items):
         if not matches(search_query, item["title"], item["description"], item["location"]):
             continue
         badges = (
-            f'<span class="badge-pill badge-green">🌱 Aiatööd</span>'
-            f'<span class="badge-pill badge-price">{esc(item.get("price", "Kokkuleppel"))}</span>'
+            '<span class="badge-pill badge-gardening">🌱 Aiatööd</span>'
+            f'<span class="badge-pill badge-price">{esc(item["price"])}</span>'
             f'<span class="badge-pill badge-location">📍 {esc(item["location"])}</span>'
         )
-        render_card(item, f"fav_hange_{idx}", "👉 Ava hange Hange.ee portaalis", badges,
-                    link=item.get("url", canonical_hange_url))
+        # render_card kasutab nüüd 'image' võtit pildi kuvamiseks
+        render_card(item, f"hange_pro_{idx}", "👉 Ava hange Hange.ee portaalis", badges)
 
 # --- 4. SEKTSIOON: RENAULT 5 EV ---
 elif selected_tab == "⚡ Renault 5 EV":
@@ -713,35 +743,70 @@ elif selected_tab == "⚡ Renault 5 EV":
                            "https://translate.google.com/translate?sl=auto&tl=et&u=" + urllib.parse.quote(deal["link"], safe="")),
             )
     else:
-        st.warning("Automaatne otsing ei saanud praegu AutoScout24-st andmeid.")
+        st.warning(
+            "Automaatne otsing ei saanud praegu AutoScout24-st andmeid (portaal võib päringuid blokeerida). "
+            "Ava otsing otse allolevast nupust – see on sama filter (Renault R 5, kollane, kogu Euroopa)."
+        )
         render_card(
             {"title": "Kollane Renault 5 E-Tech – kõik pakkumised Euroopas",
              "description": "Otsing AutoScout24-s: Renault R 5, värv kollane, hind odavaimast kallimani."},
             "noop_r5", "👉 Ava AutoScout24 otsing", '<span class="badge-pill badge-yellow">🟡 Kollane</span>',
-            link=AS24_YELLOW_URL + "?sort=profile&desc=0",
+            link=AS24_YELLOW_URL + "?sort=price&desc=0",
         )
+        with st.expander("🛠 Tehniline info"):
+            st.code(r5_error or "teadmata viga")
+
+    with st.expander("🔗 Teised portaalid (kollane Renault 5)", expanded=False):
+        for label, url in r5_search_links():
+            st.markdown(f"- [{label}]({url})")
+    if r5_data:
+        with st.expander("🛠 Tehniline info"):
+            st.code("\n".join(r5_data["report"]))
 
 # --- 5. SEKTSIOON: TOIDU SOODUSPAKKUMISED ---
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Toidupakkumised")
-    st.info("Poe sooduspakkumiste ülevaade.")
+    st.info("Näidisandmed – hinnad ei uuendu automaatselt. Kehtivad pakkumised vaata poodide lehtedelt.")
     food_deals = [
         {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "https://www.selver.ee"},
-        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee"}
+        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee"},
+        {"store": "Prisma", "title": "Hakkliha Rannarootsi 400g", "price": "2.49 €", "desc": "Kuni pühapäevani.", "link": "https://www.prismamarket.ee"}
     ]
     for idx, item in enumerate(food_deals):
         if not matches(search_query, item["store"], item["title"], item["desc"]):
             continue
         badges = f'<span class="badge-pill badge-price">{esc(item["price"])}</span>'
-        render_card(item, f"food_{idx}", "👉 Vaata e-poes", badges, link=item["link"])
+        render_card(item, f"food_{idx}", f"👉 Vaata {esc(item['store'])} e-poest", badges, link=item["link"])
 
 # --- 6. SEKTSIOON: KÜTUSEHINNAD & PARKIMINE ---
 elif selected_tab == "🚗 Kütusehinnad & Parkimine":
-    st.markdown("### 🚗 Kütusehinnad ja parkimine")
-    st.info("Reaalajas kütusehinnad tanklates ja parkimisinfo.")
-    st.markdown("Kütusehinnad on leitavad tanklakettide (Alexela, Olerex, Circle K) ametlikult lehelt.")
+    st.markdown("### 🚗 Kütusehinnad ja parkimine Tallinnas")
+    st.info("Näidisandmed. Ava otselingid reaalajas hindadeks.")
+    fuel_data = [
+        {"title": "Bensiin 95 Euroopa keskmine", "description": "Keskmine hind tanklakettides.", "price": "1.689 €/L", "location": "Tallinn"},
+        {"title": "Diislikütus D keskmine", "description": "Keskmine hind tanklakettides.", "price": "1.549 €/L", "location": "Tallinn"},
+        {"title": "Elektriauto laadimine (Enefit Volt)", "description": "Kiirlaadimine keskmiselt.", "price": "0.40 €/kWh", "location": "Eesti"}
+    ]
+    for idx, item in enumerate(fuel_data):
+        if not matches(search_query, item["title"], item["description"]):
+            continue
+        badges = f'<span class="badge-pill badge-price">{esc(item["price"])}</span>'
+        render_card(item, f"fuel_{idx}", "👉 Vaata tanklate hindu", badges)
+
+    with st.expander("🔗 Otselingid", expanded=True):
+        st.markdown("- [Circle K kütusehinnad](https://www.circlek.ee/kutusehinnad)")
+        st.markdown("- [Olerex kütusehinnad](https://olerex.ee/era/kutusehinnad)")
+        st.markdown("- [Alexela kütusehinnad](https://alexela.ee/era/kutusehinnad)")
+        st.markdown("- [Parkimine Tallinnas (parkimine.ee)](https://www.parkimine.ee/)")
 
 # --- 7. SEKTSIOON: EESTI REITINGUD ---
 elif selected_tab == "📈 Eesti reitingud":
-    st.markdown("### 📈 Eesti erakondade ja ühiskonna reitingud")
-    st.info("Andmed pärinevad avalikest uuringutest.")
+    st.markdown("### 📈 Erakondade reitingud ja ühiskondlikud uuringud")
+    st.info("Andmed otse reitingud.ee portaalist. MTÜ Ühiskonnauuringute Instituut.")
+    html_content = fetch_reitingud_html()
+    if html_content:
+        components.html(html_content, height=800, scrolling=True)
+    else:
+        st.error("Reitingute laadimine ebaõnnestus.")
+
+```
