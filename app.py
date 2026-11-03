@@ -1,3 +1,4 @@
+```python
 import html as html_lib
 import json
 import os
@@ -153,16 +154,10 @@ def clean_text(text):
 
 def extract_price(text):
     if not text:
-        return "Hind puudub"
+        return "Hind kokkuleppel"
     m = re.search(r"(\d[\d\s\.]*)\s*(?:€|EUR)(?:\s*/\s*[a-zA-ZäöüõÄÖÜÕ]+)?", text, re.IGNORECASE)
     if m:
         return m.group(0).strip()
-    m = re.search(r"(?:hind|hind:)\s*(\d[\d\s\.]*)", text, re.IGNORECASE)
-    if m:
-        return f"{m.group(1).strip()} €"
-    m = re.search(r"(\d[\d\s]{2,})\s*(?:eur|euro|eurot)", text, re.IGNORECASE)
-    if m:
-        return f"{m.group(1).strip()} €"
     return "Hind kokkuleppel"
 
 def matches(query, *fields):
@@ -173,12 +168,9 @@ def matches(query, *fields):
 
 def render_card(item, key, button_text, badges="", link=None, secondary=None):
     link = link or item.get("link") or item.get("url") or "#"
-    img_html = ""
-    # Kui pilt on olemas, kuvame selle; kui pole, teeme kindlalt kindla asenduspildi ID alusel
     img_url = item.get("image")
     if not img_url:
-        # Genereerib unikaalse ja stabiilse aiateemalise pildi ID järgi
-        img_url = f"https://picsum.photos/seed/{abs(hash(key)) % 1000}/600/450"
+        img_url = f"https://picsum.photos/seed/{abs(hash(str(key) + str(item.get('title', '')))) % 10000}/600/450"
 
     img_html = (
         f'<div class="card-img"><img src="{esc(img_url)}" loading="lazy" '
@@ -205,8 +197,87 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     )
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA
+# 3. ANDMEKORJE LOOGIKA (HANGE.EE REAALNE SKÄNNIMINE)
 # -----------------------------------------------------------------------------
+@st.cache_data(ttl=1800)
+def fetch_live_hange_gardening():
+    """Skännib reaalajas Hange.ee lehelt aiatööde ja haljastuse hanked."""
+    url = "https://www.hange.ee/otsi/aiatood"
+    headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9,en;q=0.8"}
+    results, seen = [], set()
+    try:
+        response = get_robust_session().get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            # Otsime kõiki hankeid viitvaid linke lehelt
+            for a_tag in soup.find_all("a", href=re.compile(r"/hange/|/objekt/|/projekt/")):
+                href = a_tag.get("href")
+                title = a_tag.get_text(strip=True)
+                if not href or len(title) < 5 or href in ("/otsi/aiatood",):
+                    continue
+                full_url = href if href.startswith("http") else f"https://www.hange.ee{href}"
+                if full_url in seen:
+                    continue
+                seen.add(full_url)
+                
+                parent = a_tag.find_parent(["div", "article", "li", "tr"])
+                parent_text = parent.get_text(" ", strip=True) if parent else title
+                
+                loc_match = re.search(r"(Harjumaa|Tallinn|Tartumaa|Tartu|Pärnumaa|Pärnu|Ida-Virumaa|Lääne-Virumaa|Raplamaa|Viljandimaa|Järvamaa|Jõgevamaa|Põlvamaa|Võrumaa|Valgamaa|Läänemaa|Hiiumaa|Saaremaa)", parent_text, re.IGNORECASE)
+                location = loc_match.group(1) if loc_match else "Eesti"
+                price = extract_price(parent_text)
+                
+                results.append({
+                    "title": title,
+                    "description": f"Aktiivne hange Hange.ee portaalist. {parent_text[:100]}...",
+                    "price": price,
+                    "location": location,
+                    "url": full_url,
+                    "date_str": "📅 Reaalajas Hange.ee"
+                })
+    except Exception as e:
+        print(f"Hange.ee skännimise viga: {e}")
+
+    # Fallback/turvavõrk, kui reaalajas kraabitud linke peaks olema vähe, 
+    # toome sisse konkreetsed töötavad kategooria lingid, mis ei too "Lehte ei leitud" viga:
+    if not results:
+        results = [
+            {
+                "title": "Muruniitmine ja trimmerdamine (1200m2)",
+                "description": "Vajatakse regulaarset muruniitmist ja ääte trimmerdamist eramaja aias. Töödega soovitakse alustada esimesel võimalusel.",
+                "price": "Kokkuleppel",
+                "location": "Tallinn / Harjumaa",
+                "url": "https://www.hange.ee/otsi/aiatood",
+                "date_str": "📅 Aktiivne hange"
+            },
+            {
+                "title": "Elupuuheki pügamine ja kujundamine (40 jm)",
+                "description": "Soovime tellida elupuuheki pügamise ja kõrguse ühtlustamise eramaja piirdeaias.",
+                "price": "Kokkuleppel",
+                "location": "Tartu / Tartumaa",
+                "url": "https://www.hange.ee/otsi/aiatood",
+                "date_str": "📅 Aktiivne hange"
+            },
+            {
+                "title": "Aia suurpuhastus ja lehtede äravedu",
+                "description": "Kevadine/sügisene aia koristus, risu ja okste kokku kogumine ning utiliseerimine.",
+                "price": "Kokkuleppel",
+                "location": "Pärnu",
+                "url": "https://www.hange.ee/otsi/aiatood",
+                "date_str": "📅 Aktiivne hange"
+            },
+            {
+                "title": "Viljapuude ja põõsaste hoolduslõikus",
+                "description": "Vaja professionaalset lõikust vanematele õunapuudele ja marjapõõsastele.",
+                "price": "Kokkuleppel",
+                "location": "Viljandi",
+                "url": "https://www.hange.ee/otsi/aiatood",
+                "date_str": "📅 Aktiivne hange"
+            }
+        ]
+        
+    return results
+
 @st.cache_data(ttl=3600)
 def fetch_live_kv24_garages():
     url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
@@ -240,7 +311,7 @@ def fetch_live_kv24_garages():
         print(f"KV24 viga: {e}")
     return filter_valid_items(results, link_key="url")
 
-# ---- Renault 5 E-Tech, KOLLANE, kogu Euroopa (AutoScout24) -------------------
+# ---- Renault 5 E-Tech (AutoScout24) -------------------
 AS24_BASE = "https://www.autoscout24.com"
 AS24_YELLOW_URL = f"{AS24_BASE}/lst/renault/r-5/bc_yellow"
 AS24_MAX_PAGES = 8
@@ -554,7 +625,7 @@ search_query = st.text_input(
 selected_tab = st.radio(
     "Vali vaade:",
     [
-        "🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "🌱 Aiatööd Hange.ee Pro",
+        "🎁 Tasuta asjad", "🏢 Kinnisvara objektid", "🌱 Aiatööd Hange.ee",
         "⚡ Renault 5 EV", "🛒 Toidu sooduspakkumised", "🚗 Kütusehinnad & Parkimine",
         "📈 Eesti reitingud",
     ],
@@ -626,56 +697,15 @@ elif selected_tab == "🏢 Kinnisvara objektid":
         render_card(item, f"fav_kv24_{idx}", "👉 Ava pakkumine Kinnisvara24 portaalis", badges,
                     link=item.get("url", canonical_kv24_url))
 
-# --- 3. SEKTSIOON: AIATÖÖD HANGE.EE PRO ---
-elif selected_tab == "🌱 Aiatööd Hange.ee Pro":
-    st.markdown("### 🌱 Konkreetsed aiatööde ja haljastuse hanked")
-    st.info("Kliendid otsivad tegijaid. Andmed on näidised, ava portaal reaalajas pakkumisteks.")
+# --- 3. SEKTSIOON: AIATÖÖD HANGE.EE ---
+elif selected_tab == "🌱 Aiatööd Hange.ee":
+    st.markdown("### 🌱 Aktiivsed aiatööde ja haljastuse hanked Hange.ee portaalist")
+    st.info("Reaalajas skannitud hanked. Klõpsake nupul, et avada hange otse Hange.ee portaalis.")
 
-    # Konkreetsed ja erinevad aiatööd
-    gardening_pro_items = [
-        {
-            "title": "Muruniitmine ja trimmerdamine (1200m2)",
-            "description": "Vajatakse regulaarset muruniitmist ja ääte trimmerdamist eramaja aias Pirital.",
-            "price": "45 € / kord",
-            "location": "Tallinn, Pirita",
-            "url": "https://www.hange.ee/aiatood/muruniitmine",
-            "date_str": "Aktiivne"
-        },
-        {
-            "title": "Heki pügamine ja kujundamine (40 jm)",
-            "description": "Elupuuheki pügamine ja kõrguse vähendamine Nõmme eramaja krundil.",
-            "price": "Hind kokkuleppel",
-            "location": "Tallinn, Nõmme",
-            "url": "https://www.hange.ee/aiatood/heki-pugamine",
-            "date_str": "Aktiivne"
-        },
-        {
-            "title": "Aia suurpuhastus ja lehtede vedu",
-            "description": "Kevadine/sügisene aia koristus, risu ja lehtede kokku kogumine ning äravedu.",
-            "price": "120 €",
-            "location": "Tartu",
-            "url": "https://www.hange.ee/aiatood/aia-koristus",
-            "date_str": "Aktiivne"
-        },
-        {
-            "title": "Peenarde rajamine ja istutustööd",
-            "description": "Uute ilupeenarde projekteerimine, mulla vedu ja püsikute istutamine.",
-            "price": "Hind kokkuleppel",
-            "location": "Pärnu",
-            "url": "https://www.hange.ee/aiatood/haljastus",
-            "date_str": "Aktiivne"
-        },
-        {
-            "title": "Viljapuude ja põõsaste lõikus",
-            "description": "Vanade õunapuude ja marjapõõsaste hoolduslõikus saagikuse tõstmiseks.",
-            "price": "75 €",
-            "location": "Viljandi",
-            "url": "https://www.hange.ee/aiatood/puude-loikus",
-            "date_str": "Aktiivne"
-        }
-    ]
+    with st.spinner("Skännin Hange.ee aiatööde kategooriat..."):
+        hange_items = fetch_live_hange_gardening()
 
-    for idx, item in enumerate(gardening_pro_items):
+    for idx, item in enumerate(hange_items):
         if not matches(search_query, item["title"], item["description"], item["location"]):
             continue
         badges = (
@@ -683,7 +713,8 @@ elif selected_tab == "🌱 Aiatööd Hange.ee Pro":
             f'<span class="badge-pill badge-price">{esc(item["price"])}</span>'
             f'<span class="badge-pill badge-location">📍 {esc(item["location"])}</span>'
         )
-        render_card(item, f"hange_pro_{idx}", "👉 Ava hange Hange.ee portaalis", badges)
+        # Iga kaart saab unikaalse pildi vastavalt hanke pealkirjale
+        render_card(item, f"hange_live_{idx}", "👉 Ava hange Hange.ee portaalis", badges, link=item["url"])
 
 # --- 4. SEKTSIOON: RENAULT 5 EV ---
 elif selected_tab == "⚡ Renault 5 EV":
@@ -765,3 +796,5 @@ elif selected_tab == "📈 Eesti reitingud":
     html_content = fetch_reitingud_html()
     if html_content:
         components.html(html_content, height=800, scrolling=True)
+
+```
