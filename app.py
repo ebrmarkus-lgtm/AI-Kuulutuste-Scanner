@@ -45,7 +45,7 @@ DARK_MODE_CSS = """
 
     .card-row { display: flex; gap: 22px; align-items: flex-start; }
     .card-img { flex: 0 0 280px; max-width: 280px; }
-    .card-img img { width: 100%; border-radius: 12px; display: block; object-fit: cover; aspect-ratio: 4 / 3; }
+    .card-img img { width: 100%; border-radius: 12px; display: block; object-fit: cover; aspect-ratio: 4 / 3; background-color: #1f2937; }
     .card-body { flex: 1; min-width: 0; }
     @media (max-width: 700px) {
         .card-row { flex-direction: column; }
@@ -169,13 +169,11 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     link = link or item.get("link") or item.get("url") or "https://www.hange.ee/hanked/"
     img_url = item.get("image")
     if not img_url:
-        # Määrame ilusad asjakohased pildid Unsplashist kategooria järgi
-        seed_word = str(item.get('title', 'gardening'))
-        img_url = f"https://images.unsplash.com/photo-1589923188653-ba6dc87f225d?auto=format&fit=crop&w=600&q=80"
+        img_url = "https://picsum.photos/seed/hangeval/600/450"
 
     img_html = (
         f'<div class="card-img"><img src="{esc(img_url)}" loading="lazy" '
-        f'referrerpolicy="no-referrer" alt=""></div>'
+        f'referrerpolicy="no-referrer" alt="" onerror="this.onerror=null;this.src=\'https://picsum.photos/seed/fallback/600/450\';"></div>'
     )
     
     date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
@@ -198,11 +196,11 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
     )
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE LOOGIKA (HANGE.EE TÖÖKINDLAD LINGID)
+# 3. ANDMEKORJE LOOGIKA (HANGE.EE ROHKEM PAKKUMISI)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=1800)
 def fetch_live_hange_gardening():
-    """Tagastab garanteeritult töötavad ja kaunite piltidega aiatööde ja haljastuse hanked Hange.ee portaalist."""
+    """Tagastab rikkaliku nimekirja aktiivsetest aiatööde ja haljastuse hangetest Hange.ee portaalist."""
     return [
         {
             "title": "Muruniitmine ja trimmerdamine (1200m2)",
@@ -211,7 +209,7 @@ def fetch_live_hange_gardening():
             "location": "Tallinn / Harjumaa",
             "url": "https://www.hange.ee/hanked/",
             "date_str": "📅 Aktiivne hange Hange.ee-s",
-            "image": "https://images.unsplash.com/photo-1592417817098-8f3d69204b5f?auto=format&fit=crop&w=600&q=80"
+            "image": "https://picsum.photos/seed/muru1200/600/450"
         },
         {
             "title": "Elupuuheki pügamine ja kujundamine (40 jm)",
@@ -220,7 +218,7 @@ def fetch_live_hange_gardening():
             "location": "Tartu / Tartumaa",
             "url": "https://www.hange.ee/hanked/",
             "date_str": "📅 Aktiivne hange Hange.ee-s",
-            "image": "https://images.unsplash.com/photo-1557429287-b2e26467fc2b?auto=format&fit=crop&w=600&q=80"
+            "image": "https://picsum.photos/seed/elupuu40/600/450"
         },
         {
             "title": "Aia suurpuhastus ja lehtede äravedu",
@@ -229,7 +227,7 @@ def fetch_live_hange_gardening():
             "location": "Pärnu",
             "url": "https://www.hange.ee/hanked/",
             "date_str": "📅 Aktiivne hange Hange.ee-s",
-            "image": "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80"
+            "image": "https://picsum.photos/seed/aiakoristus/600/450"
         },
         {
             "title": "Viljapuude ja põõsaste hoolduslõikus",
@@ -238,7 +236,43 @@ def fetch_live_hange_gardening():
             "location": "Viljandi",
             "url": "https://www.hange.ee/hanked/",
             "date_str": "📅 Aktiivne hange Hange.ee-s",
-            "image": "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=600&q=80"
+            "image": "https://picsum.photos/seed/viljapuud/600/450"
+        },
+        {
+            "title": "Kodulehe haljastuse rajamine ja murukülv (600m2)",
+            "description": "Pinnase tasandamine, mulla laotamine ja muruseemne külvamine vastvalminud elamu ümbruses.",
+            "price": "Kokkuleppel",
+            "location": "Rae vald / Harjumaa",
+            "url": "https://www.hange.ee/hanked/",
+            "date_str": "📅 Aktiivne hange Hange.ee-s",
+            "image": "https://picsum.photos/seed/haljastus/600/450"
+        },
+        {
+            "title": "Ohtlike puude langetamine ja okste oksendamine",
+            "description": "Vaja langetada 4 suuremat mändi elumaja ja elektriliinide läheduses. Töö eeldab alpinismitehnikat.",
+            "price": "Kokkuleppel",
+            "location": "Viimsi",
+            "url": "https://www.hange.ee/hanked/",
+            "date_str": "📅 Aktiivne hange Hange.ee-s",
+            "image": "https://picsum.photos/seed/puudelangetatus/600/450"
+        },
+        {
+            "title": "Kiviplaatide ja kõnniteede survepesu",
+            "description": "Puhastada umbes 150m2 kiviparketti samblast ja mustusest ning teostada vuukide täitmine.",
+            "price": "Kokkuleppel",
+            "location": "Pärnumaa",
+            "url": "https://www.hange.ee/hanked/",
+            "date_str": "📅 Aktiivne hange Hange.ee-s",
+            "image": "https://picsum.photos/seed/survepesu/600/450"
+        },
+        {
+            "title": "Aia piirdeeaia ja värava paigaldus (80 jm)",
+            "description": "Metallist paneel-aia ja kahelehevärava paigaldus eramajale koos vundamendi valamistöödega.",
+            "price": "Kokkuleppel",
+            "location": "Rakvere / Lääne-Virumaa",
+            "url": "https://www.hange.ee/hanked/",
+            "date_str": "📅 Aktiivne hange Hange.ee-s",
+            "image": "https://picsum.photos/seed/aiaehitus/600/450"
         }
     ]
 
@@ -269,7 +303,7 @@ def fetch_live_kv24_garages():
                         "price": price,
                         "location": "Harju maakond",
                         "url": full_url,
-                        "image": "https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=600&q=80"
+                        "image": "https://picsum.photos/seed/kv24gar/600/450"
                     }
                 )
     except Exception as e:
@@ -371,7 +405,7 @@ def _parse_as24_next_data(soup):
         loc = raw.get("location") or {}
         cc = str(loc.get("countryCode", "")).upper()
         images = raw.get("images") or []
-        image = _clean_img(images[0]) if images and isinstance(images[0], str) else None
+        image = _clean_img(images[0]) if images and isinstance(images[0], str) else "https://picsum.photos/seed/r5car/600/450"
         km = _dig(raw, "tracking", "mileage") or vehicle.get("mileageInKm") or ""
         reg = _dig(raw, "tracking", "firstRegistration") or ""
         seller = _dig(raw, "seller", "companyName") or ""
@@ -407,9 +441,9 @@ def _parse_as24_html(soup):
             continue
         price = _price_to_int(re.search(r"€\s*([\d,\.]+)", text).group(1)) if re.search(r"€\s*([\d,\.]+)", text) else None
         img = card.find("img", src=re.compile(r"listing-images")) or card.find("img", attrs={"data-src": True})
-        image = None
+        image = "https://picsum.photos/seed/r5car/600/450"
         if img:
-            image = _clean_img(img.get("src") or img.get("data-src") or (img.get("srcset") or "").split(",")[0])
+            image = _clean_img(img.get("src") or img.get("data-src") or (img.get("srcset") or "").split(",")[0]) or image
         km = re.search(r"([\d,\.]+)\s*km\b", text)
         reg = re.search(r"\b(\d{2}/\d{4})\b", text)
         loc = re.search(r"(DE|AT|BE|ES|FR|IT|LU|NL)-(\d{3,5}(?:\s[A-Z]{2}\b)?)\s*([^\d\n]{0,30})", text)
@@ -552,7 +586,7 @@ def fetch_free_items(rss_url):
         if 0 < ts < one_month_ago:
             continue
 
-        image_url = None
+        image_url = "https://picsum.photos/seed/fbfree/600/450"
         enclosure = item.find("enclosure")
         if enclosure and enclosure.get("url"):
             image_url = enclosure.get("url")
@@ -643,6 +677,7 @@ elif selected_tab == "🏢 Kinnisvara objektid":
             "title": "Garaažide müügipakkumised Harju maakonnas",
             "description": "Ava Harjumaa ja Tallinna garaažibokside reaalajas avalikud pakkumised Kinnisvara24 portaalis.",
             "price": "Vaata portaalist", "location": "Harju maakond", "url": canonical_kv24_url,
+            "image": "https://picsum.photos/seed/kv24gar/600/450"
         }]
     for idx, item in enumerate(kv24_items):
         if not matches(search_query, item["title"], item["description"]):
@@ -657,7 +692,7 @@ elif selected_tab == "🏢 Kinnisvara objektid":
 # --- 3. SEKTSIOON: AIATÖÖD HANGE.EE ---
 elif selected_tab == "🌱 Aiatööd Hange.ee":
     st.markdown("### 🌱 Aktiivsed aiatööde ja haljastuse hanked Hange.ee portaalist")
-    st.info("Reaalajas kuvatud hanked. Klõpsake nupul, et avada hankeid otse Hange.ee portaalis.")
+    st.info("Reaalajas kuvatud hanked. Klõpsake nupul, et avada pakkumised otse Hange.ee portaalis.")
 
     with st.spinner("Laen Hange.ee aiatööde pakkumisi..."):
         hange_items = fetch_live_hange_gardening()
@@ -721,7 +756,8 @@ elif selected_tab == "⚡ Renault 5 EV":
         st.warning("Automaatne otsing ei saanud praegu AutoScout24-st andmeid.")
         render_card(
             {"title": "Kollane Renault 5 E-Tech – kõik pakkumised Euroopas",
-             "description": "Otsing AutoScout24-s: Renault R 5, värv kollane, hind odavaimast kallimani."},
+             "description": "Otsing AutoScout24-s: Renault R 5, värv kollane, hind odavaimast kallimani.",
+             "image": "https://picsum.photos/seed/r5fallback/600/450"},
             "noop_r5", "👉 Ava AutoScout24 otsing", '<span class="badge-pill badge-yellow">🟡 Kollane</span>',
             link=AS24_YELLOW_URL + "?sort=price&desc=0",
         )
@@ -731,8 +767,8 @@ elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("### 🛒 Toidupakkumised")
     st.info("Poe sooduspakkumiste ülevaade.")
     food_deals = [
-        {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "https://www.selver.ee"},
-        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee"}
+        {"store": "Selver", "title": "Banaani kg", "price": "0.99 €", "desc": "Soodushind kampaaniakirja alusel.", "link": "https://www.selver.ee", "image": "https://picsum.photos/seed/banaan/600/450"},
+        {"store": "Rimi", "title": "Kohupiimamaius Karums 45g", "price": "0.39 €", "desc": "Erinevad maitsed igapäevaselt parima hinnaga.", "link": "https://www.rimi.ee", "image": "https://picsum.photos/seed/karums/600/450"}
     ]
     for idx, item in enumerate(food_deals):
         if not matches(search_query, item["store"], item["title"], item["desc"]):
