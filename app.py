@@ -1,4 +1,3 @@
-```python
 import html as html_lib
 import json
 import os
@@ -808,5 +807,3 @@ elif selected_tab == "📈 Eesti reitingud":
         components.html(html_content, height=800, scrolling=True)
     else:
         st.error("Reitingute laadimine ebaõnnestus.")
-
-```
