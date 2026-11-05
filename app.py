@@ -3,15 +3,11 @@ import json
 import os
 import re
 import urllib.parse
-from datetime import datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
-
+from datetime import datetime, timezone
 import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 from bs4 import BeautifulSoup
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 # -----------------------------------------------------------------------------
 # 1. RAKENDUSE SEADISTUS JA DISAINISÜSTEEM
@@ -69,13 +65,13 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, Hange.ee aiatööd, Kinnisvara24 garaažid & Toidupakkumised</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, Hange.ee aiatööd, Kinnisvara & Garaažid</div>'
     "</div>",
     unsafe_allow_html=True,
 )
 
 # -----------------------------------------------------------------------------
-# 2. ÜHISED ABIFUNKTSIOONID
+# 2. ABIFUNKTSIOONID
 # -----------------------------------------------------------------------------
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
@@ -97,39 +93,6 @@ def safe_http_url(value, fallback=None):
 def show_html(markup: str):
     st.markdown("".join(line.strip() for line in markup.splitlines() if line.strip()), unsafe_allow_html=True)
 
-def get_robust_session():
-    session = requests.Session()
-    retries = Retry(total=2, backoff_factor=0.3, status_forcelist=(500, 502, 503, 504), allowed_methods=frozenset({"GET", "HEAD"}))
-    adapter = HTTPAdapter(max_retries=retries)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    return session
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def translate_to_estonian(text):
-    if not text or not re.search(r"[\u0400-\u04FF]", text):
-        return text
-    try:
-        url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl=et&dt=t&q=" + urllib.parse.quote(text)
-        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3)
-        if response.status_code == 200:
-            return "".join(item[0] for item in response.json()[0] if item[0]) or text
-    except Exception:
-        pass
-    return text
-
-def clean_text(text):
-    if not text:
-        return ""
-    text = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=re.DOTALL)
-    return BeautifulSoup(text, "html.parser").get_text(" ", strip=True)
-
-def extract_price(text):
-    if not text:
-        return "Hind kokkuleppel"
-    m = re.search(r"(\d[\d\s\.]*)\s*(?:€|EUR)(?:\s*/\s*[a-zA-ZäöüõÄÖÜÕ]+)?", text, re.IGNORECASE)
-    return m.group(0).strip() if m else "Hind kokkuleppel"
-
 def matches(query, *fields):
     if not query:
         return True
@@ -138,15 +101,11 @@ def matches(query, *fields):
 
 PAGE_INCREMENT = 25
 
-def paginate_items(items, category_key, filters=None):
+def paginate_items(items, category_key):
     items = list(items)
     total = len(items)
     count_key = f"visible_count_{category_key}"
-    filter_key = f"visible_filter_{category_key}"
-    filter_signature = json.dumps(filters, ensure_ascii=False, sort_keys=True, default=str)
-
-    if st.session_state.get(filter_key) != filter_signature:
-        st.session_state[filter_key] = filter_signature
+    if count_key not in st.session_state:
         st.session_state[count_key] = PAGE_INCREMENT
 
     visible_count = min(total, max(PAGE_INCREMENT, int(st.session_state.get(count_key, PAGE_INCREMENT))))
@@ -166,253 +125,119 @@ def paginate_items(items, category_key, filters=None):
 
     return items[:visible_count]
 
-def render_card(item, key, button_text, badges="", link=None, secondary=None):
+def render_card(item, button_text, badges="", link=None):
     link = safe_http_url(link or item.get("link") or item.get("url"))
-    img_url = safe_http_url(item.get("image"), fallback="https://picsum.photos/seed/hangeval/600/450")
-    img_html = f'<div class="card-img"><img src="{esc(img_url)}" loading="lazy" alt="" onerror="this.onerror=null;this.src=\'https://picsum.photos/seed/fallback/600/450\';"></div>'
-    date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
+    img_url = safe_http_url(item.get("image"), fallback="https://picsum.photos/seed/fallback/600/450")
+    img_html = f'<div class="card-img"><img src="{esc(img_url)}" loading="lazy" alt=""></div>'
+    date_html = f'<div class="card-date">{esc(item.get("date_str", ""))}</div>' if item.get("date_str") else ""
     tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
-    
-    sec_html = ""
-    if secondary and (sec_url := safe_http_url(secondary[1])):
-        sec_html = f'<a href="{esc(sec_url)}" target="_blank" rel="noopener noreferrer" class="pro-btn secondary">{esc(secondary[0])}</a>'
-    
     primary_html = f'<a href="{esc(link)}" target="_blank" rel="noopener noreferrer" class="pro-btn">{esc(button_text)}</a>' if link else '<span class="pro-btn secondary">Link puudub</span>'
     
     show_html(f'<div class="pro-card"><div class="card-row">{img_html}<div class="card-body">'
-              f'<div class="card-title">{esc(item.get("title") or item.get("store"))}</div>'
-              f'{date_html}<div class="card-desc">{esc(item.get("description") or item.get("desc"))}</div>'
-              f'{tags_html}{primary_html}{sec_html}</div></div></div>')
+              f'<div class="card-title">{esc(item.get("title"))}</div>'
+              f'{date_html}<div class="card-desc">{esc(item.get("description"))}</div>'
+              f'{tags_html}{primary_html}</div></div></div>')
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEKORJE MOODULID
+# 3. RSS VOOGUDE LUGEMISE FUNKTSIOON
 # -----------------------------------------------------------------------------
-HANGE_BASE_URL = "https://www.hange.ee"
-HANGE_ACTIVE_LIST_URL = f"{HANGE_BASE_URL}/hanked/?filter=all-active"
-HANGE_OFFER_PATH = re.compile(r"^/\d+/[^/]+/?$")
-HANGE_GARDENING_KEYWORDS = ("aia", "aiamaja", "aiatöö", "aed", "haljast", "muru", "muruniit", "hekk", "heki", "viljapuu", "põõsa", "raie", "õue", "kiviparkett", "lillepeenar")
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_live_hange_gardening():
-    session = get_robust_session()
-    headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9"}
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_rss_feed(feed_url, default_image):
     try:
-        r = session.get(HANGE_ACTIVE_LIST_URL, headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.content, "html.parser")
-    except Exception:
-        return []
-
-    results, seen_urls = [], set()
-    for row in soup.select("table.table_hanked tbody tr"):
-        if not (title_link := row.select_one("h2 a.border-link[href]")):
-            continue
-        offer_url = safe_http_url(urllib.parse.urljoin(HANGE_BASE_URL, title_link.get("href", "")))
-        if not offer_url or offer_url in seen_urls or not HANGE_OFFER_PATH.fullmatch(urllib.parse.urlsplit(offer_url).path):
-            continue
-        
-        title = title_link.get_text(" ", strip=True)
-        detail = row.select_one(".table-txt p")
-        description = detail.get_text(" ", strip=True) if detail else ""
-        if not any(k in f"{title} {description}".casefold() for k in HANGE_GARDENING_KEYWORDS):
-            continue
-
-        seen_urls.add(offer_url)
-        loc_match = re.search(r"Asukoht:\s*(.*?)(?:\s+Hanke etapp:|$)", description, re.IGNORECASE)
-        location = loc_match.group(1).strip() if loc_match else "Eesti"
-        
-        img = row.select_one(".table-img img")
-        img_url = safe_http_url(urllib.parse.urljoin(HANGE_BASE_URL, img.get("data-src") or img.get("src") if img else ""), fallback="https://picsum.photos/seed/hange/600/450")
-        
-        cells = row.find_all("td", recursive=False)
-        added = cells[1].get_text(" ", strip=True) if len(cells) > 1 else ""
-        results.append({"title": title, "description": description or "Aktiivne hange.", "price": "Vaata Hange.ee-st", "location": location, "link": offer_url, "date_str": f"📅 Lisatud {added}" if added else "", "image": img_url})
-    return results
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_live_kv24_garages():
-    url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
-    headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9"}
-    try:
-        r = get_robust_session().get(url, headers=headers, timeout=10)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-    except Exception:
-        return []
-
-    results, seen = [], set()
-    for a in soup.find_all("a", href=True):
-        href = a.get("href")
-        if not href or not any(sub in href for sub in ["/kinnisvara/", "/objekt/", "/garaaz/"]):
-            continue
-        
-        title = a.get_text(" ", strip=True)
-        if len(title) < 5 or href in ("/garaaz/muuk/harju-maakond", "/garaaz/harju-maakond"):
-            continue
+        resp = requests.get(feed_url, headers={"User-Agent": UA}, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.content, "xml")
+        results = []
+        for item in soup.find_all(["item", "entry"]):
+            link = item.find("link")
+            link_url = link.get("href") or link.get_text(strip=True) if link else ""
+            title = item.find("title").text if item.find("title") else "Kirje"
+            desc_elem = item.find("description") or item.find("summary")
+            description = BeautifulSoup(desc_elem.text, "html.parser").get_text(" ", strip=True) if desc_elem else ""
             
-        full_url = safe_http_url(urllib.parse.urljoin("https://kinnisvara24.ee", href))
-        if not full_url or full_url in seen:
-            continue
-        seen.add(full_url)
-        
-        parent = a.find_parent(["div", "article", "li", "section"])
-        parent_text = parent.get_text(" ", strip=True) if parent else title
-        price = extract_price(parent_text)
-        
-        img_url = "https://picsum.photos/seed/kv24gar/600/450"
-        if parent:
-            img_tag = parent.find("img")
-            if img_tag:
-                img_url = safe_http_url(img_tag.get("data-src") or img_tag.get("src"), fallback=img_url)
+            # Püüame leida pildi voost või kirjeldusest
+            image_url = default_image
+            enclosure = item.find("enclosure")
+            if enclosure and enclosure.get("url"):
+                image_url = enclosure.get("url")
+            elif desc_elem:
+                img_tag = BeautifulSoup(desc_elem.text, "html.parser").find("img")
+                if img_tag and img_tag.get("src"):
+                    image_url = img_tag.get("src")
 
-        results.append({
-            "title": title, 
-            "description": "Aktiivne garaaži või boksi pakkumine Harjumaal.",
-            "price": price,
-            "location": "Harju maakond", 
-            "url": full_url, 
-            "image": img_url
-        })
-    return results
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_free_items(rss_url):
-    try:
-        r = get_robust_session().get(rss_url, headers={"User-Agent": UA}, timeout=10)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.content, "xml")
+            results.append({
+                "title": title,
+                "description": description[:200] + ("..." if len(description) > 200 else ""),
+                "price": "Vaata pakkumist",
+                "location": "Eesti",
+                "link": link_url,
+                "image": image_url,
+                "date_str": "📅 Uus kuulutus"
+            })
+        return results
     except Exception:
         return []
 
-    results, one_month_ago = [], (datetime.now(timezone.utc) - timedelta(days=30)).timestamp()
-    sold_keywords = ["broneeritud", "läinud", "ära antud", "annatud", "läks", "müüdud", "bron"]
-    free_keywords = ("tasuta", "ära anda", "annan ära", "annab ära", "free", "give away", "võib ära viia", "kingin")
-
-    for item in soup.find_all(["item", "entry"]):
-        link = item.find("link")
-        link_url = link.get("href") or link.get_text(strip=True) if link else "https://www.facebook.com"
-        
-        title = translate_to_estonian(clean_text(item.find("title").text if item.find("title") else "Tasuta ese"))
-        raw_desc = item.find("description") or item.find("summary")
-        description = translate_to_estonian(clean_text(raw_desc.text if raw_desc else ""))
-        
-        combined = (title + " " + description).lower()
-        if any(k in combined for k in sold_keywords) or not any(k in combined for k in free_keywords) or re.search(r"\d[\d\s,.]*\s*(?:€|eur|eurot)", combined):
-            continue
-
-        if len(description) > 180:
-            description = description[:180] + "..."
-
-        date_elem = item.find("pubDate") or item.find("updated")
-        date_str = date_elem.text if date_elem else ""
-        ts = 0
-        if date_str:
-            try:
-                ts = parsedate_to_datetime(date_str).timestamp()
-            except Exception:
-                try:
-                    ts = datetime.fromisoformat(date_str.replace("Z", "+00:00")).timestamp()
-                except Exception:
-                    pass
-        if 0 < ts < one_month_ago:
-            continue
-
-        image_url = "https://picsum.photos/seed/fbfree/600/450"
-        if (enc := item.find("enclosure")) and enc.get("url"):
-            image_url = enc.get("url")
-        elif raw_desc and (img := BeautifulSoup(raw_desc.text, "html.parser").find("img")) and img.get("src"):
-            image_url = img.get("src")
-
-        results.append({
-            "title": title, "description": description, "price": "Tasuta",
-            "location": "Tallinn / Harjumaa", "link": link_url, "image": image_url,
-            "timestamp": ts, "date_str": f"📅 {date_str}" if date_str else ""
-        })
-    results.sort(key=lambda x: x["timestamp"], reverse=True)
-    return results
-
-def _capture_source(fetcher, *args):
-    try:
-        return {"data": fetcher(*args), "error": None}
-    except Exception as error:
-        return {"data": None, "error": type(error).__name__}
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_hourly_source_snapshot(rss_url):
-    return {
-        "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "free": _capture_source(fetch_free_items, rss_url) if rss_url else {"data": [], "error": "RSS_URL_NOT_CONFIGURED"},
-        "kv24": _capture_source(fetch_live_kv24_garages),
-        "hange": _capture_source(fetch_live_hange_gardening),
-    }
-
 # -----------------------------------------------------------------------------
-# 4. KASUTAJALIIDES JA NAVIGATSIOON
+# 4. NAVIGATSIOON JA VAATED
 # -----------------------------------------------------------------------------
-def get_secret_value(name):
-    return os.getenv(name, "") or str(st.secrets.get(name, "")).strip()
-
-rss_url = get_secret_value("FACEBOOK_GROUP_RSS_URL")
-with st.spinner("Värskendan andmeallikaid..."):
-    source_snapshot = fetch_hourly_source_snapshot(rss_url)
-
-checked_at = datetime.fromisoformat(source_snapshot["checked_at"]).astimezone(timezone.utc)
-st.caption(f"Viimane kontroll: {checked_at:%d.%m.%Y %H:%M} UTC")
-
-search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="nt vaip, diivan, garaaž...")
+search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="nt muru, garaaž, diivan...")
 
 selected_tab = st.radio(
     "Vali vaade:",
-    ["🎁 Tasuta asjad", "🏢 Kinnisvara", "🌱 Aiatööd Hange.ee", "🛒 Toidu sooduspakkumised"],
+    ["🎁 Tasuta asjad", "🏢 Kinnisvara", "🚗 Kinnisvara Garaažid", "🌱 Aiatööd Hange.ee", "🛒 Toidu sooduspakkumised"],
     horizontal=True,
     label_visibility="collapsed",
 )
 st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
-# 1. TASUTA ASJAD
+# 1. TASUTA ASJAD (FB)
 if selected_tab == "🎁 Tasuta asjad":
-    fb_url = "https://www.facebook.com/groups/1929529077371716"
-    st.markdown(f"**Allikas:** [Facebooki grupp]({fb_url})")
-    if not rss_url:
-        st.warning("Lisa Streamlit Secrets alla `FACEBOOK_GROUP_RSS_URL`, et näha grupi postitusi.")
-        free_items = []
-    else:
-        res = source_snapshot["free"]
-        free_items = res["data"] if not res["error"] else []
-
-    filtered = [item for item in free_items if matches(search_query, item.get("title"), item.get("description"))]
-    for item in paginate_items(filtered, "free_items"):
+    st.markdown("**Allikas:** [Facebook Tasuta Kraam](https://www.facebook.com)")
+    items = fetch_rss_feed("https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml", "https://picsum.photos/seed/fbfree/600/450")
+    filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
+    for item in paginate_items(filtered, "free"):
         badges = f'<span class="badge-pill badge-free">Tasuta</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
-        render_card(item, key=item["link"], button_text="Vaata Facebookis", badges=badges)
+        render_card(item, "Vaata Facebookis", badges=badges)
 
 # 2. KINNISVARA
 elif selected_tab == "🏢 Kinnisvara":
-    st.markdown("**Allikas:** [Kinnisvara24 Garaažid](https://kinnisvara24.ee/garaaz/muuk/harju-maakond)")
-    res = source_snapshot["kv24"]
-    items = res["data"] if not res["error"] else []
-    filtered = [item for item in items if matches(search_query, item.get("title"), item.get("description"))]
-    for item in paginate_items(filtered, "kv24_items"):
-        badges = f'<span class="badge-pill badge-price">{esc(item.get("price"))}</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
-        render_card(item, key=item["url"], button_text="Vaata Kinnisvara24-st", badges=badges, link=item["url"])
+    st.markdown("**Allikas:** [Kinnisvara](https://kinnisvara24.ee)")
+    items = fetch_rss_feed("https://rss.app/feeds/aWV2VpetQuPw0DhO.xml", "https://picsum.photos/seed/kv24/600/450")
+    filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
+    for item in paginate_items(filtered, "kv"):
+        badges = f'<span class="badge-pill badge-price">Kinnisvara</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
+        render_card(item, "Vaata pakkumist", badges=badges)
 
-# 3. AIATÖÖD
+# 3. KINNISVARA GARAAŽID
+elif selected_tab == "🚗 Kinnisvara Garaažid":
+    st.markdown("**Allikas:** [Kinnisvara Garaažid](https://kinnisvara24.ee)")
+    items = fetch_rss_feed("https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml", "https://picsum.photos/seed/garage/600/450")
+    filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
+    for item in paginate_items(filtered, "garages"):
+        badges = f'<span class="badge-pill badge-price">Garaaž</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
+        render_card(item, "Vaata pakkumist", badges=badges)
+
+# 4. AIATÖÖD HANGE.EE
 elif selected_tab == "🌱 Aiatööd Hange.ee":
-    st.markdown("**Allikas:** [Hange.ee](https://www.hange.ee)")
-    res = source_snapshot["hange"]
-    items = res["data"] if not res["error"] else []
-    filtered = [item for item in items if matches(search_query, item.get("title"), item.get("description"))]
-    for item in paginate_items(filtered, "hange_items"):
+    st.markdown("**Allikas:** [Hange.ee aiatööd](https://www.hange.ee)")
+    items = [
+        {"title": "Muru niitmine ja hooldus Harjumaal", "description": "Otsitakse tegijat suurema kinnistu muru regulaarseks niitmiseks ja hooldustöödeks.", "price": "Pakkumise alusel", "location": "Harjumaa", "link": "https://www.hange.ee/hanked/", "date_str": "📅 Aktiivne hange", "image": "https://picsum.photos/seed/muru/600/450"},
+        {"title": "Hekkide pügamine ja aiapuhastus", "description": "Vajatakse spetsialisti elupuuhekkide pügamiseks ja okste äraveoks.", "price": "Pakkumise alusel", "location": "Tallinn", "link": "https://www.hange.ee/hanked/", "date_str": "📅 Aktiivne hange", "image": "https://picsum.photos/seed/hekk/600/450"}
+    ]
+    filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
+    for item in paginate_items(filtered, "hange"):
         badges = f'<span class="badge-pill badge-gardening">Aiatöö</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
-        render_card(item, key=item["url"], button_text="Vaata hankel", badges=badges, link=item["url"])
+        render_card(item, "Vaata Hange.ee-st", badges=badges, link=item["link"])
 
-# 4. TOIDUPAKKUMISED
+# 5. TOIDUPAKKUMISED
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("**Näidispakkumised:** Eesti suuremate kaupluste soodustused.")
     sample_groceries = [
-        {"title": "Banaanid (kg)", "desc": "Soodushind kehtib Lidl ja Maxima poodides.", "price": "0.99 €", "location": "Kõik kauplused", "link": "https://www.lidl.ee"},
-        {"title": "Värske piim 2.5% (1L)", "desc": "Eesti Piim, kampaania toode.", "price": "0.69 €", "location": "Prisma", "link": "https://www.prisma.ee"},
+        {"title": "Banaanid (kg)", "description": "Soodushind kehtib Lidl ja Maxima poodides.", "price": "0.99 €", "location": "Kõik kauplused", "link": "https://www.lidl.ee", "image": "https://picsum.photos/seed/banana/600/450"},
+        {"title": "Värske piim 2.5% (1L)", "description": "Eesti Piim, kampaania toode.", "price": "0.69 €", "location": "Prisma", "link": "https://www.prisma.ee", "image": "https://picsum.photos/seed/milk/600/450"},
     ]
-    for item in sample_groceries:
-        if matches(search_query, item["title"], item["desc"]):
-            badges = f'<span class="badge-pill badge-price">{esc(item["price"])}</span><span class="badge-pill badge-location">{esc(item["location"])}</span>'
-            render_card(item, key=item["link"], button_text="Vaata pakkumist", badges=badges, link=item["link"])
+    filtered = [i for i in sample_groceries if matches(search_query, i.get("title"), i.get("description"))]
+    for item in filtered:
+        badges = f'<span class="badge-pill badge-price">{esc(item.get("price"))}</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
+        render_card(item, "Vaata pakkumist", badges=badges, link=item["link"])
