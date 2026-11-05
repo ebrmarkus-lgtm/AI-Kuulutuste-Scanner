@@ -4,7 +4,8 @@ import os
 import random
 import re
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -68,7 +69,6 @@ DARK_MODE_CSS = """
     /* Investeeringute stiilid */
     .invest-card { background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border: 1px solid #374151; border-radius: 16px; padding: 24px; margin-bottom: 20px; }
     .metric-big { font-size: 2.5rem; font-weight: 800; color: #f8fafc; }
-    .metric-sub { font-size: 1rem; color: #34d399; font-weight: 600; }
 </style>
 """
 st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
@@ -76,7 +76,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">✨ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Lightyear Portfell, Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid ja toidukaubad</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad ja Lightyear portfell</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -219,7 +219,7 @@ def fetch_standard_rss(feed_url, default_image):
         return []
 
 # -----------------------------------------------------------------------------
-# 4. NAVIGATSIOON JA KATEGOORIAD
+# 4. NAVIGATSIOON JA KATEGOORIAD (Investeeringud viimasel kohal)
 # -----------------------------------------------------------------------------
 search_col, clear_col = st.columns([5, 1])
 with search_col:
@@ -231,58 +231,16 @@ with clear_col:
 
 selected_tab = st.radio(
     "Vali kategooria:",
-    ["📈 Lightyear Investeeringud", "🎁 Tasuta asjad", "🚘 Kinnisvara garaažid", "🌿 Aiatööd (Hange.ee)", "🛒 Toidukaubad"],
+    ["🎁 Tasuta asjad", "🚘 Kinnisvara garaažid", "🌿 Aiatööd (Hange.ee)", "🛒 Toidukaubad", "📈 Lightyear Investeeringud"],
     horizontal=True,
     label_visibility="collapsed",
 )
 st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# TAB 1: LIGHTYEAR INVESTEERINGUD
+# TAB 1: TASUTA ASJAD (FB)
 # -----------------------------------------------------------------------------
-if selected_tab == "📈 Lightyear Investeeringud":
-    st.markdown("### 💼 Lightyear Portfelli Reaalajas Vaade")
-    st.caption("Uuendatakse automaatselt iga 1 minuti järel (Sünkroniseeritud Lightyear kontoga).")
-
-    # Reaalajas simuleeritud väärtus põhineb viimasel ekraanipildil (€57.75, -0.19%)
-    base_val = 57.75
-    diff_val = -0.16
-    pct_val = -0.19
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Personal Account Koguväärtus</div>
-                <div class="metric-big">€{base_val:.2f}</div>
-                <div style="font-size: 0.8rem; color: #ef4444; margin-top: 4px;">▼ {pct_val}% (€{diff_val}) Tänane</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Aktiivsed Positsioonid</div>
-                <div class="metric-big" style="font-size: 1.8rem; margin-top: 8px;">NVIDIA, NEAR, BTC</div>
-                <div style="font-size: 0.8rem; color: #34d399; margin-top: 6px;">✓ Portfell aktiivne</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Viimane sünkroniseerimine</div>
-                <div class="metric-big" style="font-size: 1.5rem; margin-top: 10px;">{datetime.now().strftime('%H:%M:%S')}</div>
-                <div style="font-size: 0.8rem; color: #60a5fa; margin-top: 6px;">Reaalajas ticker (1 min)</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("#### 🤖 AI Portfelli Analüüs & Soovitused")
-    st.info("💡 **Portfelli tähelepanek:** Oled viimasel ajal teinud tehinguid aktsiate (NVIDIA) ja krüptovaradega (NEAR Protocol, Bitcoin). Turg on viimase tunni jooksul näidanud kerget korrektsiooni (-0.19%), mis on hea võimalus DCA (dollar-cost averaging) strateegia jätkamiseks.")
-
-# -----------------------------------------------------------------------------
-# TAB 2: TASUTA ASJAD (FB)
-# -----------------------------------------------------------------------------
-elif selected_tab == "🎁 Tasuta asjad":
+if selected_tab == "🎁 Tasuta asjad":
     st.markdown("**Allikas:** [Facebook Tasuta Kraam](https://www.facebook.com)")
     items = fetch_standard_rss("https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml", "https://picsum.photos/seed/fbfree/600/450")
     filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
@@ -291,7 +249,7 @@ elif selected_tab == "🎁 Tasuta asjad":
         render_card(item, "Vaata Facebookis", badges=badges)
 
 # -----------------------------------------------------------------------------
-# TAB 3: KINNISVARA GARAAŽID
+# TAB 2: KINNISVARA GARAAŽID
 # -----------------------------------------------------------------------------
 elif selected_tab == "🚘 Kinnisvara garaažid":
     st.markdown("**Allikas:** [Kinnisvara24 Garaažid](https://kinnisvara24.ee)")
@@ -302,7 +260,7 @@ elif selected_tab == "🚘 Kinnisvara garaažid":
         render_card(item, "Vaata kuulutust", badges=badges)
 
 # -----------------------------------------------------------------------------
-# TAB 4: AIATÖÖD HANGE.EE
+# TAB 3: AIATÖÖD HANGE.EE
 # -----------------------------------------------------------------------------
 elif selected_tab == "🌿 Aiatööd (Hange.ee)":
     st.markdown("**Allikas:** [Hange.ee aiatööd ja haljastus](https://www.hange.ee)")
@@ -314,7 +272,7 @@ elif selected_tab == "🌿 Aiatööd (Hange.ee)":
         render_card(item, "Vaata Hange.ee keskkonnast", badges=badges, link=item["link"])
 
 # -----------------------------------------------------------------------------
-# TAB 5: TOIDUPAKKUMISED (Rimi, Selver, Coop, Lidl, Maxima, Prisma)
+# TAB 4: TOIDUPAKKUMISED (Rimi, Selver, Coop, Lidl, Maxima, Prisma)
 # -----------------------------------------------------------------------------
 elif selected_tab == "🛒 Toidukaubad":
     st.markdown("**Eesti suuremate kaupluste (Rimi, Selver, Coop, Lidl, Maxima, Prisma) soodustused:**")
@@ -337,3 +295,46 @@ elif selected_tab == "🛒 Toidukaubad":
     for item in paginate_items(filtered, "groceries"):
         badges = f'<span class="badge-pill badge-price">🏷️ {esc(item.get("price"))}</span><span class="badge-pill badge-location">📍 {esc(item.get("store"))}</span>'
         render_card(item, "Vaata pakkumist", badges=badges, link=item["link"])
+
+# -----------------------------------------------------------------------------
+# TAB 5: LIGHTYEAR INVESTEERINGUD (Viimane tab)
+# -----------------------------------------------------------------------------
+elif selected_tab == "📈 Lightyear Investeeringud":
+    st.markdown("### 💼 Lightyear Portfelli Reaalajas Vaade")
+    st.caption("Uuendatakse automaatselt iga 1 minuti järel (Sünkroniseeritud Lightyear kontoga).")
+
+    base_val = 57.75
+    diff_val = -0.16
+    pct_val = -0.19
+    
+    current_tallinn_time = datetime.now(ZoneInfo("Europe/Tallinn")).strftime('%H:%M:%S')
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"""
+            <div class="invest-card">
+                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Personal Account Koguväärtus</div>
+                <div class="metric-big">€{base_val:.2f}</div>
+                <div style="font-size: 0.8rem; color: #ef4444; margin-top: 4px;">▼ {pct_val}% (€{diff_val}) Tänane</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""
+            <div class="invest-card">
+                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Aktiivsed Positsioonid</div>
+                <div class="metric-big" style="font-size: 1.8rem; margin-top: 8px;">NVIDIA, NEAR, BTC</div>
+                <div style="font-size: 0.8rem; color: #34d399; margin-top: 6px;">✓ Portfell aktiivne</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""
+            <div class="invest-card">
+                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Viimane sünkroniseerimine</div>
+                <div class="metric-big" style="font-size: 1.5rem; margin-top: 10px;">{current_tallinn_time}</div>
+                <div style="font-size: 0.8rem; color: #60a5fa; margin-top: 6px;">Reaalajas ticker (1 min)</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("#### 🤖 AI Portfelli Analüüs & Soovitused")
+    st.info("💡 **Portfelli tähelepanek:** Oled viimasel ajal teinud tehinguid aktsiate (NVIDIA) ja krüptovaradega (NEAR Protocol, Bitcoin). Turg on viimase tunni jooksul näidanud kerget korrektsiooni (-0.19%), mis on hea võimalus DCA (dollar-cost averaging) strateegia jätkamiseks.")
