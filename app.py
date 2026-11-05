@@ -139,10 +139,10 @@ def render_card(item, button_text, badges="", link=None):
               f'{tags_html}{primary_html}</div></div></div>')
 
 # -----------------------------------------------------------------------------
-# 3. RSS VOOGUDE LUGEMISE FUNKTSIOONID JA VARUANDMED
+# 3. AIATÖÖDE TÄPNE JA RANGELT SÕELUTUD RSS-PARSIJA
 # -----------------------------------------------------------------------------
 def get_fallback_gardening_items():
-    """Varuandmed juhuks, kui RSS-voog tagastab 0 kuulutust või on maas."""
+    """Varuandmed juhuks, kui RSS-voos pole ühtegi aiatöö hanke postitust."""
     return [
         {
             "title": "Muru niitmine ja hooldus Harjumaal",
@@ -174,8 +174,23 @@ def get_fallback_gardening_items():
     ]
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_rss_with_exclusions(feed_url, forbidden_words):
-    """Loeb RSS-voogu ja rakendab välistusi. Kui tulemus on tühi, tagastab varuandmed."""
+def fetch_strict_gardening_rss(feed_url):
+    """Sõelub RSS-i ja tagab, et läbi pääsevad AINULT reaalsete aiatööde märksõnadega kuulutused."""
+    
+    # 1. Sõnad, mille olemasolu on kohustuslik (vähemalt 1 peab sisalduma)
+    REQUIRED_GARDENING_WORDS = [
+        "aia", "aiatöö", "haljast", "muru", "hekk", "heki", "viljapuu", 
+        "istut", "lillepeenar", "trimmer", "lehte", "multš", "freesi", 
+        "põõsa", "raie", "võsa", "kiviparkett", "terrass", "õue", "puu lõik"
+    ]
+    
+    # 2. Keelatud sise- ja sanitaartehnilised sõnad
+    FORBIDDEN_WORDS = [
+        "veearvesti", "termostaat", "mullivann", "vannituba", "sanitaartehn", 
+        "katus", "vundament", "torutöö", "elektritöö", "siseviimistlus", 
+        "plaatimine", "maalritöö", "fassaad", "betoon", "korteris", "korteri"
+    ]
+
     results = []
     try:
         resp = requests.get(feed_url, headers={"User-Agent": UA}, timeout=10)
@@ -188,10 +203,14 @@ def fetch_rss_with_exclusions(feed_url, forbidden_words):
                 desc_elem = item.find("description") or item.find("summary")
                 description = BeautifulSoup(desc_elem.text, "html.parser").get_text(" ", strip=True) if desc_elem else ""
                 
-                combined_text = f"{title} {description}".casefold()
+                text = f"{title} {description}".casefold()
                 
-                # Välistuste kontroll
-                if forbidden_words and any(ex.casefold().strip() in combined_text for ex in forbidden_words):
+                # Sõel 1: Kontrolli keelatud sõnu
+                if any(bad in text for bad in FORBIDDEN_WORDS):
+                    continue
+                
+                # Sõel 2: Peab sisaldama vähemalt ühte aiatöö märksõna
+                if not any(good in text for good in REQUIRED_GARDENING_WORDS):
                     continue
 
                 image_url = "https://picsum.photos/seed/gardening/600/450"
@@ -215,7 +234,7 @@ def fetch_rss_with_exclusions(feed_url, forbidden_words):
     except Exception:
         pass
 
-    # Kui RSS oli tühi või tekkis viga, kasuta varuandmeid
+    # Kui filtreeritud tulemus oli tühi, kuvatakse puhtad varuandmed
     if not results:
         results = get_fallback_gardening_items()
 
@@ -288,15 +307,12 @@ elif selected_tab == "🚗 Kinnisvara Garaažid":
         badges = f'<span class="badge-pill badge-price">Garaaž</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
         render_card(item, "Vaata pakkumist", badges=badges)
 
-# 3. AIATÖÖD HANGE.EE
+# 3. AIATÖÖD HANGE.EE (RANGELT FILTREERITUD)
 elif selected_tab == "🌱 Aiatööd Hange.ee":
     st.markdown("**Allikas:** [Hange.ee aiatööd ja haljastus](https://www.hange.ee)")
     
-    # Pehmed välistused, et vältida puhtaid siseehitustöid
-    forbidden_words = ["siseviimistlus", "plaatimine", "maalritöö"]
-    
     hange_feed_url = "https://rss.app/feeds/4QE7Z3yfpulhchLA.xml"
-    items = fetch_rss_with_exclusions(hange_feed_url, forbidden_words)
+    items = fetch_strict_gardening_rss(hange_feed_url)
     
     filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
     for item in paginate_items(filtered, "hange"):
