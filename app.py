@@ -1,7 +1,6 @@
 import html as html_lib
 import json
 import os
-import random
 import re
 import urllib.parse
 from datetime import datetime
@@ -80,7 +79,6 @@ DARK_MODE_CSS = """
     .metric-big { font-size: 2.5rem; font-weight: 800; color: #f8fafc; letter-spacing: -1px; }
     .asset-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #1f2937; }
     
-    /* Info paneel uuenduste kohta */
     .refresh-badge { background: #1e293b; border: 1px solid #334155; padding: 8px 14px; border-radius: 10px; font-size: 0.85rem; color: #94a3b8; display: inline-block; margin-bottom: 15px; }
 </style>
 """
@@ -89,13 +87,13 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">✨ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Nutikas koondvaade: Facebooki tasuta esemed, Hange.ee aiatööd, garaažid, toidukaubad ja Lightyear portfell</div>'
+    '<div class="sub-title">Facebooki tasuta esemed, Hange.ee aiatööd, garaažid, toidukaubad ja Lightyear portfell</div>'
     "</div>",
     unsafe_allow_html=True,
 )
 
 # -----------------------------------------------------------------------------
-# 2. ABIFUNKTSIOONID JA OPTIMEERITUD UUENDUSTE STRUKTUUR
+# 2. ABIFUNKTSIOONID
 # -----------------------------------------------------------------------------
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
@@ -152,7 +150,7 @@ def paginate_items(items, category_key):
 
 def render_card(item, button_text, badges="", link=None):
     link = safe_http_url(link or item.get("link") or item.get("url"))
-    img_url = safe_http_url(item.get("image"), fallback="https://picsum.photos/seed/fallback/600/450")
+    img_url = safe_http_url(item.get("image"), fallback="https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=600&auto=format&fit=crop")
     img_html = f'<div class="card-img"><img src="{esc(img_url)}" loading="lazy" alt=""></div>'
     date_html = f'<div class="card-date">{esc(item.get("date_str", ""))}</div>' if item.get("date_str") else ""
     tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
@@ -164,20 +162,37 @@ def render_card(item, button_text, badges="", link=None):
               f'{tags_html}{primary_html}</div></div></div>')
 
 # -----------------------------------------------------------------------------
-# 3. RSS PARSIMINE OPTIMEERITUD TTL-GA (Ideaalne uuendussagedus)
+# 3. PILDIEELDUSE JA RSS PARSIMISE LOGIKA
 # -----------------------------------------------------------------------------
-# TTL 1800s = 30 minutit (Aiatööd - harvem uuenevad hanked)
+def extract_real_image(item_soup, default_context_img):
+    enclosure = item_soup.find("enclosure")
+    if enclosure and enclosure.get("url"):
+        return enclosure.get("url")
+    
+    media = item_soup.find(["media:content", "media:thumbnail"])
+    if media and media.get("url"):
+        return media.get("url")
+        
+    desc_elem = item_soup.find(["description", "summary"])
+    if desc_elem:
+        img_tag = BeautifulSoup(desc_elem.text, "html.parser").find("img")
+        if img_tag and img_tag.get("src"):
+            return img_tag.get("src")
+            
+    return default_context_img
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_strict_gardening_rss(feed_url):
     REQUIRED_GARDENING_WORDS = ["aia", "aiatöö", "haljast", "muru", "hekk", "heki", "viljapuu", "istut", "lillepeenar", "trimmer", "lehte", "multš", "freesi", "põõsa", "raie", "võsa", "kiviparkett", "terrass", "õue", "puu lõik"]
     FORBIDDEN_WORDS = ["veearvesti", "termostaat", "mullivann", "vannituba", "sanitaartehn", "katus", "vundament", "torutöö", "elektritöö", "siseviimistlus", "plaatimine", "maalritöö", "fassaad", "betoon", "korteris", "korteri", "pesumasin", "külmkapp", "pliit"]
 
     results = []
+    default_gardening_img = "https://images.unsplash.com/photo-1558904541-efa843a96f01?w=600&auto=format&fit=crop"
     try:
         resp = requests.get(feed_url, headers={"User-Agent": UA}, timeout=10)
         if resp.status_code == 200:
             soup = BeautifulSoup(resp.content, "xml")
-            for idx, item in enumerate(soup.find_all(["item", "entry"])):
+            for item in soup.find_all(["item", "entry"]):
                 if len(results) >= MAX_LIMIT:
                     break
                 link = item.find("link")
@@ -192,10 +207,7 @@ def fetch_strict_gardening_rss(feed_url):
                 if not any(good in text for good in REQUIRED_GARDENING_WORDS):
                     continue
 
-                image_url = f"https://picsum.photos/seed/gardening_item_{idx}/600/450"
-                enclosure = item.find("enclosure")
-                if enclosure and enclosure.get("url"):
-                    image_url = enclosure.get("url")
+                image_url = extract_real_image(item, default_gardening_img)
                 results.append({
                     "title": title, "description": description[:200] + ("..." if len(description) > 200 else ""),
                     "price": "Vaata hankelt", "location": "Eesti", "link": link_url, "image": image_url, "date_str": "📅 Aktiivne hange"
@@ -204,15 +216,14 @@ def fetch_strict_gardening_rss(feed_url):
         pass
     return results[:MAX_LIMIT]
 
-# TTL 900s = 15 minutit (Facebooki asjad ja garaažid - optimaalne sagedus)
 @st.cache_data(ttl=900, show_spinner=False)
-def fetch_standard_rss(feed_url, seed_prefix):
+def fetch_standard_rss(feed_url, default_fallback_img):
     try:
         resp = requests.get(feed_url, headers={"User-Agent": UA}, timeout=10)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.content, "xml")
         results = []
-        for idx, item in enumerate(soup.find_all(["item", "entry"])):
+        for item in soup.find_all(["item", "entry"]):
             if len(results) >= MAX_LIMIT:
                 break
             link = item.find("link")
@@ -221,10 +232,7 @@ def fetch_standard_rss(feed_url, seed_prefix):
             desc_elem = item.find("description") or item.find("summary")
             description = BeautifulSoup(desc_elem.text, "html.parser").get_text(" ", strip=True) if desc_elem else ""
             
-            image_url = f"https://picsum.photos/seed/{seed_prefix}_item_{idx}/600/450"
-            enclosure = item.find("enclosure")
-            if enclosure and enclosure.get("url"):
-                image_url = enclosure.get("url")
+            image_url = extract_real_image(item, default_fallback_img)
             results.append({
                 "title": title, "description": description[:200] + ("..." if len(description) > 200 else ""),
                 "price": "Vaata pakkumist", "location": "Eesti", "link": link_url, "image": image_url, "date_str": "📅 Uus kuulutus"
@@ -234,7 +242,7 @@ def fetch_standard_rss(feed_url, seed_prefix):
         return []
 
 # -----------------------------------------------------------------------------
-# 4. NAVIGATSIOON JA KATEGOORIAD
+# 4. NAVIGATSIOON JA KATEGOORIAD (Lightyear viimasel kohal)
 # -----------------------------------------------------------------------------
 search_col, clear_col = st.columns([5, 1])
 with search_col:
@@ -258,7 +266,8 @@ st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 if selected_tab == "🎁 Tasuta asjad":
     st.markdown('<div class="refresh-badge">⏱️ Automaatne uuendussagedus: iga 15 min järel</div>', unsafe_allow_html=True)
     st.markdown("**Allikas:** [Facebook Tasuta Kraam](https://www.facebook.com)")
-    items = fetch_standard_rss("https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml", "fb_free")
+    fb_fallback = "https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=600&auto=format&fit=crop"
+    items = fetch_standard_rss("https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml", fb_fallback)
     filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
     for item in paginate_items(filtered, "free"):
         badges = f'<span class="badge-pill badge-free">🎁 Tasuta</span><span class="badge-pill badge-location">📍 {esc(item.get("location"))}</span>'
@@ -270,7 +279,8 @@ if selected_tab == "🎁 Tasuta asjad":
 elif selected_tab == "🚘 Kinnisvara garaažid":
     st.markdown('<div class="refresh-badge">⏱️ Automaatne uuendussagedus: iga 15 min järel</div>', unsafe_allow_html=True)
     st.markdown("**Allikas:** [Kinnisvara24 Garaažid](https://kinnisvara24.ee)")
-    items = fetch_standard_rss("https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml", "garage_item")
+    garage_fallback = "https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=600&auto=format&fit=crop"
+    items = fetch_standard_rss("https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml", garage_fallback)
     filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
     for item in paginate_items(filtered, "garages"):
         badges = f'<span class="badge-pill badge-price">🚘 Garaaž</span><span class="badge-pill badge-location">📍 {esc(item.get("location"))}</span>'
@@ -299,18 +309,18 @@ elif selected_tab == "🛒 Toidukaubad":
     store_filter = st.selectbox("Filtreeri kaupluse järgi:", ["Kõik", "Rimi", "Selver", "Coop", "Lidl", "Maxima", "Prisma"])
     
     groceries = [
-        {"title": "Banaanid (kg)", "description": "Super sooduspakkumine kehtib Lidl ja Maxima kauplustes.", "price": "0.99 €", "store": "Lidl", "link": "https://www.lidl.ee", "image": "https://picsum.photos/seed/gro_banana_1/600/450"},
-        {"title": "Värske piim 2.5% (1 l)", "description": "Eesti Piim, kampaaniatoode igapäevaseks tarbimiseks.", "price": "0.69 €", "store": "Prisma", "link": "https://www.prisma.ee", "image": "https://picsum.photos/seed/gro_milk_2/600/450"},
-        {"title": "Sea välisfilee (kg)", "description": "Rakvere rafineeritud liha, soodustus -30% Rimi kauplustes.", "price": "5.99 €", "store": "Rimi", "link": "https://www.rimi.ee", "image": "https://picsum.photos/seed/gro_meat_3/600/450"},
-        {"title": "Kohviuba President (1 kg)", "description": "Paulig President keskmise röstiga kohviuba Selveris.", "price": "9.99 €", "store": "Selver", "link": "https://www.selver.ee", "image": "https://picsum.photos/seed/gro_coffee_4/600/450"},
-        {"title": "Eesti või 82% (200 g)", "description": "Valio lehmakase või Coop poodides.", "price": "1.89 €", "store": "Coop", "link": "https://www.coop.ee", "image": "https://picsum.photos/seed/gro_butter_5/600/450"},
-        {"title": "Värske kurk (kg)", "description": "Kodumaine kasvuhoonekurk Maxima nädala pakkumises.", "price": "2.49 €", "store": "Maxima", "link": "https://www.maxima.ee", "image": "https://picsum.photos/seed/gro_cucumber_6/600/450"},
-        {"title": "Hapukoor 20% (500 g)", "description": "Tere hapukoor erihinnaga Rimi hüpermarketites.", "price": "0.95 €", "store": "Rimi", "link": "https://www.rimi.ee", "image": "https://picsum.photos/seed/gro_sourcream_7/600/450"},
-        {"title": "Broilerifilee (kg)", "description": "Tallegg jahutatud broilerifilee Selveri kliendipäevadel.", "price": "6.49 €", "store": "Selver", "link": "https://www.selver.ee", "image": "https://picsum.photos/seed/gro_chicken_8/600/450"},
-        {"title": "Juust Edam 400g", "description": "Frico Edam juust viilutatud, Coop Säästukaardiga.", "price": "3.29 €", "store": "Coop", "link": "https://www.coop.ee", "image": "https://picsum.photos/seed/gro_cheese_9/600/450"},
-        {"title": "Kartul (5 kg kott)", "description": "Eesti värske kartul I klass, Lidl sooduspakkumine.", "price": "2.99 €", "store": "Lidl", "link": "https://www.lidl.ee", "image": "https://picsum.photos/seed/gro_potato_10/600/450"},
-        {"title": "Muna M (10 tk)", "description": "Kitsaseilla õrrekanade munad Prisma kauplustes.", "price": "1.79 €", "store": "Prisma", "link": "https://www.prisma.ee", "image": "https://picsum.photos/seed/gro_eggs_11/600/450"},
-        {"title": "Apelsinimahl 100% (1.5 l)", "description": "Cido mahlad Maxima kauplustes soodushinnaga.", "price": "1.99 €", "store": "Maxima", "link": "https://www.maxima.ee", "image": "https://picsum.photos/seed/gro_juice_12/600/450"}
+        {"title": "Banaanid (kg)", "description": "Super sooduspakkumine kehtib Lidl ja Maxima kauplustes.", "price": "0.99 €", "store": "Lidl", "link": "https://www.lidl.ee", "image": "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&auto=format&fit=crop"},
+        {"title": "Värske piim 2.5% (1 l)", "description": "Eesti Piim, kampaaniatoode igapäevaseks tarbimiseks.", "price": "0.69 €", "store": "Prisma", "link": "https://www.prisma.ee", "image": "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=600&auto=format&fit=crop"},
+        {"title": "Sea välisfilee (kg)", "description": "Rakvere rafineeritud liha, soodustus -30% Rimi kauplustes.", "price": "5.99 €", "store": "Rimi", "link": "https://www.rimi.ee", "image": "https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=600&auto=format&fit=crop"},
+        {"title": "Kohviuba President (1 kg)", "description": "Paulig President keskmise röstiga kohviuba Selveris.", "price": "9.99 €", "store": "Selver", "link": "https://www.selver.ee", "image": "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=600&auto=format&fit=crop"},
+        {"title": "Eesti või 82% (200 g)", "description": "Valio lehmakase või Coop poodides.", "price": "1.89 €", "store": "Coop", "link": "https://www.coop.ee", "image": "https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=600&auto=format&fit=crop"},
+        {"title": "Värske kurk (kg)", "description": "Kodumaine kasvuhoonekurk Maxima nädala pakkumises.", "price": "2.49 €", "store": "Maxima", "link": "https://www.maxima.ee", "image": "https://images.unsplash.com/photo-1449300079323-02e209d9d3a6?w=600&auto=format&fit=crop"},
+        {"title": "Hapukoor 20% (500 g)", "description": "Tere hapukoor erihinnaga Rimi hüpermarketites.", "price": "0.95 €", "store": "Rimi", "link": "https://www.rimi.ee", "image": "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=600&auto=format&fit=crop"},
+        {"title": "Broilerifilee (kg)", "description": "Tallegg jahutatud broilerifilee Selveri kliendipäevadel.", "price": "6.49 €", "store": "Selver", "link": "https://www.selver.ee", "image": "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=600&auto=format&fit=crop"},
+        {"title": "Juust Edam 400g", "description": "Frico Edam juust viilutatud, Coop Säästukaardiga.", "price": "3.29 €", "store": "Coop", "link": "https://www.coop.ee", "image": "https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=600&auto=format&fit=crop"},
+        {"title": "Kartul (5 kg kott)", "description": "Eesti värske kartul I klass, Lidl sooduspakkumine.", "price": "2.99 €", "store": "Lidl", "link": "https://www.lidl.ee", "image": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop"},
+        {"title": "Muna M (10 tk)", "description": "Kitsaseilla õrrekanade munad Prisma kauplustes.", "price": "1.79 €", "store": "Prisma", "link": "https://www.prisma.ee", "image": "https://images.unsplash.com/photo-1516448620398-c5f44bf9f441?w=600&auto=format&fit=crop"},
+        {"title": "Apelsinimahl 100% (1.5 l)", "description": "Cido mahlad Maxima kauplustes soodushinnaga.", "price": "1.99 €", "store": "Maxima", "link": "https://www.maxima.ee", "image": "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=600&auto=format&fit=crop"}
     ]
 
     if store_filter != "Kõik":
@@ -322,7 +332,7 @@ elif selected_tab == "🛒 Toidukaubad":
         render_card(item, "Vaata pakkumist", badges=badges, link=item["link"])
 
 # -----------------------------------------------------------------------------
-# TAB 5: LIGHTYEAR INVESTEERINGUD (Põhjalik ja reaalajas sünkroonis)
+# TAB 5: LIGHTYEAR INVESTEERINGUD (Viimane sak)
 # -----------------------------------------------------------------------------
 elif selected_tab == "📈 Lightyear Investeeringud":
     st.markdown('<div class="refresh-badge">⏱️ Reaalajas turg ja portfell: Uueneb iga 1 min järel</div>', unsafe_allow_html=True)
@@ -361,28 +371,62 @@ elif selected_tab == "📈 Lightyear Investeeringud":
         """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("#### 📊 Portfelli Varade Jaotus (Lightyear)")
     
-    st.markdown("""
-        <div class="pro-card">
-            <div class="asset-row">
-                <span style="font-weight: 700; color: #f8fafc;">🟢 NVIDIA Corp. (NVDA)</span>
-                <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%) · Pending Market Order</span>
+    col_left, col_right = st.columns([1, 1])
+    
+    with col_left:
+        st.markdown("#### 📊 Varade Jaotus (Asset Allocation)")
+        st.markdown("""
+            <div class="pro-card">
+                <div class="asset-row">
+                    <span style="font-weight: 700; color: #f8fafc;">🟢 NVIDIA Corp. (NVDA)</span>
+                    <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%)</span>
+                </div>
+                <div class="asset-row">
+                    <span style="font-weight: 700; color: #f8fafc;">🟢 NEAR Protocol (NEAR)</span>
+                    <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%)</span>
+                </div>
+                <div class="asset-row">
+                    <span style="font-weight: 700; color: #f8fafc;">🟠 Bitcoin (BTC)</span>
+                    <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%)</span>
+                </div>
+                <div class="asset-row" style="border-bottom: none;">
+                    <span style="font-weight: 700; color: #94a3b8;">💵 Sularaha / EUR Account</span>
+                    <span style="color: #94a3b8; font-weight: 600;">€0.00 (Reserved €17.83)</span>
+                </div>
             </div>
-            <div class="asset-row">
-                <span style="font-weight: 700; color: #f8fafc;">🟢 NEAR Protocol (NEAR)</span>
-                <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%) · 5.702 tokens</span>
+        """, unsafe_allow_html=True)
+
+    with col_right:
+        st.markdown("#### 🕒 Viimased Tehingud (Transactions)")
+        st.markdown("""
+            <div class="pro-card">
+                <div class="asset-row">
+                    <span style="color: #f8fafc; font-weight: 600;">Buy NVIDIA (Pending Market Order)</span>
+                    <span style="color: #ef4444; font-weight: 700;">-$20.00</span>
+                </div>
+                <div class="asset-row">
+                    <span style="color: #f8fafc; font-weight: 600;">Withdrawal to bank</span>
+                    <span style="color: #ef4444; font-weight: 700;">-€22.31</span>
+                </div>
+                <div class="asset-row">
+                    <span style="color: #f8fafc; font-weight: 600;">Buy NEAR Protocol (5.702 tokens)</span>
+                    <span style="color: #ef4444; font-weight: 700;">-€20.00</span>
+                </div>
+                <div class="asset-row">
+                    <span style="color: #f8fafc; font-weight: 600;">EUR ➔ USD Exchange</span>
+                    <span style="color: #34d399; font-weight: 700;">+$19.77 (-€17.69)</span>
+                </div>
+                <div class="asset-row">
+                    <span style="color: #f8fafc; font-weight: 600;">Buy Bitcoin (0.00028057 BTC)</span>
+                    <span style="color: #ef4444; font-weight: 700;">-€20.00</span>
+                </div>
+                <div class="asset-row" style="border-bottom: none;">
+                    <span style="color: #f8fafc; font-weight: 600;">Deposit from card</span>
+                    <span style="color: #34d399; font-weight: 700;">+€80.00</span>
+                </div>
             </div>
-            <div class="asset-row">
-                <span style="font-weight: 700; color: #f8fafc;">🟠 Bitcoin (BTC)</span>
-                <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%) · 0.00028057 tokens</span>
-            </div>
-            <div class="asset-row" style="border-bottom: none;">
-                <span style="font-weight: 700; color: #94a3b8;">💵 Sularaha / EUR Account</span>
-                <span style="color: #94a3b8; font-weight: 600;">€0.00 (Reserved €17.83)</span>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     st.markdown("#### 🤖 AI Portfelli Analüüs & Soovitused")
     st.info("💡 **Portfelli tähelepanek:** Portfell on jaotatud võrdselt kolme peamise kasvusektori vahel (Tehisintellekt/NVIDIA ja krüptovarad NEAR, Bitcoin). Turg on viimase tunni jooksul näidanud kerget korrektsiooni (-0.19%), mis on ideaalne hetk DCA (dollar-cost averaging) strateegia rakendamiseks ja regulaarsete väikeste ostudega positsiooni keskmise hinna allapoole toomiseks.")
