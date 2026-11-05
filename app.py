@@ -65,7 +65,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, Hange.ee aiatööd, Kinnisvara & Garaažid</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, Hange.ee aiatööd & Kinnisvara Garaažid</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -155,7 +155,6 @@ def fetch_rss_feed(feed_url, default_image):
             desc_elem = item.find("description") or item.find("summary")
             description = BeautifulSoup(desc_elem.text, "html.parser").get_text(" ", strip=True) if desc_elem else ""
             
-            # Püüame leida pildi voost või kirjeldusest
             image_url = default_image
             enclosure = item.find("enclosure")
             if enclosure and enclosure.get("url"):
@@ -185,7 +184,7 @@ search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="nt m
 
 selected_tab = st.radio(
     "Vali vaade:",
-    ["🎁 Tasuta asjad", "🏢 Kinnisvara", "🚗 Kinnisvara Garaažid", "🌱 Aiatööd Hange.ee", "🛒 Toidu sooduspakkumised"],
+    ["🎁 Tasuta asjad", "🚗 Kinnisvara Garaažid", "🌱 Aiatööd Hange.ee", "🛒 Toidu sooduspakkumised"],
     horizontal=True,
     label_visibility="collapsed",
 )
@@ -200,16 +199,7 @@ if selected_tab == "🎁 Tasuta asjad":
         badges = f'<span class="badge-pill badge-free">Tasuta</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
         render_card(item, "Vaata Facebookis", badges=badges)
 
-# 2. KINNISVARA
-elif selected_tab == "🏢 Kinnisvara":
-    st.markdown("**Allikas:** [Kinnisvara](https://kinnisvara24.ee)")
-    items = fetch_rss_feed("https://rss.app/feeds/aWV2VpetQuPw0DhO.xml", "https://picsum.photos/seed/kv24/600/450")
-    filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
-    for item in paginate_items(filtered, "kv"):
-        badges = f'<span class="badge-pill badge-price">Kinnisvara</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
-        render_card(item, "Vaata pakkumist", badges=badges)
-
-# 3. KINNISVARA GARAAŽID
+# 2. KINNISVARA GARAAŽID
 elif selected_tab == "🚗 Kinnisvara Garaažid":
     st.markdown("**Allikas:** [Kinnisvara Garaažid](https://kinnisvara24.ee)")
     items = fetch_rss_feed("https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml", "https://picsum.photos/seed/garage/600/450")
@@ -218,7 +208,7 @@ elif selected_tab == "🚗 Kinnisvara Garaažid":
         badges = f'<span class="badge-pill badge-price">Garaaž</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
         render_card(item, "Vaata pakkumist", badges=badges)
 
-# 4. AIATÖÖD HANGE.EE
+# 3. AIATÖÖD HANGE.EE
 elif selected_tab == "🌱 Aiatööd Hange.ee":
     st.markdown("**Allikas:** [Hange.ee aiatööd](https://www.hange.ee)")
     items = [
@@ -230,7 +220,7 @@ elif selected_tab == "🌱 Aiatööd Hange.ee":
         badges = f'<span class="badge-pill badge-gardening">Aiatöö</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
         render_card(item, "Vaata Hange.ee-st", badges=badges, link=item["link"])
 
-# 5. TOIDUPAKKUMISED
+# 4. TOIDUPAKKUMISED
 elif selected_tab == "🛒 Toidu sooduspakkumised":
     st.markdown("**Näidispakkumised:** Eesti suuremate kaupluste soodustused.")
     sample_groceries = [
