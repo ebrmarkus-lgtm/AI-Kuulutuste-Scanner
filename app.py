@@ -65,7 +65,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, Eriaialased aiatööd Hange.ee-st & Kinnisvara Garaažid</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, Aiatööd Hange.ee-st & Kinnisvara Garaažid</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -139,22 +139,11 @@ def render_card(item, button_text, badges="", link=None):
               f'{tags_html}{primary_html}</div></div></div>')
 
 # -----------------------------------------------------------------------------
-# 3. KODISED FILTERDUSEGA RSS-VOOD LUGEMINE (WHITELIST / BLACKLIST)
+# 3. RSS VOOGUDE LUGEMISE FUNKTSIOONID (AINULT VÄLISTUSED)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_strict_gardening_rss(feed_url):
-    """Loeb RSS voogu ja filtreerib välja rangelt ainult aiatööde ja haljastusega seotud kuulutused."""
-    allowed_words = [
-        "aia", "aiatöö", "haljastus", "muru", "muruniitmine", "hekk", 
-        "heki pügamine", "viljapuu", "puude lõikus", "istutamine", 
-        "lillepeenar", "trimmerdamine", "lehtede koristus", "multšimine", 
-        "freesimine", "põõsas", "raie", "õue", "kiviparkett"
-    ]
-    forbidden_words = [
-        "katus", "vundament", "torutöö", "elektritöö", "siseviimistlus", 
-        "plaatimine", "maalritöö", "fassaad", "betoon"
-    ]
-
+def fetch_rss_with_exclusions(feed_url, forbidden_words):
+    """Loeb RSS voogu ja jätab vahele AINULT need kuulutused, mis sisaldavad välistatud sõnu."""
     try:
         resp = requests.get(feed_url, headers={"User-Agent": UA}, timeout=10)
         resp.raise_for_status()
@@ -170,12 +159,8 @@ def fetch_strict_gardening_rss(feed_url):
             
             combined_text = f"{title} {description}".casefold()
             
-            # Kontrolli, kas sisaldab vähemalt ühte lubatud aiatöö märksõna
-            if not any(kw in combined_text for kw in allowed_words):
-                continue
-                
-            # Kontrolli, et ei sisaldaks keelatud ehitussõnu
-            if any(ex in combined_text for ex in forbidden_words):
+            # AINULT VÄLISTUSTE KONTROLL: kui tekstis on mõni keelatud sõna, jäetakse kuulutus vahele
+            if any(ex.casefold().strip() in combined_text for ex in forbidden_words):
                 continue
 
             image_url = "https://picsum.photos/seed/gardening/600/450"
@@ -267,17 +252,22 @@ elif selected_tab == "🚗 Kinnisvara Garaažid":
         badges = f'<span class="badge-pill badge-price">Garaaž</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
         render_card(item, "Vaata pakkumist", badges=badges)
 
-# 3. AIATÖÖD HANGE.EE (Striktne koodipõhine filter sinu uue RSS-iga)
+# 3. AIATÖÖD HANGE.EE (KASUTAB AINULT VÄLISTUSI)
 elif selected_tab == "🌱 Aiatööd Hange.ee":
     st.markdown("**Allikas:** [Hange.ee aiatööd ja haljastus](https://www.hange.ee)")
     
-    # Kasutame sinu uut RSS voogu ja koodipõhist ranget filtrit
+    # Ainult välistatavad märksõnad (mittesoovitavad ehitus/siseviimistlustööd)
+    forbidden_words = [
+        "katus", "vundament", "torutöö", "elektritöö", "siseviimistlus", 
+        "plaatimine", "maalritöö", "fassaad", "betoon"
+    ]
+    
     hange_feed_url = "https://rss.app/feeds/4QE7Z3yfpulhchLA.xml"
-    items = fetch_strict_gardening_rss(hange_feed_url)
+    items = fetch_rss_with_exclusions(hange_feed_url, forbidden_words)
     
     filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
     for item in paginate_items(filtered, "hange"):
-        badges = f'<span class="badge-pill badge-gardening">Eriala Aiatöö</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
+        badges = f'<span class="badge-pill badge-gardening">Hange</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
         render_card(item, "Vaata Hange.ee-st", badges=badges)
 
 # 4. TOIDUPAKKUMISED
