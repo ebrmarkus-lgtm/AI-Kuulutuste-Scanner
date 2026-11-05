@@ -14,11 +14,12 @@ from bs4 import BeautifulSoup
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Kuulutuste Skänner Pro",
-    page_icon="⚡",
+    page_icon="✨",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
+# Automaatne värskendus iga 60 minuti järel
 st_autorefresh(interval=60 * 60 * 1000, key="hourly_data_refresh")
 
 DARK_MODE_CSS = """
@@ -57,15 +58,15 @@ DARK_MODE_CSS = """
         font-weight: 600; border-radius: 10px; text-decoration: none !important; transition: all 0.2s ease;
     }
     .pro-btn:hover { background: #1d4ed8; box-shadow: 0 4px 15px rgba(37,99,235,0.4); }
-    .pro-btn.secondary { background: #1f2937; border: 1px solid #374151; margin-top: 8px; }
+    .pro-btn.secondary { background: #1f2937; border: 1px solid #374151; color: #94a3b8 !important; }
 </style>
 """
 st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
 st.markdown(
     '<div class="hero-container">'
-    '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, Aiatööd Hange.ee-st & Kinnisvara Garaažid</div>'
+    '<div class="main-title">✨ AI Kuulutuste Skänner Pro</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee keskkonnast ja kinnisvara garaažid</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -110,7 +111,7 @@ def paginate_items(items, category_key):
         st.session_state[count_key] = PAGE_INCREMENT
 
     visible_count = min(total, max(PAGE_INCREMENT, int(st.session_state.get(count_key, PAGE_INCREMENT))))
-    st.caption(f"Leitud {total} tulemust (max limiit {MAX_LIMIT}) · Näitan {visible_count}.")
+    st.caption(f"Leitud {total} kuulutust (maksimaalne limiit {MAX_LIMIT}) · Näitan {visible_count}.")
 
     if visible_count < total:
         remaining = total - visible_count
@@ -120,7 +121,7 @@ def paginate_items(items, category_key):
                 st.session_state[count_key] = min(total, visible_count + PAGE_INCREMENT)
                 st.rerun()
         with c2:
-            if st.button("Näita kõiki 50", key=f"show_all_{category_key}"):
+            if st.button(f"Näita kõiki ({total})", key=f"show_all_{category_key}"):
                 st.session_state[count_key] = total
                 st.rerun()
 
@@ -140,9 +141,10 @@ def render_card(item, button_text, badges="", link=None):
               f'{tags_html}{primary_html}</div></div></div>')
 
 # -----------------------------------------------------------------------------
-# 3. ANDMETE KOGUMINE (HANGE.EE OTSEKORJE + RSS.APP VARU)
+# 3. AIATÖÖDE JA RSS-VOOGUDE PARSIMINE (PIIRANG MAX 50)
 # -----------------------------------------------------------------------------
 def get_fallback_gardening_items():
+    """Varuandmed juhuks, kui RSS-voos pole ühtegi sobivat postitust."""
     return [
         {
             "title": "Muru niitmine ja hooldus Harjumaal",
@@ -155,7 +157,7 @@ def get_fallback_gardening_items():
         },
         {
             "title": "Elupuuheki pügamine ja okste äravedu",
-            "description": "Vajatakse aiandusalase kogemusega spetsialisti kõrge elupuuheki pügamiseks ning lammutatud okste äraveoks.",
+            "description": "Vajatakse aiandusalase kogemusega spetsialisti kõrge elupuuheki pügamiseks ning lõigatud okste äraveoks.",
             "price": "Pakkumise alusel",
             "location": "Tallinn, Nõmme",
             "link": "https://www.hange.ee/hanked/",
@@ -174,77 +176,65 @@ def get_fallback_gardening_items():
     ]
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_hange_gardening_direct(rss_fallback_url):
-    """
-    Käib otse Hange.ee aiatööde ja haljastuse kategoorias või kasutab RSS voogu.
-    Tagastab kuni 50 puhast aiatöö hanke tulemust.
-    """
-    results = []
+def fetch_strict_gardening_rss(feed_url):
+    """Sõelub RSS-i ja tagab, et läbi pääsevad AINULT reaalsete aiatööde märksõnadega kuulutused."""
     
-    # Keelatud ehitustööd, mida ei taha näha
+    REQUIRED_GARDENING_WORDS = [
+        "aia", "aiatöö", "haljast", "muru", "hekk", "heki", "viljapuu", 
+        "istut", "lillepeenar", "trimmer", "lehte", "multš", "freesi", 
+        "põõsa", "raie", "võsa", "kiviparkett", "terrass", "õue", "puu lõik"
+    ]
+    
     FORBIDDEN_WORDS = [
         "veearvesti", "termostaat", "mullivann", "vannituba", "sanitaartehn", 
         "katus", "vundament", "torutöö", "elektritöö", "siseviimistlus", 
-        "plaatimine", "maalritöö", "fassaad", "betoon", "korteris", "korteri"
+        "plaatimine", "maalritöö", "fassaad", "betoon", "korteris", "korteri",
+        "pesumasin", "külmkapp", "pliit"
     ]
 
-    # Proovime esmalt otse Hange.ee aktiivseid hankeid või kategooriat
-    urls_to_try = [
-        "https://www.hange.ee/hanked/?filter=all-active",
-        rss_fallback_url
-    ]
+    results = []
+    try:
+        resp = requests.get(feed_url, headers={"User-Agent": UA}, timeout=10)
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.content, "xml")
+            for item in soup.find_all(["item", "entry"]):
+                if len(results) >= MAX_LIMIT:
+                    break
 
-    for target_url in urls_to_try:
-        if len(results) >= MAX_LIMIT:
-            break
-        try:
-            resp = requests.get(target_url, headers={"User-Agent": UA}, timeout=8)
-            if resp.status_code == 200:
-                soup = BeautifulSoup(resp.content, "html.parser")
+                link = item.find("link")
+                link_url = link.get("href") or link.get_text(strip=True) if link else "https://www.hange.ee"
+                title = item.find("title").text if item.find("title") else "Aiatöö hange"
+                desc_elem = item.find("description") or item.find("summary")
+                description = BeautifulSoup(desc_elem.text, "html.parser").get_text(" ", strip=True) if desc_elem else ""
                 
-                # Otsime kas tabeli ridu või RSS elemente
-                rows = soup.select("table.table_hanked tbody tr") or soup.find_all(["item", "entry"])
+                text = f"{title} {description}".casefold()
                 
-                for row in rows:
-                    if len(results) >= MAX_LIMIT:
-                        break
-                        
-                    # Kontroll, kas tegemist on Hange.ee otselehe või RSS elemendiga
-                    if row.name in ["item", "entry"]:
-                        title_elem = row.find("title")
-                        title = title_elem.text if title_elem else "Aiatöö hange"
-                        link_elem = row.find("link")
-                        link = link_elem.get("href") or link_elem.get_text(strip=True) if link_elem else "https://www.hange.ee"
-                        desc_elem = row.find("description") or row.find("summary")
-                        desc = BeautifulSoup(desc_elem.text, "html.parser").get_text(" ", strip=True) if desc_elem else ""
-                    else:
-                        title_link = row.select_one("h2 a") or row.select_one("a.border-link")
-                        if not title_link:
-                            continue
-                        title = title_link.get_text(strip=True)
-                        link = "https://www.hange.ee" + title_link.get("href", "")
-                        desc_elem = row.select_one(".table-txt") or row.select_one("p")
-                        desc = desc_elem.get_text(" ", strip=True) if desc_elem else ""
+                if any(bad in text for bad in FORBIDDEN_WORDS):
+                    continue
+                if not any(good in text for good in REQUIRED_GARDENING_WORDS):
+                    continue
 
-                    combined = f"{title} {desc}".casefold()
-                    
-                    # Filtreerime välja ebasobivad ehitustööd
-                    if any(bad in combined for bad in FORBIDDEN_WORDS):
-                        continue
+                image_url = "https://picsum.photos/seed/gardening/600/450"
+                enclosure = item.find("enclosure")
+                if enclosure and enclosure.get("url"):
+                    image_url = enclosure.get("url")
+                elif desc_elem:
+                    img_tag = BeautifulSoup(desc_elem.text, "html.parser").find("img")
+                    if img_tag and img_tag.get("src"):
+                        image_url = img_tag.get("src")
 
-                    results.append({
-                        "title": title,
-                        "description": desc[:200] + ("..." if len(desc) > 200 else ""),
-                        "price": "Vaata hankel",
-                        "location": "Eesti",
-                        "link": link,
-                        "image": "https://picsum.photos/seed/gardening/600/450",
-                        "date_str": "📅 Aktiivne hange"
-                    })
-        except Exception:
-            continue
+                results.append({
+                    "title": title,
+                    "description": description[:200] + ("..." if len(description) > 200 else ""),
+                    "price": "Vaata hankelt",
+                    "location": "Eesti",
+                    "link": link_url,
+                    "image": image_url,
+                    "date_str": "📅 Aktiivne hange"
+                })
+    except Exception:
+        pass
 
-    # Kui midagi ei leitud, tagastame varuandmed
     if not results:
         results = get_fallback_gardening_items()
 
@@ -291,11 +281,17 @@ def fetch_standard_rss(feed_url, default_image):
 # -----------------------------------------------------------------------------
 # 4. NAVIGATSIOON JA VAATED
 # -----------------------------------------------------------------------------
-search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="nt muru, garaaž, hekk...")
+search_col, clear_col = st.columns([5, 1])
+with search_col:
+    search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="Sisesta nt muru, garaaž, hekk...", label_visibility="collapsed")
+with clear_col:
+    if st.button("Tühjenda", use_container_width=True):
+        search_query = ""
+        st.rerun()
 
 selected_tab = st.radio(
-    "Vali vaade:",
-    ["🎁 Tasuta asjad", "🚗 Kinnisvara Garaažid", "🌱 Aiatööd Hange.ee", "🛒 Toidu sooduspakkumised"],
+    "Vali kategooria:",
+    ["🎁 Tasuta asjad", "🚘 Kinnisvara garaažid", "🌿 Aiatööd (Hange.ee)", "🛒 Toidukaubad"],
     horizontal=True,
     label_visibility="collapsed",
 )
@@ -307,38 +303,38 @@ if selected_tab == "🎁 Tasuta asjad":
     items = fetch_standard_rss("https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml", "https://picsum.photos/seed/fbfree/600/450")
     filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
     for item in paginate_items(filtered, "free"):
-        badges = f'<span class="badge-pill badge-free">Tasuta</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
+        badges = f'<span class="badge-pill badge-free">Tasuta</span><span class="badge-pill badge-location">📍 {esc(item.get("location"))}</span>'
         render_card(item, "Vaata Facebookis", badges=badges)
 
 # 2. KINNISVARA GARAAŽID
-elif selected_tab == "🚗 Kinnisvara Garaažid":
-    st.markdown("**Allikas:** [Kinnisvara Garaažid](https://kinnisvara24.ee)")
+elif selected_tab == "🚘 Kinnisvara garaažid":
+    st.markdown("**Allikas:** [Kinnisvara24 Garaažid](https://kinnisvara24.ee)")
     items = fetch_standard_rss("https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml", "https://picsum.photos/seed/garage/600/450")
     filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
     for item in paginate_items(filtered, "garages"):
-        badges = f'<span class="badge-pill badge-price">Garaaž</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
-        render_card(item, "Vaata pakkumist", badges=badges)
+        badges = f'<span class="badge-pill badge-price">Garaaž</span><span class="badge-pill badge-location">📍 {esc(item.get("location"))}</span>'
+        render_card(item, "Vaata kuulutust", badges=badges)
 
 # 3. AIATÖÖD HANGE.EE
-elif selected_tab == "🌱 Aiatööd Hange.ee":
+elif selected_tab == "🌿 Aiatööd (Hange.ee)":
     st.markdown("**Allikas:** [Hange.ee aiatööd ja haljastus](https://www.hange.ee)")
     
     hange_feed_url = "https://rss.app/feeds/4QE7Z3yfpulhchLA.xml"
-    items = fetch_hange_gardening_direct(hange_feed_url)
+    items = fetch_strict_gardening_rss(hange_feed_url)
     
     filtered = [i for i in items if matches(search_query, i.get("title"), i.get("description"))]
     for item in paginate_items(filtered, "hange"):
-        badges = f'<span class="badge-pill badge-gardening">Aiatöö</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
-        render_card(item, "Vaata Hange.ee-st", badges=badges, link=item["link"])
+        badges = f'<span class="badge-pill badge-gardening">Aiatöö</span><span class="badge-pill badge-location">📍 {esc(item.get("location"))}</span>'
+        render_card(item, "Vaata Hange.ee keskkonnast", badges=badges, link=item["link"])
 
 # 4. TOIDUPAKKUMISED
-elif selected_tab == "🛒 Toidu sooduspakkumised":
+elif selected_tab == "🛒 Toidukaubad":
     st.markdown("**Näidispakkumised:** Eesti suuremate kaupluste soodustused.")
     sample_groceries = [
-        {"title": "Banaanid (kg)", "description": "Soodushind kehtib Lidl ja Maxima poodides.", "price": "0.99 €", "location": "Kõik kauplused", "link": "https://www.lidl.ee", "image": "https://picsum.photos/seed/banana/600/450"},
-        {"title": "Värske piim 2.5% (1L)", "description": "Eesti Piim, kampaania toode.", "price": "0.69 €", "location": "Prisma", "link": "https://www.prisma.ee", "image": "https://picsum.photos/seed/milk/600/450"},
+        {"title": "Banaanid (kg)", "description": "Soodushind kehtib Lidl ja Maxima kauplustes.", "price": "0.99 €", "location": "Kõik kauplused", "link": "https://www.lidl.ee", "image": "https://picsum.photos/seed/banana/600/450"},
+        {"title": "Värske piim 2.5% (1 l)", "description": "Eesti Piim, kampaaniatoode.", "price": "0.69 €", "location": "Prisma", "link": "https://www.prisma.ee", "image": "https://picsum.photos/seed/milk/600/450"},
     ]
     filtered = [i for i in sample_groceries if matches(search_query, i.get("title"), i.get("description"))]
     for item in paginate_items(filtered, "groceries"):
-        badges = f'<span class="badge-pill badge-price">{esc(item.get("price"))}</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
+        badges = f'<span class="badge-pill badge-price">🏷️ {esc(item.get("price"))}</span><span class="badge-pill badge-location">📍 {esc(item.get("location"))}</span>'
         render_card(item, "Vaata pakkumist", badges=badges, link=item["link"])
