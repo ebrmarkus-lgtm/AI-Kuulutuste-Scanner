@@ -14,7 +14,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # -----------------------------------------------------------------------------
-# 1. RAKENDUSE SEADISTUS JA TUME DISAIN
+# 1. RAKENDUSE SEADISTUS JA DISAINISÜSTEEM
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Kuulutuste Skänner Pro",
@@ -54,7 +54,6 @@ DARK_MODE_CSS = """
     .badge-free { background-color: rgba(5,150,105,0.15); color: #34d399; border: 1px solid rgba(5,150,105,0.3); }
     .badge-price { background-color: rgba(37,99,235,0.15); color: #60a5fa; border: 1px solid rgba(37,99,235,0.3); }
     .badge-location { background-color: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.4); }
-    .badge-yellow { background-color: rgba(234,179,8,0.2); color: #facc15; border: 1px solid rgba(234,179,8,0.4); }
     .badge-gardening { background-color: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); }
     .pro-btn {
         display: inline-flex; align-items: center; justify-content: center; width: 100%;
@@ -70,13 +69,13 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta kuulutused, Hange.ee aiatööd, KV24 ja Renault 5 E-Tech</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, Hange.ee aiatööd, Kinnisvara24 garaažid & Toidupakkumised</div>'
     "</div>",
     unsafe_allow_html=True,
 )
 
 # -----------------------------------------------------------------------------
-# 2. ABIFUNKTSIOONID
+# 2. ÜHISED ABIFUNKTSIOONID
 # -----------------------------------------------------------------------------
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
@@ -186,7 +185,7 @@ def render_card(item, key, button_text, badges="", link=None, secondary=None):
               f'{tags_html}{primary_html}{sec_html}</div></div></div>')
 
 # -----------------------------------------------------------------------------
-# 3. ANDMEALLIKATE FUNKTSIOONID
+# 3. ANDMEKORJE MOODULID
 # -----------------------------------------------------------------------------
 HANGE_BASE_URL = "https://www.hange.ee"
 HANGE_ACTIVE_LIST_URL = f"{HANGE_BASE_URL}/hanked/?filter=all-active"
@@ -233,26 +232,46 @@ def fetch_live_hange_gardening():
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_live_kv24_garages():
     url = "https://kinnisvara24.ee/garaaz/muuk/harju-maakond"
+    headers = {"User-Agent": UA, "Accept-Language": "et-EE,et;q=0.9"}
     try:
-        r = get_robust_session().get(url, headers={"User-Agent": UA}, timeout=10)
+        r = get_robust_session().get(url, headers=headers, timeout=10)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
     except Exception:
         return []
 
     results, seen = [], set()
-    for a in soup.find_all("a", href=re.compile(r"/kinnisvara/|/objekt/|/garaaz/")):
-        if not (href := a.get("href")) or len(title := a.get_text(" ", strip=True)) < 5 or href in ("/garaaz/muuk/harju-maakond", "/garaaz/harju-maakond"):
+    for a in soup.find_all("a", href=True):
+        href = a.get("href")
+        if not href or not any(sub in href for sub in ["/kinnisvara/", "/objekt/", "/garaaz/"]):
             continue
+        
+        title = a.get_text(" ", strip=True)
+        if len(title) < 5 or href in ("/garaaz/muuk/harju-maakond", "/garaaz/harju-maakond"):
+            continue
+            
         full_url = safe_http_url(urllib.parse.urljoin("https://kinnisvara24.ee", href))
         if not full_url or full_url in seen:
             continue
         seen.add(full_url)
-        parent = a.find_parent(["div", "article", "li"])
+        
+        parent = a.find_parent(["div", "article", "li", "section"])
+        parent_text = parent.get_text(" ", strip=True) if parent else title
+        price = extract_price(parent_text)
+        
+        img_url = "https://picsum.photos/seed/kv24gar/600/450"
+        if parent:
+            img_tag = parent.find("img")
+            if img_tag:
+                img_url = safe_http_url(img_tag.get("data-src") or img_tag.get("src"), fallback=img_url)
+
         results.append({
-            "title": title, "description": "Aktiivne garaaži või boksi pakkumine Harjumaal.",
-            "price": extract_price(parent.get_text(" ", strip=True) if parent else title),
-            "location": "Harju maakond", "url": full_url, "image": "https://picsum.photos/seed/kv24gar/600/450"
+            "title": title, 
+            "description": "Aktiivne garaaži või boksi pakkumine Harjumaal.",
+            "price": price,
+            "location": "Harju maakond", 
+            "url": full_url, 
+            "image": img_url
         })
     return results
 
@@ -325,11 +344,10 @@ def fetch_hourly_source_snapshot(rss_url):
         "free": _capture_source(fetch_free_items, rss_url) if rss_url else {"data": [], "error": "RSS_URL_NOT_CONFIGURED"},
         "kv24": _capture_source(fetch_live_kv24_garages),
         "hange": _capture_source(fetch_live_hange_gardening),
-        "renault": {"data": {"items": []}, "error": None}
     }
 
 # -----------------------------------------------------------------------------
-# 4. RAKENDUSE LIIDES JA VAATED
+# 4. KASUTAJALIIDES JA NAVIGATSIOON
 # -----------------------------------------------------------------------------
 def get_secret_value(name):
     return os.getenv(name, "") or str(st.secrets.get(name, "")).strip()
@@ -341,7 +359,7 @@ with st.spinner("Värskendan andmeallikaid..."):
 checked_at = datetime.fromisoformat(source_snapshot["checked_at"]).astimezone(timezone.utc)
 st.caption(f"Viimane kontroll: {checked_at:%d.%m.%Y %H:%M} UTC")
 
-search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="nt vaip, diivan, tool...")
+search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="nt vaip, diivan, garaaž...")
 
 selected_tab = st.radio(
     "Vali vaade:",
@@ -369,7 +387,7 @@ if selected_tab == "🎁 Tasuta asjad":
 
 # 2. KINNISVARA
 elif selected_tab == "🏢 Kinnisvara":
-    st.markdown("**Allikas:** [Kinnisvara24](https://kinnisvara24.ee)")
+    st.markdown("**Allikas:** [Kinnisvara24 Garaažid](https://kinnisvara24.ee/garaaz/muuk/harju-maakond)")
     res = source_snapshot["kv24"]
     items = res["data"] if not res["error"] else []
     filtered = [item for item in items if matches(search_query, item.get("title"), item.get("description"))]
