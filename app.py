@@ -65,7 +65,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">⚡ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, Aiatööd Hange.ee-st & Kinnisvara Garaažid</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, Aiatööd Hange.ee-st & Kinnisvara Garaažid (kuni 50 kuulutust)</div>'
     "</div>",
     unsafe_allow_html=True,
 )
@@ -99,17 +99,20 @@ def matches(query, *fields):
     q = str(query).casefold().strip()
     return any(q in str(field or "").casefold() for field in fields)
 
+# SEADISTATUD MAKSIMAALSEKS LIMIIDIKS 50 KUULUTUST
+MAX_LIMIT = 50
 PAGE_INCREMENT = 25
 
 def paginate_items(items, category_key):
-    items = list(items)
+    # Piirame nimekirja alati maksimaalselt 50 kuulutusega
+    items = list(items)[:MAX_LIMIT]
     total = len(items)
     count_key = f"visible_count_{category_key}"
     if count_key not in st.session_state:
         st.session_state[count_key] = PAGE_INCREMENT
 
     visible_count = min(total, max(PAGE_INCREMENT, int(st.session_state.get(count_key, PAGE_INCREMENT))))
-    st.caption(f"Leitud {total} tulemust · Näitan {visible_count}.")
+    st.caption(f"Leitud {total} kuulutust (max limiit {MAX_LIMIT}) · Näitan {visible_count}.")
 
     if visible_count < total:
         remaining = total - visible_count
@@ -119,7 +122,7 @@ def paginate_items(items, category_key):
                 st.session_state[count_key] = min(total, visible_count + PAGE_INCREMENT)
                 st.rerun()
         with c2:
-            if st.button("Näita kõiki", key=f"show_all_{category_key}"):
+            if st.button("Näita kõiki 50", key=f"show_all_{category_key}"):
                 st.session_state[count_key] = total
                 st.rerun()
 
@@ -139,10 +142,10 @@ def render_card(item, button_text, badges="", link=None):
               f'{tags_html}{primary_html}</div></div></div>')
 
 # -----------------------------------------------------------------------------
-# 3. AIATÖÖDE TÄPNE JA RANGELT SÕELUTUD RSS-PARSIJA
+# 3. AIATÖÖDE JA RSS-VOOGUDE PARSIMINE (PIIRANG MAX 50)
 # -----------------------------------------------------------------------------
 def get_fallback_gardening_items():
-    """Varuandmed juhuks, kui RSS-voos pole ühtegi aiatöö hanke postitust."""
+    """Varuandmed juhuks, kui RSS-voos pole ühtegi sobivat postitust."""
     return [
         {
             "title": "Muru niitmine ja hooldus Harjumaal",
@@ -175,16 +178,14 @@ def get_fallback_gardening_items():
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_strict_gardening_rss(feed_url):
-    """Sõelub RSS-i ja tagab, et läbi pääsevad AINULT reaalsete aiatööde märksõnadega kuulutused."""
+    """Sõelub RSS-i ja tagab ainult reaalsete aiatööde märksõnadega kuulutused (kuni 50 asja)."""
     
-    # 1. Sõnad, mille olemasolu on kohustuslik (vähemalt 1 peab sisalduma)
     REQUIRED_GARDENING_WORDS = [
         "aia", "aiatöö", "haljast", "muru", "hekk", "heki", "viljapuu", 
         "istut", "lillepeenar", "trimmer", "lehte", "multš", "freesi", 
         "põõsa", "raie", "võsa", "kiviparkett", "terrass", "õue", "puu lõik"
     ]
     
-    # 2. Keelatud sise- ja sanitaartehnilised sõnad
     FORBIDDEN_WORDS = [
         "veearvesti", "termostaat", "mullivann", "vannituba", "sanitaartehn", 
         "katus", "vundament", "torutöö", "elektritöö", "siseviimistlus", 
@@ -197,6 +198,9 @@ def fetch_strict_gardening_rss(feed_url):
         if resp.status_code == 200:
             soup = BeautifulSoup(resp.content, "xml")
             for item in soup.find_all(["item", "entry"]):
+                if len(results) >= MAX_LIMIT:
+                    break
+
                 link = item.find("link")
                 link_url = link.get("href") or link.get_text(strip=True) if link else "https://www.hange.ee"
                 title = item.find("title").text if item.find("title") else "Aiatöö hange"
@@ -205,11 +209,9 @@ def fetch_strict_gardening_rss(feed_url):
                 
                 text = f"{title} {description}".casefold()
                 
-                # Sõel 1: Kontrolli keelatud sõnu
+                # Filtrid
                 if any(bad in text for bad in FORBIDDEN_WORDS):
                     continue
-                
-                # Sõel 2: Peab sisaldama vähemalt ühte aiatöö märksõna
                 if not any(good in text for good in REQUIRED_GARDENING_WORDS):
                     continue
 
@@ -234,11 +236,10 @@ def fetch_strict_gardening_rss(feed_url):
     except Exception:
         pass
 
-    # Kui filtreeritud tulemus oli tühi, kuvatakse puhtad varuandmed
     if not results:
         results = get_fallback_gardening_items()
 
-    return results
+    return results[:MAX_LIMIT]
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_standard_rss(feed_url, default_image):
@@ -248,6 +249,9 @@ def fetch_standard_rss(feed_url, default_image):
         soup = BeautifulSoup(resp.content, "xml")
         results = []
         for item in soup.find_all(["item", "entry"]):
+            if len(results) >= MAX_LIMIT:
+                break
+
             link = item.find("link")
             link_url = link.get("href") or link.get_text(strip=True) if link else ""
             title = item.find("title").text if item.find("title") else "Kirje"
@@ -272,7 +276,7 @@ def fetch_standard_rss(feed_url, default_image):
                 "image": image_url,
                 "date_str": "📅 Uus kuulutus"
             })
-        return results
+        return results[:MAX_LIMIT]
     except Exception:
         return []
 
@@ -307,7 +311,7 @@ elif selected_tab == "🚗 Kinnisvara Garaažid":
         badges = f'<span class="badge-pill badge-price">Garaaž</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
         render_card(item, "Vaata pakkumist", badges=badges)
 
-# 3. AIATÖÖD HANGE.EE (RANGELT FILTREERITUD)
+# 3. AIATÖÖD HANGE.EE (RANGELT FILTREERITUD, MAX 50)
 elif selected_tab == "🌱 Aiatööd Hange.ee":
     st.markdown("**Allikas:** [Hange.ee aiatööd ja haljastus](https://www.hange.ee)")
     
@@ -327,6 +331,6 @@ elif selected_tab == "🛒 Toidu sooduspakkumised":
         {"title": "Värske piim 2.5% (1L)", "description": "Eesti Piim, kampaania toode.", "price": "0.69 €", "location": "Prisma", "link": "https://www.prisma.ee", "image": "https://picsum.photos/seed/milk/600/450"},
     ]
     filtered = [i for i in sample_groceries if matches(search_query, i.get("title"), i.get("description"))]
-    for item in filtered:
+    for item in paginate_items(filtered, "groceries"):
         badges = f'<span class="badge-pill badge-price">{esc(item.get("price"))}</span><span class="badge-pill badge-location">{esc(item.get("location"))}</span>'
         render_card(item, "Vaata pakkumist", badges=badges, link=item["link"])
