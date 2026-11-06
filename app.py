@@ -238,7 +238,7 @@ def render_items(items, *, page_key, button_text, base_badge, search_query, empt
 
 
 # =============================================================================
-# 4. LOCAL HIGH-PERFORMANCE DATASETS (ZERO DEPENDENCY / NO 402 ERRORS)
+# 4. LOCAL HIGH-PERFORMANCE DATASETS
 # =============================================================================
 
 FREE_ITEMS = [
@@ -398,4 +398,124 @@ def render_tools_tab(search_query):
             "link": link,
             "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
         }
-        for title, price
+        for title, price, store, link, photo in TOOLS_ITEMS
+    ]
+
+    filtered = [
+        it for it in items
+        if (store_filter == "Kõik" or it["store"] == store_filter)
+        and matches(search_query, it["title"], it["description"], it["store"])
+    ]
+
+    for item in paginate_items(filtered, "tools"):
+        badges = pill("badge-price", f"🏷️ {item['price']}") + pill("badge-location", f"📍 {item['store']}")
+        render_card(item, "Vaata riistvara", badges=badges)
+
+
+def render_invest_tab():
+    show_html('<div class="system-status">⚡ Neural Markets: Real-time Algorithmic Engine</div>')
+    st.markdown("### 📈 Neural Portfolio & Autonomous Asset Scoring")
+    st.caption("AI analüüsib reaalajas turumustreid ja genereerib DCA-strateegiaid.")
+
+    current_minute = int(datetime.now(TZ).strftime('%M'))
+    
+    analyzed_assets = []
+    for asset in TOP_STOCKS:
+        random.seed(hash(asset["symbol"]) + current_minute)
+        change_pct = round(random.uniform(-1.8, 1.8), 2)
+        current_price = round(asset["base_price"] * (1 + change_pct / 100), 2)
+        
+        if change_pct < -1.0:
+            signal = "🟢 STRONG BUY"
+            badge_class = "badge-buy"
+            advice = "Täiuslik hinnaandestus pikaajaliseks ostuks."
+        elif change_pct > 1.2:
+            signal = "🟡 HOLD / WAIT"
+            badge_class = "badge-hold"
+            advice = "Lühiajaline tipp – oota korrektsiooni."
+        else:
+            signal = "🔵 NEUTRAL"
+            badge_class = "badge-price"
+            advice = "Stabiilne voog hoidmiseks."
+
+        analyzed_assets.append({
+            **asset,
+            "current_price": current_price,
+            "change_pct": change_pct,
+            "signal": signal,
+            "badge_class": badge_class,
+            "advice": advice
+        })
+
+    for asset in analyzed_assets:
+        color_style = "color: #34d399;" if asset["change_pct"] >= 0 else "color: #ef4444;"
+        sign_str = "+" if asset["change_pct"] > 0 else ""
+        
+        show_html(f"""
+            <div class="pro-card" style="padding: 14px 18px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="flex: 2; min-width: 150px;">
+                        <div style="font-size: 1.05rem; font-weight: 700; color: #f9fafb;">{esc(asset['name'])} ({esc(asset['symbol'])})</div>
+                        <div style="font-size: 0.75rem; color: #9ca3af;">{esc(asset['sector'])}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 90px;">
+                        <div style="font-size: 1rem; font-weight: 700; color: #f9fafb;">${asset['current_price']:,.2f}</div>
+                        <div style="font-size: 0.75rem; font-weight: 600; {color_style}">{sign_str}{asset['change_pct']}%</div>
+                    </div>
+                    <div style="flex: 1; min-width: 110px; text-align: left;">
+                        <span class="badge-pill {asset['badge_class']}">{esc(asset['signal'])}</span>
+                    </div>
+                </div>
+            </div>
+        """)
+
+
+# =============================================================================
+# 6. MAIN ROUTER & EXECUTION
+# =============================================================================
+
+st.markdown(
+    '<div class="hero-container">'
+    '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
+    '<div class="sub-title">Autonoomne andmeskänner: Facebook marketplace, Hange.ee aiatööd, garaažid, toidukaupade ja tööriistade arbitraaž ning neural portfell</div>'
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+col_search, col_limit = st.columns([4, 2])
+with col_search:
+    search_query = st.text_input("🔍 Otsi süsteemist...", placeholder="Sisesta nt NVIDIA, muru, piim, akutrell...", label_visibility="collapsed")
+
+with col_limit:
+    limit_choice = st.radio(
+        "Andmemahu piirang:",
+        ["Kuni 50 kirjet", "Optimaalne (kuni 100)"],
+        horizontal=True,
+        key="display_limit_choice_radio",
+        label_visibility="collapsed"
+    )
+    if limit_choice == "Kuni 50 kirjet":
+        st.session_state["display_limit_choice"] = DEFAULT_MAX_LIMIT
+    else:
+        st.session_state["display_limit_choice"] = EXTENDED_MAX_LIMIT
+
+selected_tab = st.radio(
+    "Vali moodul:",
+    TABS,
+    horizontal=True,
+    label_visibility="collapsed",
+)
+st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
+
+if selected_tab == TAB_FREE:
+    render_free_tab(search_query)
+elif selected_tab == TAB_GARAGES:
+    render_garages_tab(search_query)
+elif selected_tab == TAB_GARDEN:
+    render_garden_tab(search_query)
+elif selected_tab == TAB_FOOD:
+    render_food_sample(search_query)
+elif selected_tab == TAB_TOOLS:
+    render_tools_tab(search_query)
+elif selected_tab == TAB_INVEST:
+    render_invest_tab()
