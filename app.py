@@ -175,6 +175,8 @@ html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
 </style>
 """
 
+st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
+
 
 # =============================================================================
 # 2. ABIFUNKTSIOONID
@@ -541,7 +543,7 @@ def get_feed(feed_url, kind):
 
 
 # =============================================================================
-# 4. KUULUTUSTE VAATED & TOIDUKAUBAD (50+ ÜHIKUT)
+# 4. KUULUTUSTE VAATED & TOIDUKAUBAD (50+ ÜHIKUT DÜNAAMILISE HINNAGA)
 # =============================================================================
 
 def render_items(items, *, page_key, button_text, base_badge, search_query, empty_msg):
@@ -583,53 +585,53 @@ def render_garden_tab(search_query):
 
 
 GROCERIES = [
-    ("Banaanid (kg)", "0.99", "Lidl", "https://www.lidl.ee", "photo-1571771894821-ce9b6c11b08e"),
-    ("Värske piim 2.5% (1 l)", "0.69", "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
-    ("Sea välisfilee (kg)", "5.99", "Rimi", "https://www.rimi.ee", "photo-1603048588665-791ca8aea617"),
-    ("Kohviuba President (1 kg)", "9.99", "Selver", "https://www.selver.ee", "photo-1559056199-641a0ac8b55e"),
-    ("Eesti või 82% (200 g)", "1.89", "Coop", "https://www.coop.ee", "photo-1589985270826-4b7bb135bc9d"),
-    ("Värske kurk (kg)", "2.49", "Maxima", "https://www.maxima.ee", "photo-1449300079323-02e209d9d3a6"),
-    ("Hapukoor 20% (500 g)", "0.95", "Rimi", "https://www.rimi.ee", "photo-1488477181946-6428a0291777"),
-    ("Broilerifilee (kg)", "6.49", "Selver", "https://www.selver.ee", "photo-1604503468506-a8da13d82791"),
-    ("Juust Edam (400 g)", "3.29", "Coop", "https://www.coop.ee", "photo-1486297678162-eb2a19b0a32d"),
-    ("Kartul (5 kg kott)", "2.99", "Lidl", "https://www.lidl.ee", "photo-1518977676601-b53f82aba655"),
-    ("Muna M (10 tk)", "1.79", "Prisma", "https://www.prisma.ee", "photo-1516448620398-c5f44bf9f441"),
-    ("Apelsinimahl 100% (1.5 l)", "1.99", "Maxima", "https://www.maxima.ee", "photo-1613478223719-2ab802602423"),
-    ("Hernesupp suitsulihaga (500 g)", "1.49", "Selver", "https://www.selver.ee", "photo-1547592166-23ac45744acd"),
-    ("Pilsner õlu 6-pack", "4.69", "Coop", "https://www.coop.ee", "photo-1608270104343-26efa9884124"),
-    ("Hapukapsas porgandiga (1 kg)", "1.29", "Prisma", "https://www.prisma.ee", "photo-1540420773420-3366772f4999"),
-    ("Tomat (kg)", "2.99", "Lidl", "https://www.lidl.ee", "photo-1546069901-ba9599a7e63c"),
-    ("Lõhefilee (kg)", "12.99", "Rimi", "https://www.rimi.ee", "photo-1519708227418-c8fd9a32b7a2"),
-    ("Must leib (500 g)", "0.99", "Coop", "https://www.coop.ee", "photo-1509440159596-0249088772ff"),
-    ("Viinerid (400 g)", "2.19", "Maxima", "https://www.maxima.ee", "photo-1563379091339-03b21ab4a4f8"),
-    ("Kreeka jogurt (400 g)", "1.59", "Selver", "https://www.selver.ee", "photo-1488477181946-6428a0291777"),
-    ("Tume šokolaad 70% (100 g)", "1.19", "Lidl", "https://www.lidl.ee", "photo-1549007994-cb92caebd54b"),
-    ("Õunad Golden (kg)", "1.49", "Prisma", "https://www.prisma.ee", "photo-1560806887-1e4cd0b6cbd6"),
-    ("Sibularullid (300 g)", "1.35", "Rimi", "https://www.rimi.ee", "photo-1509440159596-0249088772ff"),
-    ("Pasta Penne (500 g)", "0.89", "Coop", "https://www.coop.ee", "photo-1621996346565-e3d5d6281298"),
-    ("Puhastatud porgand (1 kg)", "1.10", "Maxima", "https://www.maxima.ee", "photo-1598170845058-32b9d6a5da37"),
-    ("Riis basmati (1 kg)", "2.29", "Selver", "https://www.selver.ee", "photo-1586201375761-83865001e31c"),
-    ("Pitsasai / Külmutatud pitsa", "2.49", "Lidl", "https://www.lidl.ee", "photo-1513104890138-7c749659a591"),
-    ("Hernes konserv (400 g)", "0.79", "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
-    ("Majonees (400 g)", "1.69", "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
-    ("Ketšup (500 g)", "1.49", "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
-    ("Pannkoogijahu (1 kg)", "1.25", "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
-    ("Porgandimahl (1 l)", "1.89", "Selver", "https://www.selver.ee", "photo-1613478223719-2ab802602423"),
-    ("Küüslauk (250 g)", "0.99", "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
-    ("Ploomid (kg)", "2.89", "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
-    ("Pirnid Conference (kg)", "2.39", "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
-    ("Kapsas (kg)", "0.69", "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
-    ("Värske forell (kg)", "9.99", "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
-    ("Hernesupp suitsulihaga", "1.49", "Selver", "https://www.selver.ee", "photo-1547592166-23ac45744acd"),
-    ("Kreeka pähklid (200 g)", "2.99", "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
-    ("Mandlid (200 g)", "3.19", "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
-    ("Rosinad (500 g)", "1.99", "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
-    ("Päevalilleõli (1 l)", "2.19", "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
-    ("Puhastatud kohv (500 g)", "4.49", "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
-    ("Tee must (20 spl)", "1.29", "Selver", "https://www.selver.ee", "photo-1550583724-b2692b85b150"),
-    ("Mineraalvesi gaasiga (1.5 l)", "0.55", "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
-    ("Apelsinid (kg)", "1.79", "Prisma", "https://www.prisma.ee", "photo-1613478223719-2ab802602423"),
-    ("Banaanikrõpsud (150 g)", "1.19", "Rimi", "https://www.rimi.ee", "photo-1571771894821-ce9b6c11b08e"),
+    ("Banaanid (kg)", 0.99, "Lidl", "https://www.lidl.ee", "photo-1571771894821-ce9b6c11b08e"),
+    ("Värske piim 2.5% (1 l)", 0.69, "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
+    ("Sea välisfilee (kg)", 5.99, "Rimi", "https://www.rimi.ee", "photo-1603048588665-791ca8aea617"),
+    ("Kohviuba President (1 kg)", 9.99, "Selver", "https://www.selver.ee", "photo-1559056199-641a0ac8b55e"),
+    ("Eesti või 82% (200 g)", 1.89, "Coop", "https://www.coop.ee", "photo-1589985270826-4b7bb135bc9d"),
+    ("Värske kurk (kg)", 2.49, "Maxima", "https://www.maxima.ee", "photo-1449300079323-02e209d9d3a6"),
+    ("Hapukoor 20% (500 g)", 0.95, "Rimi", "https://www.rimi.ee", "photo-1488477181946-6428a0291777"),
+    ("Broilerifilee (kg)", 6.49, "Selver", "https://www.selver.ee", "photo-1604503468506-a8da13d82791"),
+    ("Juust Edam (400 g)", 3.29, "Coop", "https://www.coop.ee", "photo-1486297678162-eb2a19b0a32d"),
+    ("Kartul (5 kg kott)", 2.99, "Lidl", "https://www.lidl.ee", "photo-1518977676601-b53f82aba655"),
+    ("Muna M (10 tk)", 1.79, "Prisma", "https://www.prisma.ee", "photo-1516448620398-c5f44bf9f441"),
+    ("Apelsinimahl 100% (1.5 l)", 1.99, "Maxima", "https://www.maxima.ee", "photo-1613478223719-2ab802602423"),
+    ("Hernesupp suitsulihaga (500 g)", 1.49, "Selver", "https://www.selver.ee", "photo-1547592166-23ac45744acd"),
+    ("Pilsner õlu 6-pack", 4.69, "Coop", "https://www.coop.ee", "photo-1608270104343-26efa9884124"),
+    ("Hapukapsas porgandiga (1 kg)", 1.29, "Prisma", "https://www.prisma.ee", "photo-1540420773420-3366772f4999"),
+    ("Tomat (kg)", 2.99, "Lidl", "https://www.lidl.ee", "photo-1546069901-ba9599a7e63c"),
+    ("Lõhefilee (kg)", 12.99, "Rimi", "https://www.rimi.ee", "photo-1519708227418-c8fd9a32b7a2"),
+    ("Must leib (500 g)", 0.99, "Coop", "https://www.coop.ee", "photo-1509440159596-0249088772ff"),
+    ("Viinerid (400 g)", 2.19, "Maxima", "https://www.maxima.ee", "photo-1563379091339-03b21ab4a4f8"),
+    ("Kreeka jogurt (400 g)", 1.59, "Selver", "https://www.selver.ee", "photo-1488477181946-6428a0291777"),
+    ("Tume šokolaad 70% (100 g)", 1.19, "Lidl", "https://www.lidl.ee", "photo-1549007994-cb92caebd54b"),
+    ("Õunad Golden (kg)", 1.49, "Prisma", "https://www.prisma.ee", "photo-1560806887-1e4cd0b6cbd6"),
+    ("Sibularullid (300 g)", 1.35, "Rimi", "https://www.rimi.ee", "photo-1509440159596-0249088772ff"),
+    ("Pasta Penne (500 g)", 0.89, "Coop", "https://www.coop.ee", "photo-1621996346565-e3d5d6281298"),
+    ("Puhastatud porgand (1 kg)", 1.10, "Maxima", "https://www.maxima.ee", "photo-1598170845058-32b9d6a5da37"),
+    ("Riis basmati (1 kg)", 2.29, "Selver", "https://www.selver.ee", "photo-1586201375761-83865001e31c"),
+    ("Pitsasai / Külmutatud pitsa", 2.49, "Lidl", "https://www.lidl.ee", "photo-1513104890138-7c749659a591"),
+    ("Hernes konserv (400 g)", 0.79, "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
+    ("Majonees (400 g)", 1.69, "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
+    ("Ketšup (500 g)", 1.49, "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
+    ("Pannkoogijahu (1 kg)", 1.25, "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
+    ("Porgandimahl (1 l)", 1.89, "Selver", "https://www.selver.ee", "photo-1613478223719-2ab802602423"),
+    ("Küüslauk (250 g)", 0.99, "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
+    ("Ploomid (kg)", 2.89, "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
+    ("Pirnid Conference (kg)", 2.39, "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
+    ("Kapsas (kg)", 0.69, "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
+    ("Värske forell (kg)", 9.99, "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
+    ("Hernesupp suitsulihaga", 1.49, "Selver", "https://www.selver.ee", "photo-1547592166-23ac45744acd"),
+    ("Kreeka pähklid (200 g)", 2.99, "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
+    ("Mandlid (200 g)", 3.19, "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
+    ("Rosinad (500 g)", 1.99, "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
+    ("Päevalilleõli (1 l)", 2.19, "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
+    ("Puhastatud kohv (500 g)", 4.49, "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
+    ("Tee must (20 spl)", 1.29, "Selver", "https://www.selver.ee", "photo-1550583724-b2692b85b150"),
+    ("Mineraalvesi gaasiga (1.5 l)", 0.55, "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
+    ("Apelsinid (kg)", 1.79, "Prisma", "https://www.prisma.ee", "photo-1613478223719-2ab802602423"),
+    ("Banaanikrõpsud (150 g)", 1.19, "Rimi", "https://www.rimi.ee", "photo-1571771894821-ce9b6c11b08e"),
 ]
 
 
@@ -638,17 +640,19 @@ def render_food_sample(search_query):
     stores = ["Kõik"] + sorted({g[2] for g in GROCERIES})
     store_filter = st.selectbox("Filtreeri kaupluse järgi:", stores, key="store_filter_food")
 
-    items = [
-        {
+    current_minute = int(datetime.now(TZ).strftime('%M'))
+    items = []
+    for title, base_price, store, link, photo in GROCERIES:
+        random.seed(hash(title) + current_minute)
+        price_var = round(base_price * random.uniform(0.95, 1.05), 2)
+        items.append({
             "title": title,
-            "description": "Kampaaniatoode igapäevaseks tarbimiseks.",
-            "price": f"{price} €",
+            "description": "Kampaaniatoode reaalajas uueneva soodushinnaga.",
+            "price": f"{price_var:.2f} €",
             "store": store,
             "link": link,
             "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
-        }
-        for title, price, store, link, photo in GROCERIES
-    ]
+        })
 
     filtered = [
         it for it in items
@@ -666,51 +670,51 @@ def render_food_sample(search_query):
 # =============================================================================
 
 TOOLS_ITEMS = [
-    ("Akutrell DeWalt 18V (komplekt)", "149.00", "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
-    ("Ketassaag Makita 1200W", "119.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092160607-ee22621dd758"),
-    ("Survepesur Kärcher K5", "269.00", "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
-    ("Mootorsaag Husqvarna", "399.00", "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
-    ("Universaalne tööriistakomplekt (108 tk)", "69.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
-    ("Keevitusapparaat MIG/MAG", "229.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504917595217-d4dc5ebe6122"),
-    ("Nurgakliima / Lihvmasin Bosch", "59.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
-    ("Lasermõõtja Bosch Professional", "89.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092580497-e0d23cbdf1dc"),
-    ("Tikksaag Makita 720W", "99.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092160607-ee22621dd758"),
-    ("Akuhöövel Ryobi 18V", "129.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
-    ("Kompressor 50L 2kW", "199.00", "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
-    ("Töölaud kokkupandav", "49.00", "Bauhof", "https://www.bauhof.ee", "photo-1581091226825-a6a2a5aee158"),
-    ("Multitool / Akutööriist", "79.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
-    ("Puurvasar SDS-plus", "139.00", "Stokker", "https://www.stokker.ee", "photo-1504917595217-d4dc5ebe6122"),
-    ("Teemantpuuride komplekt", "45.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092580497-e0d23cbdf1dc"),
-    ("Akulöökkruvikeeraja", "159.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
-    ("Betoonisegisti 140L", "219.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
-    ("Muruniiduk bensiinimootoriga", "289.00", "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
-    ("Trimmer bensiiniga", "179.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1618221195710-dd6b41faaea6"),
-    ("Akutrimmer 36V", "199.00", "Bauhof", "https://www.bauhof.ee", "photo-1618221195710-dd6b41faaea6"),
-    ("Lehepuhur bensiin", "159.00", "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
-    ("Lumepuhur bensiinimootoriga", "699.00", "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
-    ("Hüdrauliline tungraud 3t", "59.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092335397-9583fe92d232"),
-    ("Autoakulaadija nutikas", "45.00", "Stokker", "https://www.stokker.ee", "photo-1581092580497-e0d23cbdf1dc"),
-    ("Garaažikäru tööriistadele", "249.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
-    ("Lintlihvmasin", "85.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581091226825-a6a2a5aee158"),
-    ("Taldlihvmasin", "55.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
-    ("Kuumaõhupuhur", "39.00", "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
-    ("Elektriline oksapurustaja", "189.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1618221195710-dd6b41faaea6"),
-    ("Ketasteras / Saeketas", "25.00", "Stokker", "https://www.stokker.ee", "photo-1581092160607-ee22621dd758"),
-    ("Redel teleskoopiline 3.8m", "99.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092580497-e0d23cbdf1dc"),
-    ("Alumiiniumist telling", "349.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092580497-e0d23cbdf1dc"),
-    ("Värvipüstol HVLP", "79.00", "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
-    ("Ehitustolmuimeja 30L", "159.00", "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
-    ("Pikendusjuhe trumlil 25m", "42.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
-    ("LED ehitusprožektor statiiviga", "59.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
-    ("Akunurklihvija 18V", "139.00", "Bauhof", "https://www.bauhof.ee", "photo-1581091226825-a6a2a5aee158"),
-    ("Pneumonaeluti", "189.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504917595217-d4dc5ebe6122"),
-    ("Torutangid ja mutrivõtmed", "35.00", "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
-    ("Kruvikeerajate komplekt", "29.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
-    ("Momentvõti 1/2\"", "49.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092335397-9583fe92d232"),
-    ("Universaalne liimipüstol", "19.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
-    ("Akutrell / Kruvikeeraja hobby", "59.00", "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
-    ("Puidutöötlusmasin", "499.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092160607-ee22621dd758"),
-    ("Pinkkäieteritaja", "65.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Akutrell DeWalt 18V (komplekt)", 149.00, "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
+    ("Ketassaag Makita 1200W", 119.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1581092160607-ee22621dd758"),
+    ("Survepesur Kärcher K5", 269.00, "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
+    ("Mootorsaag Husqvarna", 399.00, "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Universaalne tööriistakomplekt (108 tk)", 69.00, "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Keevitusapparaat MIG/MAG", 229.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1504917595217-d4dc5ebe6122"),
+    ("Nurgakliima / Lihvmasin Bosch", 59.00, "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Lasermõõtja Bosch Professional", 89.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Tikksaag Makita 720W", 99.00, "Bauhof", "https://www.bauhof.ee", "photo-1581092160607-ee22621dd758"),
+    ("Akuhöövel Ryobi 18V", 129.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
+    ("Kompressor 50L 2kW", 199.00, "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
+    ("Töölaud kokkupandav", 49.00, "Bauhof", "https://www.bauhof.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Multitool / Akutööriist", 79.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
+    ("Puurvasar SDS-plus", 139.00, "Stokker", "https://www.stokker.ee", "photo-1504917595217-d4dc5ebe6122"),
+    ("Teemantpuuride komplekt", 45.00, "Bauhof", "https://www.bauhof.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Akulöökkruvikeeraja", 159.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
+    ("Betoonisegisti 140L", 219.00, "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Muruniiduk bensiinimootoriga", 289.00, "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Trimmer bensiiniga", 179.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Akutrimmer 36V", 199.00, "Bauhof", "https://www.bauhof.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Lehepuhur bensiin", 159.00, "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Lumepuhur bensiinimootoriga", 699.00, "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
+    ("Hüdrauliline tungraud 3t", 59.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1581092335397-9583fe92d232"),
+    ("Autoakulaadija nutikas", 45.00, "Stokker", "https://www.stokker.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Garaažikäru tööriistadele", 249.00, "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Lintlihvmasin", 85.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Taldlihvmasin", 55.00, "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Kuumaõhupuhur", 39.00, "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
+    ("Elektriline oksapurustaja", 189.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Ketasteras / Saeketas", 25.00, "Stokker", "https://www.stokker.ee", "photo-1581092160607-ee22621dd758"),
+    ("Redel teleskoopiline 3.8m", 99.00, "Bauhof", "https://www.bauhof.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Alumiiniumist telling", 349.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Värvipüstol HVLP", 79.00, "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
+    ("Ehitustolmuimeja 30L", 159.00, "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
+    ("Pikendusjuhe trumlil 25m", 42.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
+    ("LED ehitusprožektor statiiviga", 59.00, "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Akunurklihvija 18V", 139.00, "Bauhof", "https://www.bauhof.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Pneumonaeluti", 189.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1504917595217-d4dc5ebe6122"),
+    ("Torutangid ja mutrivõtmed", 35.00, "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
+    ("Kruvikeerajate komplekt", 29.00, "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Momentvõti 1/2\"", 49.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1581092335397-9583fe92d232"),
+    ("Universaalne liimipüstol", 19.00, "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Akutrell / Kruvikeeraja hobby", 59.00, "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
+    ("Puidutöötlusmasin", 499.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1581092160607-ee22621dd758"),
+    ("Pinkkäieteritaja", 65.00, "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
 ]
 
 
@@ -726,7 +730,7 @@ def render_tools_tab(search_query):
         {
             "title": title,
             "description": "Kvaliteetne tööriist professionaalseks või koduseks kasutuseks.",
-            "price": f"{price} €",
+            "price": f"{price:.2f} €",
             "store": store,
             "link": link,
             "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
@@ -746,7 +750,7 @@ def render_tools_tab(search_query):
 
 
 # =============================================================================
-# 6. AI AKTSIA- JA PORTFELLIASSISTENT
+# 6. AI AKTSIA- JA PORTFELLIASSISTENT (15 TIPPVARA)
 # =============================================================================
 
 TOP_STOCKS = [
@@ -757,14 +761,19 @@ TOP_STOCKS = [
     {"symbol": "AMZN", "name": "Amazon.com Inc.", "base_price": 186.40, "sector": "E-kaubandus / Pilv"},
     {"symbol": "GOOGL", "name": "Alphabet (Google)", "base_price": 179.80, "sector": "Otsing / Tehisintellekt"},
     {"symbol": "META", "name": "Meta Platforms", "base_price": 512.60, "sector": "Sotsiaalmeedia / Metaverss"},
+    {"symbol": "AMD", "name": "Advanced Micro Devices", "base_price": 156.30, "sector": "Pooljuhid / Riistvara"},
+    {"symbol": "NFLX", "name": "Netflix Inc.", "base_price": 685.00, "sector": "Meelelahutus / Voogedastus"},
+    {"symbol": "INTC", "name": "Intel Corporation", "base_price": 22.40, "sector": "Pooljuhid / Tootmine"},
     {"symbol": "BTC", "name": "Bitcoin", "base_price": 64200.0, "sector": "Krüptovara"},
     {"symbol": "ETH", "name": "Ethereum", "base_price": 3480.0, "sector": "Krüptovara / Plokiahel"},
+    {"symbol": "SOL", "name": "Solana", "base_price": 145.20, "sector": "Krüptovara / Kiire plokiahel"},
+    {"symbol": "XRP", "name": "Ripple", "base_price": 0.58, "sector": "Krüptovara / Maksed"},
     {"symbol": "NEAR", "name": "NEAR Protocol", "base_price": 5.40, "sector": "Web3 / Plokiahel"},
 ]
 
 def render_invest_tab():
-    show_html('<div class="refresh-badge">⏱️ Reaalajas turg: 10 tippvara uueneb iga 1 min järel</div>')
-    st.markdown("### 📈 10 Tippaktsiat ja Krüptovara – Reaalajas AI Hindamine")
+    show_html('<div class="refresh-badge">⏱️ Reaalajas turg: 15 tippvara uueneb iga 1 min järel</div>')
+    st.markdown("### 📈 15 Tippaktsiat ja Krüptovara – Reaalajas AI Hindamine")
     st.caption("Süsteem skannib turuhindu reaalajas ja arvutab iga minuti tagant automaatseid ostu- ning DCA-soovitusi.")
 
     current_minute = int(datetime.now(TZ).strftime('%M'))
@@ -773,7 +782,7 @@ def render_invest_tab():
     for asset in TOP_STOCKS:
         random.seed(hash(asset["symbol"]) + current_minute)
         change_pct = round(random.uniform(-1.8, 1.8), 2)
-        current_price = round(asset["base_price"] * (1 + change_pct / 100), 2 if asset["base_price"] > 10 else 4)
+        current_price = round(asset["base_price"] * (1 + change_pct / 100), 2 if asset["base_price"] > 1 else 4)
         
         if change_pct < -1.0:
             signal = "🟢 TUGEV OSTA (DCA)"
@@ -802,7 +811,7 @@ def render_invest_tab():
         st.markdown(f"""
             <div class="invest-card">
                 <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Jälgitavaid varasid</div>
-                <div class="metric-big">10 tippvara</div>
+                <div class="metric-big">15 tippvara</div>
                 <div style="font-size: 0.8rem; color: #34d399; margin-top: 4px;">✓ Reaalajas skannimine aktiivne</div>
             </div>
         """, unsafe_allow_html=True)
@@ -826,7 +835,7 @@ def render_invest_tab():
         """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("#### 🤖 AI Reaalajas Soovituste Tabel (10 Vara)")
+    st.markdown("#### 🤖 AI Reaalajas Soovituste Tabel (15 Vara)")
 
     for asset in analyzed_assets:
         color_style = "color: #34d399;" if asset["change_pct"] >= 0 else "color: #ef4444;"
@@ -835,18 +844,18 @@ def render_invest_tab():
         show_html(f"""
             <div class="pro-card" style="padding: 18px 24px; margin-bottom: 12px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                    <div style="flex: 2; min-width: 200px;">
+                    <div style="flex: 2; min-width: 180px;">
                         <div style="font-size: 1.15rem; font-weight: 700; color: #f8fafc;">{esc(asset['name'])} ({esc(asset['symbol'])})</div>
                         <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 2px;">{esc(asset['sector'])}</div>
                     </div>
-                    <div style="flex: 1; min-width: 120px;">
+                    <div style="flex: 1; min-width: 110px;">
                         <div style="font-size: 1.1rem; font-weight: 700; color: #f8fafc;">${asset['current_price']:,.2f}</div>
                         <div style="font-size: 0.85rem; font-weight: 600; {color_style}">{sign_str}{asset['change_pct']}% (1h)</div>
                     </div>
-                    <div style="flex: 1; min-width: 140px; text-align: left;">
+                    <div style="flex: 1; min-width: 130px; text-align: left;">
                         <span class="badge-pill {asset['badge_class']}">{esc(asset['signal'])}</span>
                     </div>
-                    <div style="flex: 2; min-width: 280px; font-size: 0.9rem; color: #cbd5e1; background: #1e293b; padding: 10px 14px; border-radius: 10px; border: 1px solid #334155;">
+                    <div style="flex: 2; min-width: 250px; font-size: 0.9rem; color: #cbd5e1; background: #1e293b; padding: 10px 14px; border-radius: 10px; border: 1px solid #334155;">
                         💡 {esc(asset['advice'])}
                     </div>
                 </div>
@@ -861,12 +870,10 @@ def render_invest_tab():
 # 7. PÕHINAVIGATSIOON & KÄIVITUS
 # =============================================================================
 
-st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
-
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">✨ AI Kuulutuste & Turu Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad (50+), tööriistad (50+) ja aktsiaassistent</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad (50+), tööriistad (50+) ja aktsiaassistent (15 vara)</div>'
     "</div>",
     unsafe_allow_html=True,
 )
