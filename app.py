@@ -75,10 +75,10 @@ PRICE_TTL = 300  # hindade vahemälu (sekundit)
 
 FB_FEED_URL = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
 GARAGE_FEED_URL = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
-# NB! See voog on Hange.ee ÜLDINE hangete nimekiri, mitte aiatööde kategooria.
-# Loo rss.app-is uus voog Hange.ee aiatööde kategooria lehe URL-ist ja pane
-# uus voo URL siia (või otse rakenduses jaotises "Voo seaded").
-HANGE_FEED_URL = "https://rss.app/feeds/4QE7Z3yfpulhchLA.xml"
+# Hange.ee kategooria "aia-ehitus" (https://www.hange.ee/hanked/?category=aia-ehitus).
+# Voo saab rakenduses ka ajutiselt vahetada jaotises "Voo seaded".
+HANGE_FEED_URL = "https://rss.app/feeds/Kk2a3NlHMBN8YOGy.xml"
+HANGE_SOURCE_URL = "https://www.hange.ee/hanked/?category=aia-ehitus"
 
 PORTFOLIO_FILE = Path(__file__).with_name("portfell.json")
 
@@ -653,7 +653,7 @@ def render_feed_tab(*, feed_url, source_md, badge_text, pill_class, button_text,
 
 def render_garden_tab(search_query):
     show_html('<div class="refresh-badge">⏱️ Aiatööde voog: vahemälu 15 min</div>')
-    st.markdown("**Allikas:** [Hange.ee](https://www.hange.ee)")
+    st.markdown(f"**Allikas:** [Hange.ee – aia ehitus]({HANGE_SOURCE_URL})")
 
     with st.expander("⚙️ Voo seaded"):
         feed_url = st.text_input(
