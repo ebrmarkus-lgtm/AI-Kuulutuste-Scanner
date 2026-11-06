@@ -18,11 +18,11 @@ from streamlit_autorefresh import st_autorefresh
 
 
 # =============================================================================
-# 1. SEADISTUS
+# 1. SEADISTUS & UI PRO
 # =============================================================================
 
 st.set_page_config(
-    page_title="AI Kuulutuste Skänner Pro",
+    page_title="AI Kuulutuste & Turu Skänner Pro",
     page_icon="✨",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -51,11 +51,10 @@ REQUEST_HEADERS = {
     "Accept": "application/rss+xml, application/xml, text/xml, text/html, */*",
 }
 
-# Dünaamiline limiidi valik (kuni 50 või rohkem / 100)
 DEFAULT_MAX_LIMIT = 50
 EXTENDED_MAX_LIMIT = 100
 PAGE_INCREMENT = 25
-REQUEST_TIMEOUT = 15
+REQUEST_TIMEOUT = 10
 FEED_TTL = 900
 
 FB_FEED_URL = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
@@ -166,7 +165,6 @@ html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
     box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
 .metric-big { font-size: 2.2rem; font-weight: 800; color: #f8fafc; letter-spacing: -1px; }
-.asset-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1f2937; }
 .refresh-badge {
     background: #1e293b; border: 1px solid #334155;
     padding: 8px 14px; border-radius: 10px;
@@ -178,7 +176,7 @@ html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
 
 
 # =============================================================================
-# 2. ÜLDISED ABIFUNKTSIOONID
+# 2. ABIFUNKTSIOONID
 # =============================================================================
 
 def esc(value) -> str:
@@ -221,7 +219,6 @@ def pill(css_class, text):
 
 
 def get_current_max_limit():
-    """Tagastab hetkel valitud maksimumpiirangu sidusolekust (kas 50 või 100)."""
     return st.session_state.get("display_limit_choice", DEFAULT_MAX_LIMIT)
 
 
@@ -300,7 +297,7 @@ def render_card(item, button_text, badges=""):
 
 
 # =============================================================================
-# 3. RSS-I PARSIMINE
+# 3. RSS-I PARSIMINE TURVALISELT
 # =============================================================================
 
 def local_name(tag):
@@ -536,14 +533,14 @@ def get_feed(feed_url, kind):
     try:
         return load_feed(feed_url, kind)
     except requests.RequestException as exc:
-        st.warning(f"RSS-voo laadimine ebaõnnestus: {exc}")
+        st.warning(f"Ühenduse märge: Andmete laadimine võtab tavapärasest kauem aega ({exc}).")
     except Exception as exc:
-        st.warning(f"RSS-andmete töötlemisel tekkis viga: {exc}")
+        st.warning(f"Turvahoiatus andmete töötlemisel: {exc}")
     return empty
 
 
 # =============================================================================
-# 4. KUULUTUSTE VAATED JA TOIDUKAUBAD
+# 4. KUULUTUSTE VAATED & TOIDUKAUBAD
 # =============================================================================
 
 def render_items(items, *, page_key, button_text, base_badge, search_query, empty_msg):
@@ -562,7 +559,7 @@ def render_items(items, *, page_key, button_text, base_badge, search_query, empt
 
 
 def render_feed_tab(*, feed_url, source_md, badge_text, pill_class, button_text, empty_msg, page_key, search_query):
-    show_html('<div class="refresh-badge">⏱️ Leht uuendub iga 1 min</div>')
+    show_html('<div class="refresh-badge">⏱️ Leht uuendub automaatselt iga 1 min</div>')
     st.markdown(f"**Allikas:** {source_md}")
     data = get_feed(feed_url, "standard")
     render_items(
@@ -629,7 +626,7 @@ def render_food_sample(search_query):
 
 
 # =============================================================================
-# 5. AI AKTSIA- JA PORTFELLIASSISTENT (10 AKSIAT REAALAJAS + AI SOOVITUSED)
+# 5. AI AKTSIA- JA PORTFELLIASSISTENT
 # =============================================================================
 
 TOP_STOCKS = [
@@ -646,7 +643,7 @@ TOP_STOCKS = [
 ]
 
 def render_invest_tab():
-    show_html('<div class="refresh-badge">⏱️ Reaalajas turg: 10 tippetalonni uueneb iga 1 min järel</div>')
+    show_html('<div class="refresh-badge">⏱️ Reaalajas turg: 10 tippvara uueneb iga 1 min järel</div>')
     st.markdown("### 📈 10 Tippaktsiat ja Krüptovara – Reaalajas AI Hindamine")
     st.caption("Süsteem skannib turuhindu reaalajas ja arvutab iga minuti tagant automaatseid ostu- ning DCA-soovitusi.")
 
@@ -741,20 +738,19 @@ def render_invest_tab():
 
 
 # =============================================================================
-# 6. PÕHINAVIGATSIOON JA KÄIVITUS
+# 6. PÕHINAVIGATSIOON & KÄIVITUS
 # =============================================================================
 
 st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
 st.markdown(
     '<div class="hero-container">'
-    '<div class="main-title">✨ AI Kuulutuste Skänner Pro</div>'
+    '<div class="main-title">✨ AI Kuulutuste & Turu Skänner Pro</div>'
     '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad ja reaalajas aktsiaassistent</div>'
     "</div>",
     unsafe_allow_html=True,
 )
 
-# Ülemine riba: Otsing ja piirangu valik (kuni 50 / rohkem ehk 100)
 col_search, col_limit = st.columns([4, 2])
 with col_search:
     search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="Sisesta nt NVIDIA, muru, piim, banaan...", label_visibility="collapsed")
@@ -767,7 +763,6 @@ with col_limit:
         key="display_limit_choice_radio",
         label_visibility="collapsed"
     )
-    # Määrame vastavalt raadionupule globaalse sessioonimuutuja
     if limit_choice == "Kuni 50 asja":
         st.session_state["display_limit_choice"] = DEFAULT_MAX_LIMIT
     else:
