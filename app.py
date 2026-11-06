@@ -66,8 +66,9 @@ TAB_FREE = "🎁 Tasuta asjad"
 TAB_GARAGES = "🚘 Kinnisvara garaažid"
 TAB_GARDEN = "🌿 Aiatööd (Hange.ee)"
 TAB_FOOD = "🛒 Toidukaubad"
-TAB_INVEST = "📈 AI Aktsia- ja Portfelliassistent"
-TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_FOOD, TAB_INVEST]
+TAB_TOOLS = "🛠️ Tööriistad & Seadmed"
+TAB_INVEST = "📈 AI Aktsiaassistent"
+TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_FOOD, TAB_TOOLS, TAB_INVEST]
 
 
 def stem_regex(stems):
@@ -600,7 +601,7 @@ GROCERIES = [
 def render_food_sample(search_query):
     show_html('<div class="refresh-badge">ℹ️ Toidukaupade sooduspakkumised</div>')
     stores = ["Kõik"] + sorted({g[2] for g in GROCERIES})
-    store_filter = st.selectbox("Filtreeri kaupluse järgi:", stores)
+    store_filter = st.selectbox("Filtreeri kaupluse järgi:", stores, key="store_filter_food")
 
     items = [
         {
@@ -626,7 +627,53 @@ def render_food_sample(search_query):
 
 
 # =============================================================================
-# 5. AI AKTSIA- JA PORTFELLIASSISTENT
+# 5. UUS KATEGOORIA: TÖÖRIIDAD & SEADMED (TOOLS & EQUIPMENT)
+# =============================================================================
+
+TOOLS_ITEMS = [
+    ("Akutrell DeWalt 18V (komplekt)", "149.00", "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
+    ("Ketassaag Makita 1200W", "119.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092160607-ee22621dd758"),
+    ("Survepesur Kärcher K5", "269.00", "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
+    ("Mootorsaag Husqvarna", "399.00", "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Universaalne tööriistakomplekt (108 tk)", "69.00", "J especies / Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Keevitusapparaat MIG/MAG", "229.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504917595217-d4dc5ebe6122"),
+    ("Nurgakliima / Lihvmasin Bosch", "59.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Lasermõõtja Bosch Professional", "89.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092580497-e0d23cbdf1dc"),
+]
+
+def render_tools_tab(search_query):
+    show_html('<div class="refresh-badge">🛠️ Professionaalsed tööriistad ja seadmed - Parimad hinnad</div>')
+    st.markdown("### 🔧 Soodsad Tööriistad ja Garaažiseadmed")
+    st.caption("Eesti ehitus- ja tööriistapoodide parimad kampaaniapakkumised meistrile.")
+
+    stores = ["Kõik"] + sorted({t[2] for t in TOOLS_ITEMS})
+    store_filter = st.selectbox("Filtreeri müüja järgi:", stores, key="store_filter_tools")
+
+    items = [
+        {
+            "title": title,
+            "description": "Kvaliteetne tööriist professionaalseks või koduseks kasutuseks.",
+            "price": f"{price} €",
+            "store": store,
+            "link": link,
+            "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
+        }
+        for title, price, store, link, photo in TOOLS_ITEMS
+    ]
+
+    filtered = [
+        it for it in items
+        if (store_filter == "Kõik" or it["store"] == store_filter)
+        and matches(search_query, it["title"], it["description"], it["store"])
+    ]
+
+    for item in paginate_items(filtered, "tools"):
+        badges = pill("badge-price", f"🏷️ {item['price']}") + pill("badge-location", f"📍 {item['store']}")
+        render_card(item, "Vaata pakkumist", badges=badges)
+
+
+# =============================================================================
+# 6. AI AKTSIA- JA PORTFELLIASSISTENT
 # =============================================================================
 
 TOP_STOCKS = [
@@ -738,7 +785,7 @@ def render_invest_tab():
 
 
 # =============================================================================
-# 6. PÕHINAVIGATSIOON & KÄIVITUS
+# 7. PÕHINAVIGATSIOON & KÄIVITUS
 # =============================================================================
 
 st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
@@ -746,14 +793,14 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">✨ AI Kuulutuste & Turu Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad ja reaalajas aktsiaassistent</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad, tööriistad ja reaalajas aktsiaassistent</div>'
     "</div>",
     unsafe_allow_html=True,
 )
 
 col_search, col_limit = st.columns([4, 2])
 with col_search:
-    search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="Sisesta nt NVIDIA, muru, piim, banaan...", label_visibility="collapsed")
+    search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="Sisesta nt NVIDIA, muru, piim, drill...", label_visibility="collapsed")
 
 with col_limit:
     limit_choice = st.radio(
@@ -802,5 +849,7 @@ elif selected_tab == TAB_GARDEN:
     render_garden_tab(search_query)
 elif selected_tab == TAB_FOOD:
     render_food_sample(search_query)
+elif selected_tab == TAB_TOOLS:
+    render_tools_tab(search_query)
 elif selected_tab == TAB_INVEST:
     render_invest_tab()
