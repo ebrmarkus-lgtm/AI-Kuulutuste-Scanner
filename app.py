@@ -25,7 +25,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import requests
 import streamlit as st
-from bs4 import BeautifulSoup
+from packaging.version import Version
+from bs4 import BeautifulSoup, FeatureNotFound
 from streamlit_autorefresh import st_autorefresh
 
 
@@ -44,6 +45,17 @@ st.set_page_config(
 st_autorefresh(interval=60_000, key="smart_live_refresh")
 
 TZ = ZoneInfo("Europe/Tallinn")
+
+# Uuemates Streamliti versioonides on `use_container_width` aegunud ja asendatud
+# `width="stretch"`-iga. See valib sobiva variandi paigaldatud versiooni järgi.
+try:
+    STRETCH = (
+        {"width": "stretch"}
+        if Version(st.__version__) >= Version("1.50")
+        else {"use_container_width": True}
+    )
+except Exception:
+    STRETCH = {"use_container_width": True}
 
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -513,7 +525,14 @@ def load_feed(feed_url, kind):
 
     response = requests.get(feed_url, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT)
     response.raise_for_status()
-    soup = BeautifulSoup(response.content, "xml")
+    try:
+        soup = BeautifulSoup(response.content, "xml")
+    except FeatureNotFound:
+        raise RuntimeError(
+            "XML-parser puudub. Paigalda lxml: `python -m pip install lxml` "
+            "(Streamlit Cloudis lisa `lxml` faili requirements.txt) ja käivita "
+            "rakendus uuesti."
+        ) from None
 
     container = soup.find("channel") or soup.find("feed")
     channel_title = ""
@@ -662,7 +681,7 @@ def render_garden_tab(search_query):
                 sorted(meta["categories"].items(), key=lambda kv: -kv[1]),
                 columns=["Kategooria", "Kirjeid"],
             )
-            st.dataframe(cat_df, hide_index=True, use_container_width=True)
+            st.dataframe(cat_df, hide_index=True, **STRETCH)
 
     if not show_all and meta["total"] > 0 and meta["kept"] == 0:
         st.warning(
@@ -908,7 +927,7 @@ def render_invest_tab():
         edited = st.data_editor(
             st.session_state["holdings_base"],
             num_rows="dynamic",
-            use_container_width=True,
+            **STRETCH,
             hide_index=True,
             key="holdings_editor",
             column_config={
@@ -997,7 +1016,7 @@ def render_invest_tab():
         st.dataframe(
             pd.DataFrame(rows),
             hide_index=True,
-            use_container_width=True,
+            **STRETCH,
             column_config={
                 "Kogus": st.column_config.NumberColumn(format="%.6f"),
                 "Hind (€)": st.column_config.NumberColumn(format="%.4f"),
@@ -1045,7 +1064,7 @@ with search_col:
         key="global_search",
     )
 with clear_col:
-    st.button("Tühjenda", use_container_width=True, on_click=clear_search)
+    st.button("Tühjenda", **STRETCH, on_click=clear_search)
 
 # Uus otsing -> alusta lehitsemist algusest.
 if st.session_state.get("_last_query") != search_query:
@@ -1097,6 +1116,6 @@ with footer_col1:
         "andmevoogude kättesaadavusest."
     )
 with footer_col2:
-    if st.button("🔄 Tühjenda vahemälu", use_container_width=True):
+    if st.button("🔄 Tühjenda vahemälu", **STRETCH):
         st.cache_data.clear()
         st.rerun()
