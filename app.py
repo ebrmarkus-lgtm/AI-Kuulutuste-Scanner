@@ -14,6 +14,7 @@ import csv
 import html
 import io
 import json
+import os
 import re
 import urllib.parse
 from collections import Counter
@@ -669,11 +670,15 @@ GROCERIES = [
 ]
 
 
-def render_food_tab(search_query):
+def render_food_sample(search_query):
     show_html('<div class="refresh-badge">ℹ️ Näidisandmed – mitte reaalajas poehinnad</div>')
     st.warning(
         "Allolevad hinnad ja pakkumised on näidisandmed. "
         "Neid ei tohi käsitleda kaupluste täna kinnitatud hindadena."
+    )
+    st.info(
+        "Päris hindade (Selver, Rimi) jaoks lisa Streamlit Cloudis "
+        "Manage app → Settings → Secrets rida `APIFY_TOKEN = \"...\"`."
     )
 
     stores = ["Kõik"] + sorted({g[2] for g in GROCERIES})
@@ -705,6 +710,189 @@ def render_food_tab(search_query):
             "badge-location", f"📍 {item['store']}"
         )
         render_card(item, "Ava kaupluse veebileht", badges=badges)
+
+
+# --- Päris poehinnad -------------------------------------------------------
+# Eesti kauplusteketid ei paku avalikku hinna-API-t. Siin kasutatakse kolmanda
+# osapoole skraperit Apify platvormil (tasuline, vt aktori lehte). Vajalik on
+# Apify API token, mis tuleb panna Streamlit Cloudi Secrets'isse (APIFY_TOKEN)
+# või keskkonnamuutujasse; tokenit ei tohi GitHubi panna.
+
+GROCERY_TTL = 3600       # sekundit; sama otsing ei maksa uuesti
+GROCERY_PER_STORE = 20   # tulemusi poe kohta
+APIFY_RUN_URL = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
+
+APIFY_ACTORS = {
+    "Selver": {
+        "actor": "studio-amba~selver-ee-scraper",
+        "build_input": lambda q, n: {
+            "searchQuery": q, "maxResults": n, "language": "et",
+        },
+    },
+    "Rimi": {
+        "actor": "studio-amba~rimi-ee-scraper",
+        "build_input": lambda q, n: {
+            "searchQuery": q, "maxResults": n,
+            "proxyConfiguration": {"useApifyProxy": True},
+        },
+    },
+}
+
+
+def get_apify_token():
+    try:
+        token = st.secrets.get("APIFY_TOKEN")
+    except Exception:  # secrets-faili pole
+        token = None
+    return token or os.environ.get("APIFY_TOKEN")
+
+
+def parse_price(value):
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    if isinstance(value, str):
+        match = re.search(r"\d+(?:[.,]\d+)?", value)
+        if match:
+            return float(match.group(0).replace(",", "."))
+    return None
+
+
+def normalize_product(raw, store):
+    """Teisendab skraperi kirje rakenduse kaardi kujule."""
+    name = str(raw.get("name") or "").strip()
+    price = parse_price(raw.get("price"))
+    if not name or price is None:
+        return None
+
+    tags = [("badge-price", f"💶 {price:.2f} €")]
+
+    original = parse_price(raw.get("originalPrice"))
+    if original and original > price:
+        discount = str(raw.get("discount") or "").strip()
+        tags.append(
+            ("badge-free", f"🔻 Oli {original:.2f} €" + (f" ({discount})" if discount else ""))
+        )
+
+    unit = raw.get("pricePerUnit") or raw.get("unitPrice")
+    if isinstance(unit, (int, float)) and not isinstance(unit, bool):
+        unit_text = f"{float(unit):.2f} €"  # Selver ei anna ühikut eraldi
+    else:
+        unit_text = str(unit or "").strip()
+    if unit_text:
+        tags.append(("badge-location", f"⚖️ Võrdlushind {unit_text}"))
+
+    tags.append(("badge-location", f"📍 {store}"))
+    if raw.get("inStock") is False:
+        tags.append(("badge-location", "❌ Otsas"))
+
+    details = [str(raw.get(k) or "").strip() for k in ("brand", "packSize", "countryOfOrigin")]
+
+    date_str = ""
+    scraped = str(raw.get("scrapedAt") or "")
+    if scraped:
+        try:
+            dt = datetime.fromisoformat(scraped.replace("Z", "+00:00"))
+            date_str = "📅 Hind seisuga " + dt.astimezone(TZ).strftime("%d.%m.%Y %H:%M")
+        except ValueError:
+            pass
+
+    return {
+        "title": name,
+        "description": " · ".join(d for d in details if d),
+        "price": price,
+        "store": store,
+        "link": raw.get("url"),
+        "image": raw.get("imageUrl"),
+        "date_str": date_str,
+        "tags": tags,
+    }
+
+
+@st.cache_data(ttl=GROCERY_TTL, show_spinner=False)
+def fetch_store_products(store, query, limit):
+    """Käivitab poe skraperi ja ootab tulemust. Vea korral ei cache'ita."""
+    token = get_apify_token()
+    if not token:
+        raise RuntimeError("APIFY_TOKEN puudub.")
+
+    cfg = APIFY_ACTORS[store]
+    response = requests.post(
+        APIFY_RUN_URL.format(actor=cfg["actor"]),
+        params={"timeout": 120, "maxTotalChargeUsd": 0.25},
+        json=cfg["build_input"](query, limit),
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=150,
+    )
+    if response.status_code in (401, 403):
+        raise RuntimeError("Apify lükkas päringu tagasi, kontrolli APIFY_TOKEN-it.")
+    response.raise_for_status()
+
+    rows = response.json()
+    if not isinstance(rows, list):
+        raise RuntimeError("Apify andis ootamatu vastuse.")
+    products = (normalize_product(r, store) for r in rows if isinstance(r, dict))
+    return [p for p in products if p]
+
+
+def render_food_live():
+    show_html(
+        '<div class="refresh-badge">ℹ️ Päris hinnad Selverist ja Rimist · '
+        "vahemälu 1 h</div>"
+    )
+    st.caption(
+        "Andmed tulevad kolmanda osapoole skraperitest (Apify), mitte kaupluste "
+        "ametlikest API-dest. Iga uus otsing on tasuline (paar senti poe kohta) "
+        "ja võib hilineda või katkeda. Coop, Maxima, Lidl ja Prisma ei ole kaetud."
+    )
+
+    with st.form("grocery_search"):
+        typed = st.text_input(
+            "Toote nimi (eesti keeles)",
+            value=st.session_state.get("grocery_query", ""),
+            placeholder="nt piim, leib, juust, kohv",
+        )
+        submitted = st.form_submit_button("🔎 Otsi hindu")
+    if submitted:
+        st.session_state["grocery_query"] = typed.strip()
+        st.session_state.pop("visible_count_groceries", None)
+    query = st.session_state.get("grocery_query", "")
+
+    col_store, col_sort = st.columns(2)
+    with col_store:
+        store_filter = st.selectbox("Kauplus:", ["Kõik"] + list(APIFY_ACTORS))
+    with col_sort:
+        sort_by = st.selectbox("Järjesta:", ["Hind: odavam enne", "Hind: kallim enne"])
+
+    if len(query) < 3:
+        st.info("Sisesta toote nimi (vähemalt 3 tähte) ja vajuta „Otsi hindu“.")
+        return
+
+    stores = list(APIFY_ACTORS) if store_filter == "Kõik" else [store_filter]
+    products, errors = [], []
+    with st.spinner("Laen hindu..."):
+        for store in stores:
+            try:
+                products += fetch_store_products(store, query, GROCERY_PER_STORE)
+            except Exception as exc:
+                errors.append(f"{store}: {exc}")
+
+    for message in errors:
+        st.warning(message)
+
+    if not products and not errors:
+        st.info(f"Otsingule „{query}“ ei leitud tooteid.")
+
+    products.sort(key=lambda p: p["price"], reverse=(sort_by == "Hind: kallim enne"))
+    for item in paginate_items(products, "groceries"):
+        badges = "".join(pill(css, text) for css, text in item["tags"])
+        render_card(item, "Ava toote leht", badges=badges)
+
+
+def render_food_tab(search_query):
+    if get_apify_token():
+        render_food_live()
+    else:
+        render_food_sample(search_query)
 
 
 # =============================================================================
