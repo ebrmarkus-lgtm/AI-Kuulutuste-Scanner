@@ -51,7 +51,9 @@ REQUEST_HEADERS = {
     "Accept": "application/rss+xml, application/xml, text/xml, text/html, */*",
 }
 
-MAX_LIMIT = 50
+# Dünaamiline limiidi valik (kuni 50 või rohkem / 100)
+DEFAULT_MAX_LIMIT = 50
+EXTENDED_MAX_LIMIT = 100
 PAGE_INCREMENT = 25
 REQUEST_TIMEOUT = 15
 FEED_TTL = 900
@@ -218,8 +220,14 @@ def pill(css_class, text):
     return f'<span class="badge-pill {css_class}">{esc(text)}</span>'
 
 
+def get_current_max_limit():
+    """Tagastab hetkel valitud maksimumpiirangu sidusolekust (kas 50 või 100)."""
+    return st.session_state.get("display_limit_choice", DEFAULT_MAX_LIMIT)
+
+
 def paginate_items(items, category_key):
-    items = list(items)[:MAX_LIMIT]
+    max_limit = get_current_max_limit()
+    items = list(items)[:max_limit]
     total = len(items)
     count_key = f"visible_count_{category_key}"
 
@@ -230,7 +238,7 @@ def paginate_items(items, category_key):
 
     st.caption(
         f"Leitud {total} kirjet · Näitan praegu {visible_count} "
-        f"(maksimaalselt {MAX_LIMIT})."
+        f"(maksimaalselt {max_limit} kirjet kategooria kohta)."
     )
 
     if visible_count < total:
@@ -465,6 +473,8 @@ def load_feed(feed_url, kind):
     results = []
     seen_links = set()
 
+    max_fetch_limit = get_current_max_limit()
+
     for entry in entries:
         title = extract_entry_text(entry, {"title"}) or "Kirje"
         description = extract_entry_text(entry, {"description", "summary", "encoded"})
@@ -486,7 +496,7 @@ def load_feed(feed_url, kind):
 
         if kind == "gardening" and not is_garden(title, description, category):
             continue
-        if len(results) >= MAX_LIMIT:
+        if len(results) >= max_fetch_limit:
             continue
 
         link = extract_entry_link(entry, base_url=feed_url)
@@ -744,13 +754,24 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-search_col, clear_col = st.columns([5, 1])
-with search_col:
+# Ülemine riba: Otsing ja piirangu valik (kuni 50 / rohkem ehk 100)
+col_search, col_limit = st.columns([4, 2])
+with col_search:
     search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="Sisesta nt NVIDIA, muru, piim, banaan...", label_visibility="collapsed")
-with clear_col:
-    if st.button("Tühjenda", use_container_width=True):
-        search_query = ""
-        st.rerun()
+
+with col_limit:
+    limit_choice = st.radio(
+        "Kuvamise piirang:",
+        ["Kuni 50 asja", "Rohkem asju (kuni 100)"],
+        horizontal=True,
+        key="display_limit_choice_radio",
+        label_visibility="collapsed"
+    )
+    # Määrame vastavalt raadionupule globaalse sessioonimuutuja
+    if limit_choice == "Kuni 50 asja":
+        st.session_state["display_limit_choice"] = DEFAULT_MAX_LIMIT
+    else:
+        st.session_state["display_limit_choice"] = EXTENDED_MAX_LIMIT
 
 selected_tab = st.radio(
     "Vali kategooria:",
