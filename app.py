@@ -76,7 +76,6 @@ PRICE_TTL = 300  # hindade vahemälu (sekundit)
 FB_FEED_URL = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
 GARAGE_FEED_URL = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
 # Hange.ee kategooria "aia-ehitus" (https://www.hange.ee/hanked/?category=aia-ehitus).
-# Voo saab rakenduses ka ajutiselt vahetada jaotises "Voo seaded".
 HANGE_FEED_URL = "https://rss.app/feeds/Kk2a3NlHMBN8YOGy.xml"
 HANGE_SOURCE_URL = "https://www.hange.ee/hanked/?category=aia-ehitus"
 
@@ -336,24 +335,6 @@ def render_card(item, button_text, badges=""):
         </div>
         """
     )
-
-
-def render_image_diagnostics(items, category_name):
-    with st.expander(f"🔎 Piltide diagnostika – {category_name}"):
-        if not items:
-            st.caption("Diagnostikaks pole kirjeid.")
-            return
-        with_img = sum(1 for it in items if it.get("image"))
-        st.caption(f"Pilt leiti {with_img} kirjele {len(items)}-st.")
-        for index, item in enumerate(items, start=1):
-            title = item.get("title", "Pealkirjata")
-            if item.get("image"):
-                st.markdown(
-                    f"**{index}. {title}** · allikas: `{item.get('image_source', 'teadmata')}`"
-                )
-                st.code(item["image"], language=None)
-            else:
-                st.markdown(f"**{index}. {title}** · pilt puudub")
 
 
 # =============================================================================
@@ -618,13 +599,11 @@ def get_feed(feed_url, kind):
 # =============================================================================
 
 def render_items(items, *, page_key, button_text, base_badge, search_query,
-                 empty_msg, diag_name):
+                 empty_msg):
     filtered = [
         it for it in items
         if matches(search_query, it.get("title"), it.get("description"))
     ]
-    render_image_diagnostics(filtered, diag_name)
-
     if not filtered:
         st.info(empty_msg)
 
@@ -636,7 +615,7 @@ def render_items(items, *, page_key, button_text, base_badge, search_query,
 
 
 def render_feed_tab(*, feed_url, source_md, badge_text, pill_class, button_text,
-                    empty_msg, diag_name, page_key, search_query):
+                    empty_msg, page_key, search_query):
     show_html(
         '<div class="refresh-badge">⏱️ Leht uuendub iga 1 min, '
         "voo andmed vahemälus 15 min</div>"
@@ -647,7 +626,7 @@ def render_feed_tab(*, feed_url, source_md, badge_text, pill_class, button_text,
     render_items(
         data["items"], page_key=page_key, button_text=button_text,
         base_badge=pill(pill_class, badge_text), search_query=search_query,
-        empty_msg=empty_msg, diag_name=diag_name,
+        empty_msg=empty_msg,
     )
 
 
@@ -655,52 +634,22 @@ def render_garden_tab(search_query):
     show_html('<div class="refresh-badge">⏱️ Aiatööde voog: vahemälu 15 min</div>')
     st.markdown(f"**Allikas:** [Hange.ee – aia ehitus]({HANGE_SOURCE_URL})")
 
-    with st.expander("⚙️ Voo seaded"):
-        feed_url = st.text_input(
-            "Hange.ee RSS-voo URL",
-            value=HANGE_FEED_URL,
-            key="hange_feed_url",
-            help="Kõige parem on voog, mis on tehtud Hange.ee aiatööde kategooria lehest.",
-        )
-        show_all = st.checkbox(
-            "Näita kõiki voo kirjeid (ilma aiatööde filtrita)",
-            key="hange_show_all",
-        )
-
-    data = get_feed(feed_url, "standard" if show_all else "gardening")
+    data = get_feed(HANGE_FEED_URL, "gardening")
     meta = data["meta"]
 
-    with st.expander("🧪 Voo diagnostika"):
-        st.write(f"**Voo pealkiri:** {meta['channel_title'] or '–'}")
-        st.write(
-            f"**Kirjeid voos:** {meta['total']} · "
-            f"**Aiatöödena alles:** {meta['kept'] if not show_all else 'filter väljas'}"
-        )
-        if meta["categories"]:
-            cat_df = pd.DataFrame(
-                sorted(meta["categories"].items(), key=lambda kv: -kv[1]),
-                columns=["Kategooria", "Kirjeid"],
-            )
-            st.dataframe(cat_df, hide_index=True, **STRETCH)
-
-    if not show_all and meta["total"] > 0 and meta["kept"] == 0:
+    if meta["total"] > 0 and meta["kept"] == 0:
         st.warning(
             f"Voos on {meta['total']} kirjet, aga ükski ei ole aiatöö. "
-            f"Voo pealkiri on „{meta['channel_title']}“, mis viitab Hange.ee üldisele "
-            "hangete nimekirjale. RSS-voog sisaldab ainult uusimaid kirjeid, seega "
-            "üldnimekirjast filtreerimine annab aiatöid harva. Loo rss.app-is uus voog "
-            "Hange.ee aiatööde kategooria lehe URL-ist ja vaheta voo URL jaotises "
-            "„Voo seaded“."
+            "Kontrolli, et HANGE_FEED_URL viitab Hange.ee aiatööde kategooria voole."
         )
     elif meta["total"] == 0:
         st.info("Voos ei ole ühtegi kirjet.")
 
     render_items(
         data["items"], page_key="hange", button_text="Vaata Hange.ee keskkonnas",
-        base_badge=pill("badge-gardening", "🌿 Aiatöö / Haljastus") if not show_all else "",
+        base_badge=pill("badge-gardening", "🌿 Aiatöö / Haljastus"),
         search_query=search_query,
         empty_msg="Sobivaid aiatööde hankeid praegu ei leitud.",
-        diag_name="Hange.ee aiatööd",
     )
 
 
@@ -1084,7 +1033,7 @@ if selected_tab == TAB_FREE:
         badge_text="🎁 Tasuta", pill_class="badge-free",
         button_text="Vaata Facebookis",
         empty_msg="Ühtegi sobivat kuulutust ei leitud. Kontrolli RSS-voogu või proovi teist otsingusõna.",
-        diag_name="Facebook", page_key="free", search_query=search_query,
+        page_key="free", search_query=search_query,
     )
 elif selected_tab == TAB_GARAGES:
     render_feed_tab(
@@ -1093,7 +1042,7 @@ elif selected_tab == TAB_GARAGES:
         badge_text="🚘 Garaaž", pill_class="badge-price",
         button_text="Vaata kuulutust",
         empty_msg="Garaažide RSS-voost ei leitud praegu sobivaid kuulutusi.",
-        diag_name="Kinnisvara24 garaažid", page_key="garages",
+        page_key="garages",
         search_query=search_query,
     )
 elif selected_tab == TAB_GARDEN:
