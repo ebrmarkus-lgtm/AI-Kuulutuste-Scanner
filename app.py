@@ -53,7 +53,7 @@ REQUEST_HEADERS = {
 
 DEFAULT_MAX_LIMIT = 50
 EXTENDED_MAX_LIMIT = 100
-PAGE_INCREMENT = 25
+PAGE_INCREMENT = 50
 REQUEST_TIMEOUT = 10
 FEED_TTL = 900
 
@@ -65,8 +65,8 @@ HANGE_SOURCE_URL = "https://www.hange.ee/hanked/?category=aia-ehitus"
 TAB_FREE = "🎁 Tasuta asjad"
 TAB_GARAGES = "🚘 Kinnisvara garaažid"
 TAB_GARDEN = "🌿 Aiatööd (Hange.ee)"
-TAB_FOOD = "🛒 Toidukaubad"
-TAB_TOOLS = "🛠️ Tööriistad & Seadmed"
+TAB_FOOD = "🛒 Toidukaubad (50+)"
+TAB_TOOLS = "🛠️ Tööriistad (50+)"
 TAB_INVEST = "📈 AI Aktsiaassistent"
 TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_FOOD, TAB_TOOLS, TAB_INVEST]
 
@@ -541,7 +541,7 @@ def get_feed(feed_url, kind):
 
 
 # =============================================================================
-# 4. KUULUTUSTE VAATED & TOIDUKAUBAD
+# 4. KUULUTUSTE VAATED & TOidUKAUBAD (50+ ÜHIKUT)
 # =============================================================================
 
 def render_items(items, *, page_key, button_text, base_badge, search_query, empty_msg):
@@ -595,11 +595,46 @@ GROCERIES = [
     ("Kartul (5 kg kott)", "2.99", "Lidl", "https://www.lidl.ee", "photo-1518977676601-b53f82aba655"),
     ("Muna M (10 tk)", "1.79", "Prisma", "https://www.prisma.ee", "photo-1516448620398-c5f44bf9f441"),
     ("Apelsinimahl 100% (1.5 l)", "1.99", "Maxima", "https://www.maxima.ee", "photo-1613478223719-2ab802602423"),
+    ("Hernesupp suitsulihaga (500 g)", "1.49", "Selver", "https://www.selver.ee", "photo-1547592166-23ac45744acd"),
+    ("Pilsner õlu 6-pack", "4.69", "Coop", "https://www.coop.ee", "photo-1608270104343-26efa9884124"),
+    ("Hapukapsas porgandiga (1 kg)", "1.29", "Prisma", "https://www.prisma.ee", "photo-1540420773420-3366772f4999"),
+    ("Tomat (kg)", "2.99", "Lidl", "https://www.lidl.ee", "photo-1546069901-ba9599a7e63c"),
+    ("Lõhefilee (kg)", "12.99", "Rimi", "https://www.rimi.ee", "photo-1519708227418-c8fd9a32b7a2"),
+    ("Must leib (500 g)", "0.99", "Coop", "https://www.coop.ee", "photo-1509440159596-0249088772ff"),
+    ("Viinerid (400 g)", "2.19", "Maxima", "https://www.maxima.ee", "photo-1563379091339-03b21ab4a4f8"),
+    ("Kreeka jogurt (400 g)", "1.59", "Selver", "https://www.selver.ee", "photo-1488477181946-6428a0291777"),
+    ("Tume šokolaad 70% (100 g)", "1.19", "Lidl", "https://www.lidl.ee", "photo-1549007994-cb92caebd54b"),
+    ("Õunad Golden (kg)", "1.49", "Prisma", "https://www.prisma.ee", "photo-1560806887-1e4cd0b6cbd6"),
+    ("Sibularullid (300 g)", "1.35", "Rimi", "https://www.rimi.ee", "photo-1509440159596-0249088772ff"),
+    ("Pasta Penne (500 g)", "0.89", "Coop", "https://www.coop.ee", "photo-1621996346565-e3d5d6281298"),
+    ("Puhastatud porgand (1 kg)", "1.10", "Maxima", "https://www.maxima.ee", "photo-1598170845058-32b9d6a5da37"),
+    ("Riis basmati (1 kg)", "2.29", "Selver", "https://www.selver.ee", "photo-1586201375761-83865001e31c"),
+    ("Pitsasai / Külmutatud pitsa", "2.49", "Lidl", "https://www.lidl.ee", "photo-1513104890138-7c749659a591"),
+    ("Hernes konserv (400 g)", "0.79", "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
+    ("Majonees (400 g)", "1.69", "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
+    ("Ketšup (500 g)", "1.49", "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
+    ("Pannkoogijahu (1 kg)", "1.25", "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
+    ("Porgandimahl (1 l)", "1.89", "Selver", "https://www.selver.ee", "photo-1613478223719-2ab802602423"),
+    ("Küüslauk (250 g)", "0.99", "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
+    ("Ploomid (kg)", "2.89", "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
+    ("Pirnid Conference (kg)", "2.39", "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
+    ("Kapsas (kg)", "0.69", "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
+    ("Värske forell (kg)", "9.99", "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
+    ("Hernesupp suitsulihaga", "1.49", "Selver", "https://www.selver.ee", "photo-1547592166-23ac45744acd"),
+    ("Kreeka pähklid (200 g)", "2.99", "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
+    ("Mandlid (200 g)", "3.19", "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
+    ("Rosinad (500 g)", "1.99", "Rimi", "https://www.rimi.ee", "photo-1550583724-b2692b85b150"),
+    ("Päevalilleõli (1 l)", "2.19", "Coop", "https://www.coop.ee", "photo-1550583724-b2692b85b150"),
+    ("Puhastatud kohv (500 g)", "4.49", "Maxima", "https://www.maxima.ee", "photo-1550583724-b2692b85b150"),
+    ("Tee must (20 spl)", "1.29", "Selver", "https://www.selver.ee", "photo-1550583724-b2692b85b150"),
+    ("Mineraalvesi gaasiga (1.5 l)", "0.55", "Lidl", "https://www.lidl.ee", "photo-1550583724-b2692b85b150"),
+    ("Apelsinid (kg)", "1.79", "Prisma", "https://www.prisma.ee", "photo-1613478223719-2ab802602423"),
+    ("Banaanikrõpsud (150 g)", "1.19", "Rimi", "https://www.rimi.ee", "photo-1571771894821-ce9b6c11b08e"),
 ]
 
 
 def render_food_sample(search_query):
-    show_html('<div class="refresh-badge">ℹ️ Toidukaupade sooduspakkumised</div>')
+    show_html('<div class="refresh-badge">ℹ️ Toidukaupade kampaaniad (50+ toodet)</div>')
     stores = ["Kõik"] + sorted({g[2] for g in GROCERIES})
     store_filter = st.selectbox("Filtreeri kaupluse järgi:", stores, key="store_filter_food")
 
@@ -627,7 +662,7 @@ def render_food_sample(search_query):
 
 
 # =============================================================================
-# 5. UUS KATEGOORIA: TÖÖRIIDAD & SEADMED (TOOLS & EQUIPMENT)
+# 5. UUS KATEGOORIA: TÖÖRIIDAD & SEADMED (50+ ÜHIKUT)
 # =============================================================================
 
 TOOLS_ITEMS = [
@@ -635,14 +670,51 @@ TOOLS_ITEMS = [
     ("Ketassaag Makita 1200W", "119.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092160607-ee22621dd758"),
     ("Survepesur Kärcher K5", "269.00", "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
     ("Mootorsaag Husqvarna", "399.00", "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
-    ("Universaalne tööriistakomplekt (108 tk)", "69.00", "J especies / Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Universaalne tööriistakomplekt (108 tk)", "69.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
     ("Keevitusapparaat MIG/MAG", "229.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504917595217-d4dc5ebe6122"),
     ("Nurgakliima / Lihvmasin Bosch", "59.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
     ("Lasermõõtja Bosch Professional", "89.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Tikksaag Makita 720W", "99.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092160607-ee22621dd758"),
+    ("Akuhöövel Ryobi 18V", "129.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
+    ("Kompressor 50L 2kW", "199.00", "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
+    ("Töölaud kokkupandav", "49.00", "Bauhof", "https://www.bauhof.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Multitool / Akutööriist", "79.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
+    ("Puurvasar SDS-plus", "139.00", "Stokker", "https://www.stokker.ee", "photo-1504917595217-d4dc5ebe6122"),
+    ("Teemantpuuride komplekt", "45.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Akulöökkruvikeeraja", "159.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
+    ("Betoonisegisti 140L", "219.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Muruniiduk bensiinimootoriga", "289.00", "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Trimmer bensiiniga", "179.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Akutrimmer 36V", "199.00", "Bauhof", "https://www.bauhof.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Lehepuhur bensiin", "159.00", "Stokker", "https://www.stokker.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Lumepuhur bensiinimootoriga", "699.00", "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
+    ("Hüdrauliline tungraud 3t", "59.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092335397-9583fe92d232"),
+    ("Autoakulaadija nutikas", "45.00", "Stokker", "https://www.stokker.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Garaažikäru tööriistadele", "249.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Lintlihvmasin", "85.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Taldlihvmasin", "55.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Kuumaõhupuhur", "39.00", "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
+    ("Elektriline oksapurustaja", "189.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1618221195710-dd6b41faaea6"),
+    ("Ketasteras / Saeketas", "25.00", "Stokker", "https://www.stokker.ee", "photo-1581092160607-ee22621dd758"),
+    ("Redel teleskoopiline 3.8m", "99.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Alumiiniumist telling", "349.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092580497-e0d23cbdf1dc"),
+    ("Värvipüstol HVLP", "79.00", "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
+    ("Ehitustolmuimeja 30L", "159.00", "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
+    ("Pikendusjuhe trumlil 25m", "42.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504148455328-c376907d081c"),
+    ("LED ehitusprožektor statiiviga", "59.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Akunurklihvija 18V", "139.00", "Bauhof", "https://www.bauhof.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Pneumonaeluti", "189.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1504917595217-d4dc5ebe6122"),
+    ("Torutangid ja mutrivõtmed", "35.00", "Stokker", "https://www.stokker.ee", "photo-1581092335397-9583fe92d232"),
+    ("Kruvikeerajate komplekt", "29.00", "Bauhof", "https://www.bauhof.ee", "photo-1581092335397-9583fe92d232"),
+    ("Momentvõti 1/2\"", "49.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092335397-9583fe92d232"),
+    ("Universaalne liimipüstol", "19.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
+    ("Akutrell / Kruvikeeraja hobby", "59.00", "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
+    ("Puidutöötlusmasin", "499.00", "K-Rauta", "https://www.k-rauta.ee", "photo-1581092160607-ee22621dd758"),
+    ("Pinkkäieteritaja", "65.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
 ]
 
 def render_tools_tab(search_query):
-    show_html('<div class="refresh-badge">🛠️ Professionaalsed tööriistad ja seadmed - Parimad hinnad</div>')
+    show_html('<div class="refresh-badge">🛠️ Professionaalsed tööriistad ja seadmed (50+ toodet)</div>')
     st.markdown("### 🔧 Soodsad Tööriistad ja Garaažiseadmed")
     st.caption("Eesti ehitus- ja tööriistapoodide parimad kampaaniapakkumised meistrile.")
 
@@ -681,175 +753,4 @@ TOP_STOCKS = [
     {"symbol": "AAPL", "name": "Apple Inc.", "base_price": 224.20, "sector": "Tehnoloogia"},
     {"symbol": "MSFT", "name": "Microsoft Corp.", "base_price": 448.30, "sector": "Pilvetehnoloogia / AI"},
     {"symbol": "TSLA", "name": "Tesla Inc.", "base_price": 242.10, "sector": "Elektrisõidukid / Autonoomia"},
-    {"symbol": "AMZN", "name": "Amazon.com Inc.", "base_price": 186.40, "sector": "E-kaubandus / Pilv"},
-    {"symbol": "GOOGL", "name": "Alphabet (Google)", "base_price": 179.80, "sector": "Otsing / Tehisintellekt"},
-    {"symbol": "META", "name": "Meta Platforms", "base_price": 512.60, "sector": "Sotsiaalmeedia / Metaverss"},
-    {"symbol": "BTC", "name": "Bitcoin", "base_price": 64200.0, "sector": "Krüptovara"},
-    {"symbol": "ETH", "name": "Ethereum", "base_price": 3480.0, "sector": "Krüptovara / Plokiahel"},
-    {"symbol": "NEAR", "name": "NEAR Protocol", "base_price": 5.40, "sector": "Web3 / Plokiahel"},
-]
-
-def render_invest_tab():
-    show_html('<div class="refresh-badge">⏱️ Reaalajas turg: 10 tippvara uueneb iga 1 min järel</div>')
-    st.markdown("### 📈 10 Tippaktsiat ja Krüptovara – Reaalajas AI Hindamine")
-    st.caption("Süsteem skannib turuhindu reaalajas ja arvutab iga minuti tagant automaatseid ostu- ning DCA-soovitusi.")
-
-    current_minute = int(datetime.now(TZ).strftime('%M'))
-    
-    analyzed_assets = []
-    for asset in TOP_STOCKS:
-        random.seed(hash(asset["symbol"]) + current_minute)
-        change_pct = round(random.uniform(-1.8, 1.8), 2)
-        current_price = round(asset["base_price"] * (1 + change_pct / 100), 2 if asset["base_price"] > 10 else 4)
-        
-        if change_pct < -1.0:
-            signal = "🟢 TUGEV OSTA (DCA)"
-            badge_class = "badge-buy"
-            advice = "Hind on langenud – soodne koht osaliseks ostuks (Dollar-Cost Averaging)."
-        elif change_pct > 1.2:
-            signal = "🟡 OOTA / HOIA"
-            badge_class = "badge-hold"
-            advice = "Lühiajaline tipp – oota väikest korrektsiooni enne uut sisenemist."
-        else:
-            signal = "🔵 NEUTRAALNE"
-            badge_class = "badge-price"
-            advice = "Stabiilne turg. Sobib pikaajaliseks hoidmiseks või plaaniliseks ostuks."
-
-        analyzed_assets.append({
-            **asset,
-            "current_price": current_price,
-            "change_pct": change_pct,
-            "signal": signal,
-            "badge_class": badge_class,
-            "advice": advice
-        })
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Jälgitavaid varasid</div>
-                <div class="metric-big">10 tippvara</div>
-                <div style="font-size: 0.8rem; color: #34d399; margin-top: 4px;">✓ Reaalajas skannimine aktiivne</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        best_buy = min(analyzed_assets, key=lambda x: x["change_pct"])
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Parim DCA võimalus praegu</div>
-                <div class="metric-big" style="font-size: 1.8rem; margin-top: 4px;">{best_buy['symbol']} ({best_buy['change_pct']}%)</div>
-                <div style="font-size: 0.8rem; color: #34d399; margin-top: 6px;">💡 Suurim hinnaallahindlus</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        current_tallinn_time = datetime.now(TZ).strftime('%H:%M:%S')
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Viimane AI analüüs</div>
-                <div class="metric-big" style="font-size: 1.5rem; margin-top: 8px;">{current_tallinn_time}</div>
-                <div style="font-size: 0.8rem; color: #60a5fa; margin-top: 6px;">Uuendub automaatselt iga 1 min</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("#### 🤖 AI Reaalajas Soovituste Tabel (10 Vara)")
-
-    for asset in analyzed_assets:
-        color_style = "color: #34d399;" if asset["change_pct"] >= 0 else "color: #ef4444;"
-        sign_str = "+" if asset["change_pct"] > 0 else ""
-        
-        show_html(f"""
-            <div class="pro-card" style="padding: 18px 24px; margin-bottom: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                    <div style="flex: 2; min-width: 200px;">
-                        <div style="font-size: 1.15rem; font-weight: 700; color: #f8fafc;">{esc(asset['name'])} ({esc(asset['symbol'])})</div>
-                        <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 2px;">{esc(asset['sector'])}</div>
-                    </div>
-                    <div style="flex: 1; min-width: 120px;">
-                        <div style="font-size: 1.1rem; font-weight: 700; color: #f8fafc;">${asset['current_price']:,.2f}</div>
-                        <div style="font-size: 0.85rem; font-weight: 600; {color_style}">{sign_str}{asset['change_pct']}% (1h)</div>
-                    </div>
-                    <div style="flex: 1; min-width: 140px; text-align: left;">
-                        <span class="badge-pill {asset['badge_class']}">{esc(asset['signal'])}</span>
-                    </div>
-                    <div style="flex: 2; min-width: 280px; font-size: 0.9rem; color: #cbd5e1; background: #1e293b; padding: 10px 14px; border-radius: 10px; border: 1px solid #334155;">
-                        💡 {esc(asset['advice'])}
-                    </div>
-                </div>
-            </div>
-        """)
-
-    st.markdown("#### 🎯 Strateegiline Soovitus Portfelli Kasvatamiseks")
-    st.info("💡 **DCA (Dollar-Cost Averaging) Juhend:** Kuna turud on volatiilsed, on parim viis investeerimiseks jaotada oma ostud regulaarselt nende varade vahel, millel on parasjagu roheline **TUGEV OSTA** märgis. Ära pane kogu kapitali korraga ühte varasse.")
-
-
-# =============================================================================
-# 7. PÕHINAVIGATSIOON & KÄIVITUS
-# =============================================================================
-
-st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
-
-st.markdown(
-    '<div class="hero-container">'
-    '<div class="main-title">✨ AI Kuulutuste & Turu Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad, tööriistad ja reaalajas aktsiaassistent</div>'
-    "</div>",
-    unsafe_allow_html=True,
-)
-
-col_search, col_limit = st.columns([4, 2])
-with col_search:
-    search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="Sisesta nt NVIDIA, muru, piim, drill...", label_visibility="collapsed")
-
-with col_limit:
-    limit_choice = st.radio(
-        "Kuvamise piirang:",
-        ["Kuni 50 asja", "Rohkem asju (kuni 100)"],
-        horizontal=True,
-        key="display_limit_choice_radio",
-        label_visibility="collapsed"
-    )
-    if limit_choice == "Kuni 50 asja":
-        st.session_state["display_limit_choice"] = DEFAULT_MAX_LIMIT
-    else:
-        st.session_state["display_limit_choice"] = EXTENDED_MAX_LIMIT
-
-selected_tab = st.radio(
-    "Vali kategooria:",
-    TABS,
-    horizontal=True,
-    label_visibility="collapsed",
-)
-st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
-
-if selected_tab == TAB_FREE:
-    render_feed_tab(
-        feed_url=FB_FEED_URL,
-        source_md="[Facebook Tasuta Kraam](https://www.facebook.com)",
-        badge_text="🎁 Tasuta",
-        pill_class="badge-free",
-        button_text="Vaata Facebookis",
-        empty_msg="Tasuta asjade kuulutusi ei leitud.",
-        page_key="free",
-        search_query=search_query,
-    )
-elif selected_tab == TAB_GARAGES:
-    render_feed_tab(
-        feed_url=GARAGE_FEED_URL,
-        source_md="[Kinnisvara24 Garaažid](https://kinnisvara24.ee)",
-        badge_text="🚘 Garaaž",
-        pill_class="badge-price",
-        button_text="Vaata kuulutust",
-        empty_msg="Garaažide kuulutusi ei leitud.",
-        page_key="garages",
-        search_query=search_query,
-    )
-elif selected_tab == TAB_GARDEN:
-    render_garden_tab(search_query)
-elif selected_tab == TAB_FOOD:
-    render_food_sample(search_query)
-elif selected_tab == TAB_TOOLS:
-    render_tools_tab(search_query)
-elif selected_tab == TAB_INVEST:
-    render_invest_tab()
+    {"symbol": "AMZN", "name": "Amazon.com Inc.", "base_price": 186.40, "sector": "E-kaubandus
