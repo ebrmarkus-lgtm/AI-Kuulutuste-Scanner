@@ -1,6 +1,7 @@
 import html
 import json
 import os
+import random
 import re
 import urllib.parse
 from collections import Counter
@@ -54,20 +55,17 @@ MAX_LIMIT = 50
 PAGE_INCREMENT = 25
 REQUEST_TIMEOUT = 15
 FEED_TTL = 900
-PRICE_TTL = 300
 
 FB_FEED_URL = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
 GARAGE_FEED_URL = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
 HANGE_FEED_URL = "https://rss.app/feeds/Kk2a3NlHMBN8YOGy.xml"
 HANGE_SOURCE_URL = "https://www.hange.ee/hanked/?category=aia-ehitus"
 
-PORTFOLIO_FILE = Path(__file__).with_name("portfell.json")
-
 TAB_FREE = "🎁 Tasuta asjad"
 TAB_GARAGES = "🚘 Kinnisvara garaažid"
 TAB_GARDEN = "🌿 Aiatööd (Hange.ee)"
 TAB_FOOD = "🛒 Toidukaubad"
-TAB_INVEST = "📈 Lightyear Investeeringud"
+TAB_INVEST = "📈 AI Aktsia- ja Portfelliassistent"
 TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_FOOD, TAB_INVEST]
 
 
@@ -147,6 +145,8 @@ html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
 .badge-price { background-color: rgba(37,99,235,0.15); color: #60a5fa; border: 1px solid rgba(37,99,235,0.3); }
 .badge-location { background-color: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.4); }
 .badge-gardening { background-color: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); }
+.badge-buy { background-color: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); }
+.badge-hold { background-color: rgba(234,179,8,0.2); color: #facc15; border: 1px solid rgba(234,179,8,0.4); }
 .pro-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 100%; box-sizing: border-box; padding: 12px 20px;
@@ -163,8 +163,8 @@ html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
     padding: 24px; margin-bottom: 20px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
-.metric-big { font-size: 2.5rem; font-weight: 800; color: #f8fafc; letter-spacing: -1px; }
-.asset-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #1f2937; }
+.metric-big { font-size: 2.2rem; font-weight: 800; color: #f8fafc; letter-spacing: -1px; }
+.asset-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1f2937; }
 .refresh-badge {
     background: #1e293b; border: 1px solid #334155;
     padding: 8px 14px; border-radius: 10px;
@@ -264,23 +264,12 @@ def render_card(item, button_text, badges=""):
             "</div>"
         )
 
-    date_html = (
-        f'<div class="card-date">{esc(item["date_str"])}</div>'
-        if item.get("date_str")
-        else ""
-    )
-    desc_html = (
-        f'<div class="card-desc">{esc(item["description"])}</div>'
-        if item.get("description")
-        else ""
-    )
+    date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
+    desc_html = f'<div class="card-desc">{esc(item["description"])}</div>' if item.get("description") else ""
     tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
 
     if link:
-        button_html = (
-            f'<a href="{esc(link)}" target="_blank" rel="noopener noreferrer" '
-            f'class="pro-btn">{esc(button_text)}</a>'
-        )
+        button_html = f'<a href="{esc(link)}" target="_blank" rel="noopener noreferrer" class="pro-btn">{esc(button_text)}</a>'
     else:
         button_html = '<span class="pro-btn secondary">Link puudub</span>'
 
@@ -463,7 +452,7 @@ def load_feed(feed_url, kind):
     try:
         soup = BeautifulSoup(response.content, "xml")
     except FeatureNotFound:
-        raise RuntimeError("XML-parser puudub. Paigalda lxml.") from None
+        raise RuntimeError("XML-parser puudub.") from None
 
     container = soup.find("channel") or soup.find("feed")
     channel_title = ""
@@ -544,7 +533,7 @@ def get_feed(feed_url, kind):
 
 
 # =============================================================================
-# 4. KUULUTUSTE VAATED JA TOIDUKAUBAD
+# 4. KUULUTUSTE VAATED JA TOidUKAUBAD
 # =============================================================================
 
 def render_items(items, *, page_key, button_text, base_badge, search_query, empty_msg):
@@ -596,311 +585,4 @@ GROCERIES = [
     ("Broilerifilee (kg)", "6.49", "Selver", "https://www.selver.ee", "photo-1604503468506-a8da13d82791"),
     ("Juust Edam (400 g)", "3.29", "Coop", "https://www.coop.ee", "photo-1486297678162-eb2a19b0a32d"),
     ("Kartul (5 kg kott)", "2.99", "Lidl", "https://www.lidl.ee", "photo-1518977676601-b53f82aba655"),
-    ("Muna M (10 tk)", "1.79", "Prisma", "https://www.prisma.ee", "photo-1516448620398-c5f44bf9f441"),
-    ("Apelsinimahl 100% (1.5 l)", "1.99", "Maxima", "https://www.maxima.ee", "photo-1613478223719-2ab802602423"),
-]
-
-
-def render_food_sample(search_query):
-    show_html('<div class="refresh-badge">ℹ️ Toidukaupade sooduspakkumised</div>')
-    stores = ["Kõik"] + sorted({g[2] for g in GROCERIES})
-    store_filter = st.selectbox("Filtreeri kaupluse järgi:", stores)
-
-    items = [
-        {
-            "title": title,
-            "description": "Kampaaniatoode igapäevaseks tarbimiseks.",
-            "price": f"{price} €",
-            "store": store,
-            "link": link,
-            "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
-        }
-        for title, price, store, link, photo in GROCERIES
-    ]
-
-    filtered = [
-        it for it in items
-        if (store_filter == "Kõik" or it["store"] == store_filter)
-        and matches(search_query, it["title"], it["description"], it["store"])
-    ]
-
-    for item in paginate_items(filtered, "groceries"):
-        badges = pill("badge-price", f"🏷️ {item['price']}") + pill(
-            "badge-location", f"📍 {item['store']}"
-        )
-        render_card(item, "Vaata pakkumist", badges=badges)
-
-
-GROCERY_TTL = 3600
-GROCERY_PER_STORE = 20
-APIFY_RUN_URL = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
-
-APIFY_ACTORS = {
-    "Selver": {
-        "actor": "studio-amba~selver-ee-scraper",
-        "build_input": lambda q, n: {"searchQuery": q, "maxResults": n, "language": "et"},
-    },
-    "Rimi": {
-        "actor": "studio-amba~rimi-ee-scraper",
-        "build_input": lambda q, n: {"searchQuery": q, "maxResults": n, "proxyConfiguration": {"useApifyProxy": True}},
-    },
-}
-
-
-def get_apify_token():
-    try:
-        token = st.secrets.get("APIFY_TOKEN")
-    except Exception:
-        token = None
-    return token or os.environ.get("APIFY_TOKEN")
-
-
-def parse_price(value):
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value)
-    if isinstance(value, str):
-        match = re.search(r"\d+(?:[.,]\d+)?", value)
-        if match:
-            return float(match.group(0).replace(",", "."))
-    return None
-
-
-def normalize_product(raw, store):
-    name = str(raw.get("name") or "").strip()
-    price = parse_price(raw.get("price"))
-    if not name or price is None:
-        return None
-
-    tags = [("badge-price", f"💶 {price:.2f} €")]
-    original = parse_price(raw.get("originalPrice"))
-    if original and original > price:
-        tags.append(("badge-free", f"🔻 Oli {original:.2f} €"))
-
-    tags.append(("badge-location", f"📍 {store}"))
-    return {
-        "title": name,
-        "description": " · ".join(str(raw.get(k)) for k in ("brand", "packSize") if raw.get(k)),
-        "price": price,
-        "store": store,
-        "link": raw.get("url"),
-        "image": raw.get("imageUrl"),
-        "date_str": "📅 Reaalajas hind",
-        "tags": tags,
-    }
-
-
-@st.cache_data(ttl=GROCERY_TTL, show_spinner=False)
-def fetch_store_products(store, query, limit):
-    token = get_apify_token()
-    if not token:
-        raise RuntimeError("APIFY_TOKEN puudub.")
-
-    cfg = APIFY_ACTORS[store]
-    # Parandatud: eemaldatud vigane maxTotalChargeUsd parameeter, mis põhjustas 400 Bad Request vea
-    response = requests.post(
-        APIFY_RUN_URL.format(actor=cfg["actor"]),
-        params={"timeout": 120},
-        json=cfg["build_input"](query, limit),
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=150,
-    )
-    if response.status_code in (401, 403):
-        raise RuntimeError("Apify lükkas päringu tagasi, kontrolli APIFY_TOKEN-it.")
-    response.raise_for_status()
-
-    rows = response.json()
-    if not isinstance(rows, list):
-        raise RuntimeError("Apify andis ootamatu vastuse.")
-    return [p for p in (normalize_product(r, store) for r in rows if isinstance(r, dict)) if p]
-
-
-def render_food_live(search_query):
-    show_html('<div class="refresh-badge">ℹ️ Päris hinnad Selverist ja Rimist (Apify)</div>')
-    if not get_apify_token():
-        render_food_sample(search_query)
-        return
-
-    stores = list(APIFY_ACTORS)
-    products, errors = [], []
-    with st.spinner("Laen reaalajas hindu..."):
-        for store in stores:
-            try:
-                products += fetch_store_products(store, search_query or "piim", GROCERY_PER_STORE)
-            except Exception as exc:
-                errors.append(f"{store}: {exc}")
-
-    for msg in errors:
-        st.warning(msg)
-
-    if not products:
-        render_food_sample(search_query)
-        return
-
-    for item in paginate_items(products, "groceries_live"):
-        badges = "".join(pill(css, text) for css, text in item.get("tags", []))
-        render_card(item, "Ava kaupluse veebileht", badges=badges)
-
-
-# =============================================================================
-# 5. INVESTEERINGUTE PORTFELL (LIGHTYEAR)
-# =============================================================================
-
-def render_invest_tab():
-    show_html('<div class="refresh-badge">⏱️ Reaalajas turg ja portfell: Uueneb iga 1 min järel</div>')
-    st.markdown("### 💼 Lightyear Portfelli Reaalajas Vaade")
-    st.caption("Sünkroniseeritud Personal Account portfelliga.")
-
-    base_val = 57.75
-    diff_val = -0.16
-    pct_val = -0.19
-    current_tallinn_time = datetime.now(TZ).strftime('%H:%M:%S')
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Personal Account Koguväärtus</div>
-                <div class="metric-big">€{base_val:.2f}</div>
-                <div style="font-size: 0.8rem; color: #ef4444; margin-top: 4px;">▼ {pct_val}% (€{diff_val}) Tänane</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Aktiivsed Positsioonid</div>
-                <div class="metric-big" style="font-size: 1.8rem; margin-top: 8px;">NVIDIA, NEAR, BTC</div>
-                <div style="font-size: 0.8rem; color: #34d399; margin-top: 6px;">✓ Portfell aktiivne</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"""
-            <div class="invest-card">
-                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Viimane sünkroniseerimine</div>
-                <div class="metric-big" style="font-size: 1.5rem; margin-top: 10px;">{current_tallinn_time}</div>
-                <div style="font-size: 0.8rem; color: #60a5fa; margin-top: 6px;">Reaalajas ticker (1 min)</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    
-    col_left, col_right = st.columns([1, 1])
-    
-    with col_left:
-        st.markdown("#### 📊 Varade Jaotus (Asset Allocation)")
-        st.markdown("""
-            <div class="pro-card">
-                <div class="asset-row">
-                    <span style="font-weight: 700; color: #f8fafc;">🟢 NVIDIA Corp. (NVDA)</span>
-                    <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%)</span>
-                </div>
-                <div class="asset-row">
-                    <span style="font-weight: 700; color: #f8fafc;">🟢 NEAR Protocol (NEAR)</span>
-                    <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%)</span>
-                </div>
-                <div class="asset-row">
-                    <span style="font-weight: 700; color: #f8fafc;">🟠 Bitcoin (BTC)</span>
-                    <span style="color: #34d399; font-weight: 600;">€20.00 (34.6%)</span>
-                </div>
-                <div class="asset-row" style="border-bottom: none;">
-                    <span style="font-weight: 700; color: #94a3b8;">💵 Sularaha / EUR Account</span>
-                    <span style="color: #94a3b8; font-weight: 600;">€0.00 (Reserved €17.83)</span>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    with col_right:
-        st.markdown("#### 🕒 Viimased Tehingud (Transactions)")
-        st.markdown("""
-            <div class="pro-card">
-                <div class="asset-row">
-                    <span style="color: #f8fafc; font-weight: 600;">Buy NVIDIA (Pending Market Order)</span>
-                    <span style="color: #ef4444; font-weight: 700;">-$20.00</span>
-                </div>
-                <div class="asset-row">
-                    <span style="color: #f8fafc; font-weight: 600;">Withdrawal to bank</span>
-                    <span style="color: #ef4444; font-weight: 700;">-€22.31</span>
-                </div>
-                <div class="asset-row">
-                    <span style="color: #f8fafc; font-weight: 600;">Buy NEAR Protocol (5.702 tokens)</span>
-                    <span style="color: #ef4444; font-weight: 700;">-€20.00</span>
-                </div>
-                <div class="asset-row">
-                    <span style="color: #f8fafc; font-weight: 600;">EUR ➔ USD Exchange</span>
-                    <span style="color: #34d399; font-weight: 700;">+$19.77 (-€17.69)</span>
-                </div>
-                <div class="asset-row">
-                    <span style="color: #f8fafc; font-weight: 600;">Buy Bitcoin (0.00028057 BTC)</span>
-                    <span style="color: #ef4444; font-weight: 700;">-€20.00</span>
-                </div>
-                <div class="asset-row" style="border-bottom: none;">
-                    <span style="color: #f8fafc; font-weight: 600;">Deposit from card</span>
-                    <span style="color: #34d399; font-weight: 700;">+€80.00</span>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("#### 🤖 AI Portfelli Analüüs & Soovitused")
-    st.info("💡 **Portfelli tähelepanek:** Portfell on jaotatud võrdselt kolme peamise kasvusektori vahel (Tehisintellekt/NVIDIA ja krüptovarad NEAR, Bitcoin). Turg on viimase tunni jooksul näidanud kerget korrektsiooni (-0.19%), mis on ideaalne hetk DCA strateegia rakendamiseks.")
-
-
-# =============================================================================
-# 6. PÕHINAVIGATSIOON JA KÄIVITUS
-# =============================================================================
-
-st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
-
-st.markdown(
-    '<div class="hero-container">'
-    '<div class="main-title">✨ AI Kuulutuste Skänner Pro</div>'
-    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad ja Lightyear portfell</div>'
-    "</div>",
-    unsafe_allow_html=True,
-)
-
-search_col, clear_col = st.columns([5, 1])
-with search_col:
-    search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="Sisesta nt NVIDIA, muru, piim, banaan...", label_visibility="collapsed")
-with clear_col:
-    if st.button("Tühjenda", use_container_width=True):
-        search_query = ""
-        st.rerun()
-
-selected_tab = st.radio(
-    "Vali kategooria:",
-    TABS,
-    horizontal=True,
-    label_visibility="collapsed",
-)
-st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
-
-if selected_tab == TAB_FREE:
-    render_feed_tab(
-        feed_url=FB_FEED_URL,
-        source_md="[Facebook Tasuta Kraam](https://www.facebook.com)",
-        badge_text="🎁 Tasuta",
-        pill_class="badge-free",
-        button_text="Vaata Facebookis",
-        empty_msg="Tasuta asjade kuulutusi ei leitud.",
-        page_key="free",
-        search_query=search_query,
-    )
-elif selected_tab == TAB_GARAGES:
-    render_feed_tab(
-        feed_url=GARAGE_FEED_URL,
-        source_md="[Kinnisvara24 Garaažid](https://kinnisvara24.ee)",
-        badge_text="🚘 Garaaž",
-        pill_class="badge-price",
-        button_text="Vaata kuulutust",
-        empty_msg="Garaažide kuulutusi ei leitud.",
-        page_key="garages",
-        search_query=search_query,
-    )
-elif selected_tab == TAB_GARDEN:
-    render_garden_tab(search_query)
-elif selected_tab == TAB_FOOD:
-    if get_apify_token():
-        render_food_live(search_query)
-    else:
-        render_food_sample(search_query)
-elif selected_tab == TAB_INVEST:
-    render_invest_tab()
+    ("Muna M (10 tk)", "1.
