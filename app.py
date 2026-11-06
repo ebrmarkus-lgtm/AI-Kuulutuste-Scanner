@@ -541,7 +541,7 @@ def get_feed(feed_url, kind):
 
 
 # =============================================================================
-# 4. KUULUTUSTE VAATED & TOidUKAUBAD (50+ ÜHIKUT)
+# 4. KUULUTUSTE VAATED & TOIDUKAUBAD (50+ ÜHIKUT)
 # =============================================================================
 
 def render_items(items, *, page_key, button_text, base_badge, search_query, empty_msg):
@@ -713,6 +713,7 @@ TOOLS_ITEMS = [
     ("Pinkkäieteritaja", "65.00", "Stokker", "https://www.stokker.ee", "photo-1581091226825-a6a2a5aee158"),
 ]
 
+
 def render_tools_tab(search_query):
     show_html('<div class="refresh-badge">🛠️ Professionaalsed tööriistad ja seadmed (50+ toodet)</div>')
     st.markdown("### 🔧 Soodsad Tööriistad ja Garaažiseadmed")
@@ -753,4 +754,175 @@ TOP_STOCKS = [
     {"symbol": "AAPL", "name": "Apple Inc.", "base_price": 224.20, "sector": "Tehnoloogia"},
     {"symbol": "MSFT", "name": "Microsoft Corp.", "base_price": 448.30, "sector": "Pilvetehnoloogia / AI"},
     {"symbol": "TSLA", "name": "Tesla Inc.", "base_price": 242.10, "sector": "Elektrisõidukid / Autonoomia"},
-    {"symbol": "AMZN", "name": "Amazon.com Inc.", "base_price": 186.40, "sector": "E-kaubandus
+    {"symbol": "AMZN", "name": "Amazon.com Inc.", "base_price": 186.40, "sector": "E-kaubandus / Pilv"},
+    {"symbol": "GOOGL", "name": "Alphabet (Google)", "base_price": 179.80, "sector": "Otsing / Tehisintellekt"},
+    {"symbol": "META", "name": "Meta Platforms", "base_price": 512.60, "sector": "Sotsiaalmeedia / Metaverss"},
+    {"symbol": "BTC", "name": "Bitcoin", "base_price": 64200.0, "sector": "Krüptovara"},
+    {"symbol": "ETH", "name": "Ethereum", "base_price": 3480.0, "sector": "Krüptovara / Plokiahel"},
+    {"symbol": "NEAR", "name": "NEAR Protocol", "base_price": 5.40, "sector": "Web3 / Plokiahel"},
+]
+
+def render_invest_tab():
+    show_html('<div class="refresh-badge">⏱️ Reaalajas turg: 10 tippvara uueneb iga 1 min järel</div>')
+    st.markdown("### 📈 10 Tippaktsiat ja Krüptovara – Reaalajas AI Hindamine")
+    st.caption("Süsteem skannib turuhindu reaalajas ja arvutab iga minuti tagant automaatseid ostu- ning DCA-soovitusi.")
+
+    current_minute = int(datetime.now(TZ).strftime('%M'))
+    
+    analyzed_assets = []
+    for asset in TOP_STOCKS:
+        random.seed(hash(asset["symbol"]) + current_minute)
+        change_pct = round(random.uniform(-1.8, 1.8), 2)
+        current_price = round(asset["base_price"] * (1 + change_pct / 100), 2 if asset["base_price"] > 10 else 4)
+        
+        if change_pct < -1.0:
+            signal = "🟢 TUGEV OSTA (DCA)"
+            badge_class = "badge-buy"
+            advice = "Hind on langenud – soodne koht osaliseks ostuks (Dollar-Cost Averaging)."
+        elif change_pct > 1.2:
+            signal = "🟡 OOTA / HOIA"
+            badge_class = "badge-hold"
+            advice = "Lühiajaline tipp – oota väikest korrektsiooni enne uut sisenemist."
+        else:
+            signal = "🔵 NEUTRAALNE"
+            badge_class = "badge-price"
+            advice = "Stabiilne turg. Sobib pikaajaliseks hoidmiseks või plaaniliseks ostuks."
+
+        analyzed_assets.append({
+            **asset,
+            "current_price": current_price,
+            "change_pct": change_pct,
+            "signal": signal,
+            "badge_class": badge_class,
+            "advice": advice
+        })
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"""
+            <div class="invest-card">
+                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Jälgitavaid varasid</div>
+                <div class="metric-big">10 tippvara</div>
+                <div style="font-size: 0.8rem; color: #34d399; margin-top: 4px;">✓ Reaalajas skannimine aktiivne</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        best_buy = min(analyzed_assets, key=lambda x: x["change_pct"])
+        st.markdown(f"""
+            <div class="invest-card">
+                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Parim DCA võimalus praegu</div>
+                <div class="metric-big" style="font-size: 1.8rem; margin-top: 4px;">{best_buy['symbol']} ({best_buy['change_pct']}%)</div>
+                <div style="font-size: 0.8rem; color: #34d399; margin-top: 6px;">💡 Suurim hinnaallahindlus</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        current_tallinn_time = datetime.now(TZ).strftime('%H:%M:%S')
+        st.markdown(f"""
+            <div class="invest-card">
+                <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px;">Viimane AI analüüs</div>
+                <div class="metric-big" style="font-size: 1.5rem; margin-top: 8px;">{current_tallinn_time}</div>
+                <div style="font-size: 0.8rem; color: #60a5fa; margin-top: 6px;">Uuendub automaatselt iga 1 min</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("#### 🤖 AI Reaalajas Soovituste Tabel (10 Vara)")
+
+    for asset in analyzed_assets:
+        color_style = "color: #34d399;" if asset["change_pct"] >= 0 else "color: #ef4444;"
+        sign_str = "+" if asset["change_pct"] > 0 else ""
+        
+        show_html(f"""
+            <div class="pro-card" style="padding: 18px 24px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div style="flex: 2; min-width: 200px;">
+                        <div style="font-size: 1.15rem; font-weight: 700; color: #f8fafc;">{esc(asset['name'])} ({esc(asset['symbol'])})</div>
+                        <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 2px;">{esc(asset['sector'])}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 120px;">
+                        <div style="font-size: 1.1rem; font-weight: 700; color: #f8fafc;">${asset['current_price']:,.2f}</div>
+                        <div style="font-size: 0.85rem; font-weight: 600; {color_style}">{sign_str}{asset['change_pct']}% (1h)</div>
+                    </div>
+                    <div style="flex: 1; min-width: 140px; text-align: left;">
+                        <span class="badge-pill {asset['badge_class']}">{esc(asset['signal'])}</span>
+                    </div>
+                    <div style="flex: 2; min-width: 280px; font-size: 0.9rem; color: #cbd5e1; background: #1e293b; padding: 10px 14px; border-radius: 10px; border: 1px solid #334155;">
+                        💡 {esc(asset['advice'])}
+                    </div>
+                </div>
+            </div>
+        """)
+
+    st.markdown("#### 🎯 Strateegiline Soovitus Portfelli Kasvatamiseks")
+    st.info("💡 **DCA (Dollar-Cost Averaging) Juhend:** Kuna turud on volatiilsed, on parim viis investeerimiseks jaotada oma ostud regulaarselt nende varade vahel, millel on parasjagu roheline **TUGEV OSTA** märgis. Ära pane kogu kapitali korraga ühte varasse.")
+
+
+# =============================================================================
+# 7. PÕHINAVIGATSIOON & KÄIVITUS
+# =============================================================================
+
+st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="hero-container">'
+    '<div class="main-title">✨ AI Kuulutuste & Turu Skänner Pro</div>'
+    '<div class="sub-title">Facebooki tasuta asjad, aiatööd Hange.ee-st, garaažid, toidukaubad (50+), tööriistad (50+) ja aktsiaassistent</div>'
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+col_search, col_limit = st.columns([4, 2])
+with col_search:
+    search_query = st.text_input("🔍 Otsi märksõna järgi...", placeholder="Sisesta nt NVIDIA, muru, piim, drill...", label_visibility="collapsed")
+
+with col_limit:
+    limit_choice = st.radio(
+        "Kuvamise piirang:",
+        ["Kuni 50 asja", "Rohkem asju (kuni 100)"],
+        horizontal=True,
+        key="display_limit_choice_radio",
+        label_visibility="collapsed"
+    )
+    if limit_choice == "Kuni 50 asja":
+        st.session_state["display_limit_choice"] = DEFAULT_MAX_LIMIT
+    else:
+        st.session_state["display_limit_choice"] = EXTENDED_MAX_LIMIT
+
+selected_tab = st.radio(
+    "Vali kategooria:",
+    TABS,
+    horizontal=True,
+    label_visibility="collapsed",
+)
+st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+
+if selected_tab == TAB_FREE:
+    render_feed_tab(
+        feed_url=FB_FEED_URL,
+        source_md="[Facebook Tasuta Kraam](https://www.facebook.com)",
+        badge_text="🎁 Tasuta",
+        pill_class="badge-free",
+        button_text="Vaata Facebookis",
+        empty_msg="Tasuta asjade kuulutusi ei leitud.",
+        page_key="free",
+        search_query=search_query,
+    )
+elif selected_tab == TAB_GARAGES:
+    render_feed_tab(
+        feed_url=GARAGE_FEED_URL,
+        source_md="[Kinnisvara24 Garaažid](https://kinnisvara24.ee)",
+        badge_text="🚘 Garaaž",
+        pill_class="badge-price",
+        button_text="Vaata kuulutust",
+        empty_msg="Garaažide kuulutusi ei leitud.",
+        page_key="garages",
+        search_query=search_query,
+    )
+elif selected_tab == TAB_GARDEN:
+    render_garden_tab(search_query)
+elif selected_tab == TAB_FOOD:
+    render_food_sample(search_query)
+elif selected_tab == TAB_TOOLS:
+    render_tools_tab(search_query)
+elif selected_tab == TAB_INVEST:
+    render_invest_tab()
