@@ -533,7 +533,7 @@ def get_feed(feed_url, kind):
 
 
 # =============================================================================
-# 4. KUULUTUSTE VAATED JA TOidUKAUBAD
+# 4. KUULUTUSTE VAATED JA TOIDUKAUBAD
 # =============================================================================
 
 def render_items(items, *, page_key, button_text, base_badge, search_query, empty_msg):
@@ -585,4 +585,34 @@ GROCERIES = [
     ("Broilerifilee (kg)", "6.49", "Selver", "https://www.selver.ee", "photo-1604503468506-a8da13d82791"),
     ("Juust Edam (400 g)", "3.29", "Coop", "https://www.coop.ee", "photo-1486297678162-eb2a19b0a32d"),
     ("Kartul (5 kg kott)", "2.99", "Lidl", "https://www.lidl.ee", "photo-1518977676601-b53f82aba655"),
-    ("Muna M (10 tk)", "1.
+    ("Muna M (10 tk)", "1.79", "Prisma", "https://www.prisma.ee", "photo-1516448620398-c5f44bf9f441"),
+    ("Apelsinimahl 100% (1.5 l)", "1.99", "Maxima", "https://www.maxima.ee", "photo-1613478223719-2ab802602423"),
+]
+
+
+def render_food_sample(search_query):
+    show_html('<div class="refresh-badge">ℹ️ Toidukaupade sooduspakkumised</div>')
+    stores = ["Kõik"] + sorted({g[2] for g in GROCERIES})
+    store_filter = st.selectbox("Filtreeri kaupluse järgi:", stores)
+
+    items = [
+        {
+            "title": title,
+            "description": "Kampaaniatoode igapäevaseks tarbimiseks.",
+            "price": f"{price} €",
+            "store": store,
+            "link": link,
+            "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
+        }
+        for title, price, store, link, photo in GROCERIES
+    ]
+
+    filtered = [
+        it for it in items
+        if (store_filter == "Kõik" or it["store"] == store_filter)
+        and matches(search_query, it["title"], it["description"], it["store"])
+    ]
+
+    for item in paginate_items(filtered, "groceries"):
+        badges = pill("badge-price", f"🏷️ {item['price']}") + pill("badge-location", f"📍 {item['store']}")
+        render_card(item, "Va
