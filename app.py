@@ -6,15 +6,23 @@ Sõltuvused (requirements.txt):
     requests
     beautifulsoup4
     lxml
+    pandas
     tzdata
 """
 
+import csv
 import html
+import io
+import json
 import re
 import urllib.parse
+from collections import Counter
 from datetime import datetime
+from email.utils import parsedate_to_datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 import requests
 import streamlit as st
 from bs4 import BeautifulSoup
@@ -32,8 +40,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Leht uuendub iga 60 sekundi järel (andmed tulevad vahemälust, vt TTL).
+# Leht uuendub iga 60 sekundi järel (andmed tulevad vahemälust, vt TTL-id).
 st_autorefresh(interval=60_000, key="smart_live_refresh")
+
+TZ = ZoneInfo("Europe/Tallinn")
 
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -48,11 +58,17 @@ REQUEST_HEADERS = {
 MAX_LIMIT = 50
 PAGE_INCREMENT = 25
 REQUEST_TIMEOUT = 15
-FEED_TTL = 900  # sekundit
+FEED_TTL = 900   # RSS-voogude vahemälu (sekundit)
+PRICE_TTL = 300  # hindade vahemälu (sekundit)
 
 FB_FEED_URL = "https://rss.app/feeds/7CQIQkCY12Cwc3Rn.xml"
 GARAGE_FEED_URL = "https://rss.app/feeds/MjiyNEAjjPzTGkVZ.xml"
+# NB! See voog on Hange.ee ÜLDINE hangete nimekiri, mitte aiatööde kategooria.
+# Loo rss.app-is uus voog Hange.ee aiatööde kategooria lehe URL-ist ja pane
+# uus voo URL siia (või otse rakenduses jaotises "Voo seaded").
 HANGE_FEED_URL = "https://rss.app/feeds/4QE7Z3yfpulhchLA.xml"
+
+PORTFOLIO_FILE = Path(__file__).with_name("portfell.json")
 
 TAB_FREE = "🎁 Tasuta asjad"
 TAB_GARAGES = "🚘 Kinnisvara garaažid"
@@ -61,19 +77,43 @@ TAB_FOOD = "🛒 Toidukaubad"
 TAB_INVEST = "📈 Lightyear Investeeringud"
 TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_FOOD, TAB_INVEST]
 
-GARDEN_REQUIRED = [
-    "aia", "aiatöö", "haljast", "muru", "hekk", "heki",
-    "viljapuu", "istut", "lillepeenar", "trimmer", "lehte",
-    "multš", "freesi", "põõsa", "raie", "võsa",
-    "kiviparkett", "terrass", "õue", "puu lõik",
-]
-GARDEN_FORBIDDEN = [
-    "veearvesti", "termostaat", "mullivann", "vannituba",
-    "sanitaartehn", "katus", "vundament", "torutöö",
-    "elektritöö", "siseviimistlus", "plaatimine",
-    "maalritöö", "fassaad", "betoon", "korteris",
-    "korteri", "pesumasin", "külmkapp", "pliit",
-]
+
+def stem_regex(stems):
+    """Regex, mis sobib sõna ALGUSEGA ('aia' leiab 'aiatööd', aga mitte 'kaiaga')."""
+    return re.compile(
+        r"(?<!\w)(?:" + "|".join(re.escape(s) for s in stems) + ")",
+        re.IGNORECASE,
+    )
+
+
+# Hange.ee kategooriad, mis loetakse aiatöödeks (kontrollitakse esimesena).
+GARDEN_CATEGORY_RE = stem_regex([
+    "aia", "haljast", "muru", "maastik", "puude", "puuhooldus",
+    "raie", "õuealad", "territoorium", "piirde", "sillut",
+])
+# Märksõnad pealkirjas/kirjelduses, kui kategooria ei ütle midagi.
+GARDEN_KEYWORD_RE = stem_regex([
+    "aia", "haljast", "muru", "hekk", "heki", "viljapuu", "istut",
+    "lillepeenar", "trimmer", "lehte", "multš", "freesi", "põõsa",
+    "raie", "raiu", "võsa", "kiviparkett", "terrass", "õue",
+    "puu lõik", "puude", "kasvuhoone", "piirdeaed",
+])
+# Välistavad märksõnad (kontrollitakse ainult pealkirjast ja kategooriast).
+GARDEN_FORBIDDEN_RE = stem_regex([
+    "veearvesti", "termostaat", "mullivann", "vannituba", "vannitoa",
+    "sanitaartehn", "katus", "vundament", "torutöö", "elektritöö",
+    "siseviimistlus", "plaatimine", "maalritöö", "fassaad", "betoon",
+    "korteri", "pesumasin", "külmkapp", "pliit", "köögi", "kipsi",
+])
+
+
+def is_garden(title, description, category):
+    if category and GARDEN_CATEGORY_RE.search(category):
+        return True
+    if GARDEN_FORBIDDEN_RE.search(f"{title} {category}"):
+        return False
+    return bool(GARDEN_KEYWORD_RE.search(f"{title} {description}"))
+
 
 DARK_MODE_CSS = """
 <style>
@@ -135,11 +175,6 @@ html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
     box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
 .metric-big { font-size: 2.5rem; font-weight: 800; color: #f8fafc; letter-spacing: -1px; }
-.asset-row {
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 12px; padding: 14px 0; border-bottom: 1px solid #1f2937;
-}
-.asset-row:last-child { border-bottom: none; }
 .refresh-badge {
     background: #1e293b; border: 1px solid #334155;
     padding: 8px 14px; border-radius: 10px;
@@ -155,7 +190,6 @@ html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
 # =============================================================================
 
 def esc(value) -> str:
-    """HTML-escape kasutajale kuvatava teksti jaoks."""
     return html.escape(str(value if value is not None else ""), quote=True)
 
 
@@ -163,7 +197,7 @@ def show_html(markup: str):
     """Renderda HTML Streamlitis.
 
     Markdown tõlgendab 4+ tühikuga taandatud ridu koodiplokina ja tühi rida
-    lõpetab HTML-ploki. Seepärast eemaldame taanded ja tühjad read.
+    lõpetab HTML-ploki, seepärast eemaldame taanded ja tühjad read.
     """
     cleaned = "\n".join(
         line.strip() for line in markup.splitlines() if line.strip()
@@ -194,6 +228,18 @@ def matches(query, *fields):
         return True
     q = str(query).casefold().strip()
     return any(q in str(field or "").casefold() for field in fields)
+
+
+def to_float(value) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return 0.0 if number != number else number  # NaN -> 0
+
+
+def pill(css_class, text):
+    return f'<span class="badge-pill {css_class}">{esc(text)}</span>'
 
 
 def paginate_items(items, category_key):
@@ -229,10 +275,6 @@ def paginate_items(items, category_key):
     return items[:visible_count]
 
 
-def pill(css_class, text):
-    return f'<span class="badge-pill {css_class}">{esc(text)}</span>'
-
-
 def render_card(item, button_text, badges=""):
     link = safe_http_url(item.get("link"))
     img_url = safe_http_url(item.get("image"))
@@ -249,6 +291,11 @@ def render_card(item, button_text, badges=""):
     date_html = (
         f'<div class="card-date">{esc(item["date_str"])}</div>'
         if item.get("date_str")
+        else ""
+    )
+    desc_html = (
+        f'<div class="card-desc">{esc(item["description"])}</div>'
+        if item.get("description")
         else ""
     )
     tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
@@ -269,7 +316,7 @@ def render_card(item, button_text, badges=""):
             <div class="card-body">
               <div class="card-title">{esc(item.get("title", "Kuulutus"))}</div>
               {date_html}
-              <div class="card-desc">{esc(item.get("description", ""))}</div>
+              {desc_html}
               {tags_html}
               {button_html}
             </div>
@@ -280,11 +327,12 @@ def render_card(item, button_text, badges=""):
 
 
 def render_image_diagnostics(items, category_name):
-    """Arenduse abivaade: näitab, kust iga RSS-kirje pildi sai."""
     with st.expander(f"🔎 Piltide diagnostika – {category_name}"):
         if not items:
             st.caption("Diagnostikaks pole kirjeid.")
             return
+        with_img = sum(1 for it in items if it.get("image"))
+        st.caption(f"Pilt leiti {with_img} kirjele {len(items)}-st.")
         for index, item in enumerate(items, start=1):
             title = item.get("title", "Pealkirjata")
             if item.get("image"):
@@ -329,7 +377,6 @@ def usable_image_url(value, base_url=None, allow_extensionless=False):
 
 
 def best_srcset_url(srcset):
-    """Tagastab srcset-ist suurima laiusega URL-i."""
     variants = []
     for part in srcset.split(","):
         bits = part.strip().split()
@@ -341,17 +388,11 @@ def best_srcset_url(srcset):
             if m:
                 width = int(m.group(1))
         variants.append((width, bits[0]))
-    if not variants:
-        return None
-    return max(variants, key=lambda v: v[0])[1]
+    return max(variants, key=lambda v: v[0])[1] if variants else None
 
 
 def extract_real_image_details(entry, base_url=None):
-    """Leia pilt ainult selle konkreetse RSS-kirje seest.
-
-    Järjekord: media:content (pilt) -> media:thumbnail -> enclosure ->
-    <img> kirjelduse HTML-ist. Kanalitaseme pilte ei kasutata.
-    """
+    """Leia pilt ainult selle konkreetse RSS-kirje seest."""
     candidates = []
     seen = set()
 
@@ -410,26 +451,61 @@ def extract_entry_link(entry, base_url=None):
     link_tag = entry.find("link")
     if not link_tag:
         return None
-    # Atom: <link href="..."/>; RSS: <link>...</link>
-    href = link_tag.get("href")
+    href = link_tag.get("href")  # Atom
     if href:
         return safe_http_url(href, base_url=base_url)
-    return safe_http_url(link_tag.get_text(" ", strip=True), base_url=base_url)
+    return safe_http_url(link_tag.get_text(" ", strip=True), base_url=base_url)  # RSS
 
 
 def extract_entry_text(entry, tag_names):
     for tag in entry.find_all(True):
         if local_name(tag) in tag_names:
             raw = "".join(str(child) for child in tag.contents) or tag.get_text(" ", strip=True)
-            return BeautifulSoup(raw, "html.parser").get_text(" ", strip=True)
+            text = BeautifulSoup(raw, "html.parser").get_text(" ", strip=True)
+            return " ".join(text.split())
     return ""
+
+
+def extract_entry_date(entry):
+    """Tagastab kuupäeva Eesti ajas (või tühja stringi)."""
+    for tag in entry.find_all(True):
+        if local_name(tag) not in {"pubdate", "published", "updated", "date"}:
+            continue
+        text = tag.get_text(strip=True)
+        if not text:
+            continue
+        try:
+            dt = parsedate_to_datetime(text)
+        except (TypeError, ValueError):
+            try:
+                dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        midnight = dt.hour == 0 and dt.minute == 0 and dt.second == 0
+        local = dt.astimezone(TZ)
+        return local.strftime("%d.%m.%Y") if midnight else local.strftime("%d.%m.%Y %H:%M")
+    return ""
+
+
+# Hange.ee voo kirjeldus on kujul:
+# "Keskmine hind 6 500€ pakkujaid 1. Vannitubade remont: tekst... Vaata kõiki ..."
+HANGE_META_RE = re.compile(
+    r"Keskmine hind\s+(?P<price>[\d\s.,]*?)\s*€\s*pakkujaid\s+(?P<bids>\d+)\."
+    r"\s*(?:(?P<category>[^:]{2,80}?):)?\s*(?P<text>.*)",
+    re.DOTALL,
+)
+HANGE_TRAILER_RE = re.compile(r"\s*Vaata kõiki pakkumisi ja hindu meie keskkonnas\.?\s*$")
 
 
 @st.cache_data(ttl=FEED_TTL, show_spinner=False)
 def load_feed(feed_url, kind):
-    """Loeb RSS/Atom voo. kind: 'standard' või 'gardening'.
+    """Loeb RSS/Atom voo.
 
-    Vea korral visatakse erand, mistõttu ebaõnnestunud päringut ei cache'ita.
+    kind: 'standard' (ilma filtrita) või 'gardening' (aiatööde filter).
+    Vea korral visatakse erand, seega ebaõnnestunud päringut ei cache'ita.
+    Tagastab {'items': [...], 'meta': {...}}.
     """
     feed_url = safe_http_url(feed_url)
     if not feed_url:
@@ -439,57 +515,91 @@ def load_feed(feed_url, kind):
     response.raise_for_status()
     soup = BeautifulSoup(response.content, "xml")
 
-    results = []
-    for entry in soup.find_all(["item", "entry"]):
-        if len(results) >= MAX_LIMIT:
-            break
+    container = soup.find("channel") or soup.find("feed")
+    channel_title = ""
+    if container:
+        title_tag = container.find("title", recursive=False)
+        channel_title = title_tag.get_text(" ", strip=True) if title_tag else ""
 
+    entries = soup.find_all(["item", "entry"])
+    categories = Counter()
+    results = []
+    seen_links = set()
+
+    for entry in entries:
         title = extract_entry_text(entry, {"title"}) or "Kirje"
         description = extract_entry_text(entry, {"description", "summary", "encoded"})
 
-        if kind == "gardening":
-            text = f"{title} {description}".casefold()
-            if any(w in text for w in GARDEN_FORBIDDEN):
-                continue
-            if not any(w in text for w in GARDEN_REQUIRED):
-                continue
+        category = ""
+        tags = []
+        meta = HANGE_META_RE.match(description)
+        if meta:
+            category = (meta["category"] or "").strip()
+            description = HANGE_TRAILER_RE.sub("", meta["text"]).strip()
+            price = re.sub(r"\s+", " ", meta["price"]).strip()
+            if category:
+                tags.append(("badge-location", f"🏷️ {category}"))
+            if price and price != "0":
+                tags.append(("badge-price", f"💶 Keskmine hind {price} €"))
+            tags.append(("badge-location", f"👥 Pakkujaid: {int(meta['bids'])}"))
+
+        categories[category or "(kategooriat ei tuvastatud)"] += 1
+
+        if kind == "gardening" and not is_garden(title, description, category):
+            continue
+        if len(results) >= MAX_LIMIT:
+            continue
 
         link = extract_entry_link(entry, base_url=feed_url)
+        if link and link in seen_links:
+            continue
+        if link:
+            seen_links.add(link)
+
         image = extract_real_image_details(entry, base_url=link or feed_url)
+        date = extract_entry_date(entry)
 
         results.append(
             {
                 "title": title,
                 "description": description[:200] + ("..." if len(description) > 200 else ""),
-                "location": "Eesti",
                 "link": link,
                 "image": image["url"],
                 "image_source": image["source"],
-                "date_str": "📅 Aiatöö hange" if kind == "gardening" else "📅 RSS-kuulutus",
+                "date_str": f"📅 {date}" if date else "",
+                "tags": tags,
             }
         )
-    return results
+
+    return {
+        "items": results,
+        "meta": {
+            "channel_title": channel_title,
+            "total": len(entries),
+            "kept": len(results),
+            "categories": dict(categories),
+        },
+    }
 
 
-# =============================================================================
-# 4. KATEGOORIATE VAATED
-# =============================================================================
-
-def render_feed_tab(*, feed_url, kind, source_md, badge_text, pill_class,
-                    button_text, empty_msg, diag_name, page_key, search_query,
-                    refresh_note):
-    show_html(f'<div class="refresh-badge">{esc(refresh_note)}</div>')
-    st.markdown(f"**Allikas:** {source_md}")
-
+def get_feed(feed_url, kind):
+    """Laeb voo ja näitab vea korral hoiatuse. Tagastab alati sõnastiku."""
+    empty = {"items": [], "meta": {"channel_title": "", "total": 0, "kept": 0, "categories": {}}}
     try:
-        items = load_feed(feed_url, kind)
+        return load_feed(feed_url, kind)
     except requests.RequestException as exc:
         st.warning(f"RSS-voo laadimine ebaõnnestus: {exc}")
-        items = []
     except Exception as exc:
         st.warning(f"RSS-andmete töötlemisel tekkis viga: {exc}")
-        items = []
+    return empty
 
+
+# =============================================================================
+# 4. KUULUTUSTE VAATED
+# =============================================================================
+
+def render_items(items, *, page_key, button_text, base_badge, search_query,
+                 empty_msg, diag_name):
     filtered = [
         it for it in items
         if matches(search_query, it.get("title"), it.get("description"))
@@ -500,10 +610,79 @@ def render_feed_tab(*, feed_url, kind, source_md, badge_text, pill_class,
         st.info(empty_msg)
 
     for item in paginate_items(filtered, page_key):
-        badges = pill(pill_class, badge_text) + pill(
-            "badge-location", f"📍 {item.get('location', '')}"
+        badges = (base_badge or "") + "".join(
+            pill(css, text) for css, text in item.get("tags", [])
         )
         render_card(item, button_text, badges=badges)
+
+
+def render_feed_tab(*, feed_url, source_md, badge_text, pill_class, button_text,
+                    empty_msg, diag_name, page_key, search_query):
+    show_html(
+        '<div class="refresh-badge">⏱️ Leht uuendub iga 1 min, '
+        "voo andmed vahemälus 15 min</div>"
+    )
+    st.markdown(f"**Allikas:** {source_md}")
+
+    data = get_feed(feed_url, "standard")
+    render_items(
+        data["items"], page_key=page_key, button_text=button_text,
+        base_badge=pill(pill_class, badge_text), search_query=search_query,
+        empty_msg=empty_msg, diag_name=diag_name,
+    )
+
+
+def render_garden_tab(search_query):
+    show_html('<div class="refresh-badge">⏱️ Aiatööde voog: vahemälu 15 min</div>')
+    st.markdown("**Allikas:** [Hange.ee](https://www.hange.ee)")
+
+    with st.expander("⚙️ Voo seaded"):
+        feed_url = st.text_input(
+            "Hange.ee RSS-voo URL",
+            value=HANGE_FEED_URL,
+            key="hange_feed_url",
+            help="Kõige parem on voog, mis on tehtud Hange.ee aiatööde kategooria lehest.",
+        )
+        show_all = st.checkbox(
+            "Näita kõiki voo kirjeid (ilma aiatööde filtrita)",
+            key="hange_show_all",
+        )
+
+    data = get_feed(feed_url, "standard" if show_all else "gardening")
+    meta = data["meta"]
+
+    with st.expander("🧪 Voo diagnostika"):
+        st.write(f"**Voo pealkiri:** {meta['channel_title'] or '–'}")
+        st.write(
+            f"**Kirjeid voos:** {meta['total']} · "
+            f"**Aiatöödena alles:** {meta['kept'] if not show_all else 'filter väljas'}"
+        )
+        if meta["categories"]:
+            cat_df = pd.DataFrame(
+                sorted(meta["categories"].items(), key=lambda kv: -kv[1]),
+                columns=["Kategooria", "Kirjeid"],
+            )
+            st.dataframe(cat_df, hide_index=True, use_container_width=True)
+
+    if not show_all and meta["total"] > 0 and meta["kept"] == 0:
+        st.warning(
+            f"Voos on {meta['total']} kirjet, aga ükski ei ole aiatöö. "
+            f"Voo pealkiri on „{meta['channel_title']}“, mis viitab Hange.ee üldisele "
+            "hangete nimekirjale. RSS-voog sisaldab ainult uusimaid kirjeid, seega "
+            "üldnimekirjast filtreerimine annab aiatöid harva. Loo rss.app-is uus voog "
+            "Hange.ee aiatööde kategooria lehe URL-ist ja vaheta voo URL jaotises "
+            "„Voo seaded“."
+        )
+    elif meta["total"] == 0:
+        st.info("Voos ei ole ühtegi kirjet.")
+
+    render_items(
+        data["items"], page_key="hange", button_text="Vaata Hange.ee keskkonnas",
+        base_badge=pill("badge-gardening", "🌿 Aiatöö / Haljastus") if not show_all else "",
+        search_query=search_query,
+        empty_msg="Sobivaid aiatööde hankeid praegu ei leitud.",
+        diag_name="Hange.ee aiatööd",
+    )
 
 
 GROCERIES = [
@@ -560,47 +739,242 @@ def render_food_tab(search_query):
         render_card(item, "Ava kaupluse veebileht", badges=badges)
 
 
-def render_invest_tab():
-    show_html('<div class="refresh-badge">ℹ️ Portfelli näidisvaade</div>')
-    st.markdown("### 💼 Lightyeari portfelli vaade")
-    st.warning(
-        "See vaade ei ole Lightyeariga ühendatud ega saa kontolt reaalajas andmeid. "
-        "Allolevad summad on koodis olevad näidisväärtused."
+# =============================================================================
+# 5. PORTFELL (OMA POSITSIOONID + AVALIKUD HINNAD)
+# =============================================================================
+# Lightyearil ei ole teadaolevalt avalikku arendaja-API-t, mille kaudu rakendus
+# saaks sinu kontolt andmeid lugeda. Seepärast sisestad positsioonid ise, hinnad
+# tulevad avalikest allikatest: CoinGecko (krüpto), Stooq (aktsiad/ETF-id) ja
+# Frankfurter (USD→EUR kurss).
+
+HOLDING_COLUMNS = ["Nimi", "Tüüp", "Sümbol", "Valuuta", "Kogus", "Investeeritud (€)"]
+DEFAULT_HOLDINGS = [
+    {"Nimi": "NVIDIA", "Tüüp": "Aktsia/ETF", "Sümbol": "nvda.us", "Valuuta": "USD", "Kogus": 0.0, "Investeeritud (€)": 0.0},
+    {"Nimi": "NEAR Protocol", "Tüüp": "Krüpto", "Sümbol": "near", "Valuuta": "EUR", "Kogus": 0.0, "Investeeritud (€)": 0.0},
+    {"Nimi": "Bitcoin", "Tüüp": "Krüpto", "Sümbol": "bitcoin", "Valuuta": "EUR", "Kogus": 0.0, "Investeeritud (€)": 0.0},
+]
+
+
+def load_holdings():
+    try:
+        data = json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, list) and data:
+            return pd.DataFrame(data).reindex(columns=HOLDING_COLUMNS)
+    except (OSError, ValueError):
+        pass
+    return pd.DataFrame(DEFAULT_HOLDINGS, columns=HOLDING_COLUMNS)
+
+
+def save_holdings(df):
+    records = df.reindex(columns=HOLDING_COLUMNS).fillna("").to_dict("records")
+    PORTFOLIO_FILE.write_text(
+        json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
-    holdings = [
-        ("🟢", "NVIDIA Corp. (NVDA)", 19.25),
-        ("🟢", "NEAR Protocol (NEAR)", 19.25),
-        ("🟠", "Bitcoin (BTC)", 19.25),
-        ("💵", "EUR / sularaha", 0.00),
-    ]
-    total = sum(h[2] for h in holdings)
-    diff = -0.16
-    pct = diff / (total - diff) * 100 if total != diff else 0.0
-    color = "#34d399" if diff >= 0 else "#ef4444"
-    arrow = "▲" if diff >= 0 else "▼"
-    now = datetime.now(ZoneInfo("Europe/Tallinn")).strftime("%H:%M:%S")
+
+@st.cache_data(ttl=PRICE_TTL, show_spinner=False)
+def fetch_crypto_eur(coin_ids):
+    """CoinGecko id-de (nt 'bitcoin', 'near') hinnad eurodes."""
+    response = requests.get(
+        "https://api.coingecko.com/api/v3/simple/price",
+        params={"ids": ",".join(coin_ids), "vs_currencies": "eur"},
+        headers=REQUEST_HEADERS,
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+    return {cid: float(v["eur"]) for cid, v in response.json().items() if "eur" in v}
+
+
+@st.cache_data(ttl=PRICE_TTL, show_spinner=False)
+def fetch_stooq_close(symbol):
+    """Viimane sulgemishind Stoopist (nt 'nvda.us', 'vwce.de')."""
+    url = f"https://stooq.com/q/l/?s={urllib.parse.quote(symbol)}&f=sd2t2c&h&e=csv"
+    response = requests.get(url, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT)
+    response.raise_for_status()
+    rows = list(csv.DictReader(io.StringIO(response.text)))
+    raw = (rows[0].get("Close") or "").strip() if rows else ""
+    try:
+        return float(raw)
+    except ValueError:
+        raise ValueError(f"Stooq ei leidnud hinda sümbolile '{symbol}'.") from None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_usd_eur():
+    last_exc = None
+    for url in (
+        "https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR",
+        "https://api.frankfurter.app/latest?from=USD&to=EUR",
+    ):
+        try:
+            response = requests.get(url, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            return float(response.json()["rates"]["EUR"])
+        except (requests.RequestException, KeyError, ValueError) as exc:
+            last_exc = exc
+    raise RuntimeError(f"USD→EUR kursi laadimine ebaõnnestus: {last_exc}")
+
+
+def value_holdings(df):
+    rows, errors = [], []
+
+    crypto_ids = tuple(sorted({
+        str(r.get("Sümbol") or "").strip().lower()
+        for r in df.to_dict("records")
+        if r.get("Tüüp") == "Krüpto" and str(r.get("Sümbol") or "").strip()
+    }))
+    crypto_prices = {}
+    if crypto_ids:
+        try:
+            crypto_prices = fetch_crypto_eur(crypto_ids)
+        except Exception as exc:
+            errors.append(f"Krüptohindade laadimine ebaõnnestus: {exc}")
+
+    usd_eur = None
+    for rec in df.to_dict("records"):
+        name = str(rec.get("Nimi") or "").strip()
+        symbol = str(rec.get("Sümbol") or "").strip().lower()
+        if not name and not symbol:
+            continue
+
+        qty = to_float(rec.get("Kogus"))
+        invested = to_float(rec.get("Investeeritud (€)"))
+        kind = rec.get("Tüüp") or "Aktsia/ETF"
+        currency = rec.get("Valuuta") or "EUR"
+
+        price_eur = None
+        try:
+            if not symbol:
+                raise ValueError("sümbol puudub")
+            if kind == "Krüpto":
+                price_eur = crypto_prices.get(symbol)
+                if price_eur is None:
+                    raise ValueError(f"CoinGecko ei leidnud id-d '{symbol}'")
+            else:
+                price = fetch_stooq_close(symbol)
+                if currency == "USD":
+                    if usd_eur is None:
+                        usd_eur = fetch_usd_eur()
+                    price_eur = price * usd_eur
+                else:
+                    price_eur = price
+        except Exception as exc:
+            errors.append(f"{name or symbol}: {exc}")
+
+        value = qty * price_eur if price_eur is not None else None
+        rows.append(
+            {
+                "Nimi": name or symbol,
+                "Kogus": qty,
+                "Hind (€)": price_eur,
+                "Väärtus (€)": value,
+                "Investeeritud (€)": invested,
+                "Tulem (€)": (value - invested) if value is not None else None,
+                "Tulem (%)": (
+                    (value - invested) / invested * 100
+                    if value is not None and invested > 0
+                    else None
+                ),
+            }
+        )
+    return rows, errors
+
+
+def render_invest_tab():
+    show_html(
+        '<div class="refresh-badge">ℹ️ Hinnad avalikest allikatest, '
+        "vahemälu 5 min</div>"
+    )
+    st.markdown("### 💼 Portfelli vaade")
+    st.info(
+        "Lightyearil ei ole teadaolevalt avalikku arendaja-API-t, seega see rakendus "
+        "ei saa sinu kontolt andmeid lugeda. Sisesta oma positsioonid (kogus ja "
+        "investeeritud summa Lightyeari rakendusest) allolevasse tabelisse. Hinnad "
+        "tulevad avalikest allikatest ja võivad Lightyeari kuvatavast erineda."
+    )
+
+    if "holdings_base" not in st.session_state:
+        st.session_state["holdings_base"] = load_holdings()
+
+    all_zero = (
+        st.session_state["holdings_base"]["Kogus"].fillna(0).astype(float).sum() == 0
+    )
+    with st.expander("✏️ Muuda positsioone", expanded=all_zero):
+        st.caption(
+            "Aktsia/ETF: sümbol Stoopi formaadis (nt `nvda.us`, `vwce.de`) ja valuuta "
+            "(USD/EUR). Krüpto: CoinGecko id (nt `bitcoin`, `near`). "
+            "Muudatused säilivad pärast „Salvesta“ vajutamist."
+        )
+        edited = st.data_editor(
+            st.session_state["holdings_base"],
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            key="holdings_editor",
+            column_config={
+                "Tüüp": st.column_config.SelectboxColumn(
+                    "Tüüp", options=["Aktsia/ETF", "Krüpto"], required=True
+                ),
+                "Valuuta": st.column_config.SelectboxColumn(
+                    "Valuuta", options=["EUR", "USD"], required=True
+                ),
+                "Kogus": st.column_config.NumberColumn(
+                    "Kogus", min_value=0.0, format="%.6f"
+                ),
+                "Investeeritud (€)": st.column_config.NumberColumn(
+                    "Investeeritud (€)", min_value=0.0, format="%.2f"
+                ),
+            },
+        )
+        if st.button("💾 Salvesta portfell"):
+            try:
+                save_holdings(edited)
+                st.success(f"Salvestatud faili {PORTFOLIO_FILE.name}.")
+            except OSError as exc:
+                st.error(f"Salvestamine ebaõnnestus: {exc}")
+
+    rows, errors = value_holdings(edited)
+    priced = [r for r in rows if r["Väärtus (€)"] is not None]
+    total_value = sum(r["Väärtus (€)"] for r in priced)
+    invested_priced = sum(r["Investeeritud (€)"] for r in priced)
+    pl = total_value - invested_priced
+    pl_pct = pl / invested_priced * 100 if invested_priced > 0 else None
+    pl_color = "#34d399" if pl >= 0 else "#ef4444"
+    pl_arrow = "▲" if pl >= 0 else "▼"
+    now = datetime.now(TZ).strftime("%H:%M:%S")
 
     col1, col2, col3 = st.columns(3)
     with col1:
+        value_text = f"€{total_value:,.2f}" if priced else "—"
         show_html(
             f"""
             <div class="invest-card">
-              <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:4px;">Portfelli näidisväärtus</div>
-              <div class="metric-big">€{total:.2f}</div>
-              <div style="font-size:0.8rem;color:{color};margin-top:4px;">
-                {arrow} {pct:.2f}% (€{diff:.2f}) näidismuutus
+              <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:4px;">Portfelli väärtus</div>
+              <div class="metric-big">{value_text}</div>
+              <div style="font-size:0.8rem;color:#94a3b8;margin-top:4px;">
+                Investeeritud (hinnaga positsioonid): €{invested_priced:,.2f}
               </div>
             </div>
             """
         )
     with col2:
+        if priced and pl_pct is not None:
+            pl_html = (
+                f'<div class="metric-big" style="font-size:1.8rem;margin-top:8px;color:{pl_color};">'
+                f"{pl_arrow} €{pl:,.2f}</div>"
+                f'<div style="font-size:0.8rem;color:{pl_color};margin-top:6px;">{pl_pct:+.2f}%</div>'
+            )
+        else:
+            pl_html = (
+                '<div class="metric-big" style="font-size:1.8rem;margin-top:8px;">—</div>'
+                '<div style="font-size:0.8rem;color:#94a3b8;margin-top:6px;">'
+                "Sisesta kogus ja investeeritud summa</div>"
+            )
         show_html(
-            """
+            f"""
             <div class="invest-card">
-              <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:4px;">Näidispositsioonid</div>
-              <div class="metric-big" style="font-size:1.8rem;margin-top:8px;">NVIDIA, NEAR, BTC</div>
-              <div style="font-size:0.8rem;color:#34d399;margin-top:6px;">Näidisportfell</div>
+              <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:4px;">Kasum / kahjum</div>
+              {pl_html}
             </div>
             """
         )
@@ -615,48 +989,34 @@ def render_invest_tab():
             """
         )
 
-    st.markdown("---")
-    col_left, col_right = st.columns(2)
+    for message in errors:
+        st.warning(message)
 
-    with col_left:
-        st.markdown("#### 📊 Varade jaotus – näidis")
-        rows = "".join(
-            f'<div class="asset-row">'
-            f'<span style="font-weight:700;color:#f8fafc;">{icon} {esc(name)}</span>'
-            f'<span style="color:#34d399;font-weight:600;">€{value:.2f}</span>'
-            f"</div>"
-            for icon, name, value in holdings
+    if rows:
+        st.markdown("#### 📊 Positsioonid")
+        st.dataframe(
+            pd.DataFrame(rows),
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "Kogus": st.column_config.NumberColumn(format="%.6f"),
+                "Hind (€)": st.column_config.NumberColumn(format="%.4f"),
+                "Väärtus (€)": st.column_config.NumberColumn(format="%.2f"),
+                "Investeeritud (€)": st.column_config.NumberColumn(format="%.2f"),
+                "Tulem (€)": st.column_config.NumberColumn(format="%+.2f"),
+                "Tulem (%)": st.column_config.NumberColumn(format="%+.2f%%"),
+            },
         )
-        show_html(f'<div class="pro-card">{rows}</div>')
 
-    with col_right:
-        st.markdown("#### 🕒 Tehingud – näidis")
-        transactions = [
-            ("Buy NVIDIA", "-€20.00", "#ef4444"),
-            ("Withdrawal to bank", "-€22.31", "#ef4444"),
-            ("Buy NEAR Protocol", "-€20.00", "#ef4444"),
-            ("EUR to USD exchange", "+USD equivalent", "#34d399"),
-            ("Deposit from card", "+€80.00", "#34d399"),
-        ]
-        rows = "".join(
-            f'<div class="asset-row">'
-            f'<span style="color:#f8fafc;font-weight:600;">{esc(label)}</span>'
-            f'<span style="color:{c};font-weight:700;">{esc(amount)}</span>'
-            f"</div>"
-            for label, amount, c in transactions
-        )
-        show_html(f'<div class="pro-card">{rows}</div>')
-
-    st.markdown("#### 🤖 Portfelli tähelepanek")
-    st.info(
-        "Näidisportfell on jaotatud kolme vara vahel. See ei ole reaalajas "
-        "turuanalüüs ega personaalne investeerimissoovitus. Enne otsuseid "
-        "kontrolli oma tegelikke positsioone, hindu ja riske Lightyearis."
+    st.caption(
+        "Allikad: CoinGecko, Stooq, Frankfurter (EKP kurss). See ei ole "
+        "investeerimissoovitus. Enne otsuseid kontrolli tegelikke hindu ja "
+        "positsioone Lightyearis."
     )
 
 
 # =============================================================================
-# 5. PEAVOOG
+# 6. PEAVOOG
 # =============================================================================
 
 def clear_search():
@@ -670,7 +1030,7 @@ show_html(
     <div class="hero-container">
       <div class="main-title">✨ AI Kuulutuste Skänner Pro</div>
       <div class="sub-title">
-        Facebooki tasuta esemed, Hange.ee aiatööd, garaažid, toidukaubad ja Lightyear portfell
+        Facebooki tasuta esemed, Hange.ee aiatööd, garaažid, toidukaubad ja portfell
       </div>
     </div>
     """
@@ -687,44 +1047,38 @@ with search_col:
 with clear_col:
     st.button("Tühjenda", use_container_width=True, on_click=clear_search)
 
+# Uus otsing -> alusta lehitsemist algusest.
+if st.session_state.get("_last_query") != search_query:
+    for key in [k for k in st.session_state if k.startswith("visible_count_")]:
+        del st.session_state[key]
+    st.session_state["_last_query"] = search_query
+
 selected_tab = st.radio(
     "Vali kategooria:", TABS, horizontal=True, label_visibility="collapsed"
 )
 st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
-REFRESH_NOTE = "⏱️ Leht uuendub iga 1 min, voo andmed vahemälus 15 min"
-
 if selected_tab == TAB_FREE:
     render_feed_tab(
-        feed_url=FB_FEED_URL, kind="standard",
+        feed_url=FB_FEED_URL,
         source_md="[Facebooki tasuta asjade voog](https://www.facebook.com)",
         badge_text="🎁 Tasuta", pill_class="badge-free",
         button_text="Vaata Facebookis",
         empty_msg="Ühtegi sobivat kuulutust ei leitud. Kontrolli RSS-voogu või proovi teist otsingusõna.",
-        diag_name="Facebook", page_key="free",
-        search_query=search_query, refresh_note=REFRESH_NOTE,
+        diag_name="Facebook", page_key="free", search_query=search_query,
     )
 elif selected_tab == TAB_GARAGES:
     render_feed_tab(
-        feed_url=GARAGE_FEED_URL, kind="standard",
+        feed_url=GARAGE_FEED_URL,
         source_md="[Kinnisvara24](https://kinnisvara24.ee)",
         badge_text="🚘 Garaaž", pill_class="badge-price",
         button_text="Vaata kuulutust",
         empty_msg="Garaažide RSS-voost ei leitud praegu sobivaid kuulutusi.",
         diag_name="Kinnisvara24 garaažid", page_key="garages",
-        search_query=search_query, refresh_note=REFRESH_NOTE,
+        search_query=search_query,
     )
 elif selected_tab == TAB_GARDEN:
-    render_feed_tab(
-        feed_url=HANGE_FEED_URL, kind="gardening",
-        source_md="[Hange.ee](https://www.hange.ee)",
-        badge_text="🌿 Aiatöö / Haljastus", pill_class="badge-gardening",
-        button_text="Vaata Hange.ee keskkonnas",
-        empty_msg="Sobivaid aiatööde hankeid praegu ei leitud.",
-        diag_name="Hange.ee aiatööd", page_key="hange",
-        search_query=search_query,
-        refresh_note="⏱️ Aiatööde voog: vahemälu 15 min",
-    )
+    render_garden_tab(search_query)
 elif selected_tab == TAB_FOOD:
     render_food_tab(search_query)
 elif selected_tab == TAB_INVEST:
@@ -732,7 +1086,7 @@ elif selected_tab == TAB_INVEST:
 
 
 # =============================================================================
-# 6. JALUS
+# 7. JALUS
 # =============================================================================
 
 st.markdown("---")
@@ -743,6 +1097,6 @@ with footer_col1:
         "andmevoogude kättesaadavusest."
     )
 with footer_col2:
-    if st.button("🔄 Tühjenda RSS-vahemälu", use_container_width=True):
+    if st.button("🔄 Tühjenda vahemälu", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
