@@ -307,11 +307,19 @@ GARAGE_ITEMS = [
     },
 ]
 
+# Algne jälgimisnimekiri. Kasutaja saab moodulis tickereid ise muuta.
 TOP_STOCKS = [
-    {"symbol": "NVDA", "name": "NVIDIA Corp.", "base_price": 128.50, "sector": "Artificial Intelligence"},
-    {"symbol": "AAPL", "name": "Apple Inc.", "base_price": 224.20, "sector": "Consumer Electronics"},
-    {"symbol": "MSFT", "name": "Microsoft Corp.", "base_price": 448.30, "sector": "Cloud & AI Infrastructure"},
-    {"symbol": "TSLA", "name": "Tesla Inc.", "base_price": 242.10, "sector": "Autonomous Systems & Energy"},
+    {"symbol": "NVDA", "name": "NVIDIA", "sector": "AI kiibid"},
+    {"symbol": "MSFT", "name": "Microsoft", "sector": "Pilv ja AI"},
+    {"symbol": "GOOGL", "name": "Alphabet", "sector": "AI ja reklaam"},
+    {"symbol": "AMZN", "name": "Amazon", "sector": "Pilv ja e-kaubandus"},
+    {"symbol": "META", "name": "Meta Platforms", "sector": "AI ja sotsiaalmeedia"},
+    {"symbol": "AAPL", "name": "Apple", "sector": "Tarbijatehnoloogia"},
+    {"symbol": "AVGO", "name": "Broadcom", "sector": "Pooljuhid"},
+    {"symbol": "AMD", "name": "AMD", "sector": "Pooljuhid"},
+    {"symbol": "TSLA", "name": "Tesla", "sector": "Elektriautod ja energia"},
+    {"symbol": "QQQ", "name": "Invesco QQQ", "sector": "Nasdaq-100 ETF"},
+    {"symbol": "SPY", "name": "SPDR S&P 500", "sector": "S&P 500 ETF"},
 ]
 
 
@@ -602,40 +610,278 @@ def render_garden_tab(search_query):
     )
 
 
-def render_invest_tab():
-    show_html(f'<div class="system-status">📈 Neural Markets: Algorithmic Engine ({CURRENT_YEAR})</div>')
-    st.markdown("### Neural Portfolio & Autonomous Asset Scoring")
-    st.caption("AI analüüsib reaalajas turumustreid ja genereerib DCA-strateegiaid.")
-    
-    current_minute = int(datetime.now(TZ).strftime('%M'))
-    
-    for asset in TOP_STOCKS:
-        random.seed(hash(asset["symbol"]) + current_minute)
-        change_pct = round(random.uniform(-1.8, 1.8), 2)
-        current_price = round(asset["base_price"] * (1 + change_pct / 100), 2)
-        
-        signal = "🟢 STRONG BUY" if change_pct < -1.0 else ("🟡 HOLD" if change_pct > 1.2 else "🔵 NEUTRAL")
-        badge_class = "badge-buy" if change_pct < -1.0 else ("badge-hold" if change_pct > 1.2 else "badge-price")
-        color_style = "color: #34d399;" if change_pct >= 0 else "color: #ef4444;"
-        sign_str = "+" if change_pct > 0 else ""
+@st.cache_data(ttl=900, show_spinner=False)
+def fetch_asset_market_data(symbol):
+    """Laeb Yahoo Finance'i avalikust chart-liidesest kuni 1 aasta päevahinnad.
 
+    See on mitteametlik tasuta andmeliides; päringuid piiratakse ja tulemus
+    võib olla viivitusega. Fundamentaalandmeid ega tulevast tootlust ei tuletata.
+    """
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}"
+    response = requests.get(
+        url,
+        params={"range": "1y", "interval": "1d", "events": "div,splits"},
+        headers={"User-Agent": "Mozilla/5.0 (compatible; NeuralPortfolio/1.0)"},
+        timeout=18,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    chart = payload.get("chart", {})
+    if chart.get("error"):
+        raise ValueError(chart["error"].get("description") or "Andmeallika viga")
+    results = chart.get("result") or []
+    if not results:
+        raise ValueError("Sellele tickerile ei leitud turuandmeid.")
+
+    result = results[0]
+    meta = result.get("meta", {})
+    quote_rows = (result.get("indicators", {}).get("quote") or [{}])[0]
+    closes = [float(v) for v in (quote_rows.get("close") or []) if v is not None]
+    volumes = [int(v) for v in (quote_rows.get("volume") or []) if v is not None]
+    if len(closes) < 25:
+        raise ValueError("Ajaloolisi hinnapunkte on skoori arvutamiseks liiga vähe.")
+
+    price = float(meta.get("regularMarketPrice") or closes[-1])
+    previous = meta.get("chartPreviousClose") or meta.get("previousClose")
+    if not previous and len(closes) > 1:
+        previous = closes[-2]
+    day_change = ((price / float(previous)) - 1) * 100 if previous else None
+
+    def pct_change(period):
+        if len(closes) <= period:
+            return None
+        return (price / closes[-period - 1] - 1) * 100
+
+    sma50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else None
+    sma200 = sum(closes[-200:]) / 200 if len(closes) >= 200 else None
+
+    # RSI(14), lihtne keskmiste tõusude/languste meetod.
+    deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+    recent = deltas[-14:]
+    gains = [max(x, 0) for x in recent]
+    losses = [abs(min(x, 0)) for x in recent]
+    avg_gain = sum(gains) / 14
+    avg_loss = sum(losses) / 14
+    rsi = 100.0 if avg_loss == 0 and avg_gain > 0 else (
+        50.0 if avg_loss == 0 else 100 - (100 / (1 + avg_gain / avg_loss))
+    )
+
+    # 60 päeva annualiseeritud realiseerunud volatiilsus.
+    returns = [closes[i] / closes[i - 1] - 1 for i in range(max(1, len(closes) - 60), len(closes))]
+    mean_return = sum(returns) / len(returns) if returns else 0
+    variance = sum((x - mean_return) ** 2 for x in returns) / max(1, len(returns) - 1)
+    volatility = (variance ** 0.5) * (252 ** 0.5) * 100
+
+    year_prices = closes[-252:]
+    peak = year_prices[0]
+    max_drawdown = 0.0
+    for value in year_prices:
+        peak = max(peak, value)
+        if peak:
+            max_drawdown = min(max_drawdown, (value / peak - 1) * 100)
+
+    ret_3m = pct_change(63)
+    ret_6m = pct_change(126)
+    momentum_input = (ret_3m or 0) * 0.65 + (ret_6m or 0) * 0.35
+    momentum_score = max(0, min(100, 50 + momentum_input * 1.25))
+
+    if sma50 and sma200:
+        trend_score = 100 if price > sma50 > sma200 else (
+            82 if price > sma50 and price > sma200 else (
+                65 if price > sma200 else (38 if price > sma50 else 12)
+            )
+        )
+    elif sma50:
+        trend_score = 75 if price > sma50 else 25
+    else:
+        trend_score = 50
+
+    rsi_score = 100 if 50 <= rsi <= 65 else (
+        82 if 42 <= rsi < 50 or 65 < rsi <= 72 else (
+            55 if 30 <= rsi < 42 or 72 < rsi <= 80 else 25
+        )
+    )
+    risk_score = max(0, min(100, 100 - volatility * 1.55))
+    drawdown_score = max(0, min(100, 100 + max_drawdown * 1.8))
+    total_score = round(
+        momentum_score * 0.30 + trend_score * 0.30 +
+        rsi_score * 0.15 + risk_score * 0.15 + drawdown_score * 0.10
+    )
+
+    if total_score >= 75:
+        assessment = "Tugev tehniline seis"
+        assessment_class = "badge-buy"
+    elif total_score >= 60:
+        assessment = "Positiivne"
+        assessment_class = "badge-buy"
+    elif total_score >= 45:
+        assessment = "Neutraalne"
+        assessment_class = "badge-hold"
+    else:
+        assessment = "Nõrk tehniline seis"
+        assessment_class = "badge-price"
+
+    timestamp = meta.get("regularMarketTime")
+    quote_time = datetime.fromtimestamp(timestamp, TZ).strftime("%d.%m.%Y %H:%M") if timestamp else "Viimane päevahind"
+    return {
+        "symbol": symbol.upper(),
+        "name": meta.get("longName") or meta.get("shortName") or symbol.upper(),
+        "price": price,
+        "currency": meta.get("currency") or "USD",
+        "day_change": day_change,
+        "ret_1m": pct_change(21),
+        "ret_3m": ret_3m,
+        "ret_6m": ret_6m,
+        "sma50": sma50,
+        "sma200": sma200,
+        "rsi": rsi,
+        "volatility": volatility,
+        "max_drawdown": max_drawdown,
+        "score": total_score,
+        "assessment": assessment,
+        "assessment_class": assessment_class,
+        "quote_time": quote_time,
+        "exchange": meta.get("fullExchangeName") or meta.get("exchangeName") or "",
+        "volume": volumes[-1] if volumes else None,
+        "history": closes[-90:],
+    }
+
+
+def _format_pct(value):
+    return "—" if value is None else f"{'+' if value > 0 else ''}{value:.2f}%"
+
+
+def _format_price(value, currency):
+    return "—" if value is None else f"{value:,.2f} {currency}"
+
+
+def render_invest_tab():
+    show_html('<div class="system-status">📈 NEURAL PORTFOLIO · päris turuandmed · tehniline skoor</div>')
+    st.markdown("### Neural Portfolio & Autonomous Asset Scoring")
+    st.caption(
+        "Aktsiate ja ETF-ide tehniline skanner. Hinnad pärinevad Yahoo Finance'i "
+        "avalikust hinnagraafiku liidesest ning võivad olla viivitusega."
+    )
+
+    default_symbols = ", ".join(asset["symbol"] for asset in TOP_STOCKS)
+    symbols_text = st.text_input(
+        "Jälgitavad tickerid",
+        value=st.session_state.get("neural_watchlist", default_symbols),
+        key="neural_watchlist_input",
+        help="Sisesta USA aktsiate või ETF-ide tickerid komadega, näiteks NVDA, MSFT, QQQ. Kuni 15 instrumenti.",
+    )
+    symbols = list(dict.fromkeys(
+        re.findall(r"[A-Za-z0-9.^=_-]+", symbols_text.upper())
+    ))[:15]
+    if not symbols:
+        st.info("Sisesta vähemalt üks ticker, näiteks NVDA või SPY.")
+        return
+
+    control_a, control_b = st.columns([3, 1])
+    with control_a:
+        st.caption(f"Skaneeritakse {len(symbols)} instrumenti · andmevahemik kuni 12 kuud · vahemälu 15 minutit")
+    with control_b:
+        if st.button("↻ Uuenda hindu", use_container_width=True, key="neural_refresh"):
+            for symbol in symbols:
+                fetch_asset_market_data.clear(symbol)
+            st.rerun()
+
+    results = []
+    failures = []
+    progress = st.progress(0, text="Ühendan turuandmetega...")
+    for index, symbol in enumerate(symbols):
+        try:
+            results.append(fetch_asset_market_data(symbol))
+        except Exception as exc:
+            failures.append((symbol, str(exc)))
+        progress.progress((index + 1) / len(symbols), text=f"Skaneeritud {index + 1}/{len(symbols)}")
+    progress.empty()
+
+    if not results:
+        st.error("Ühtegi instrumenti ei õnnestunud laadida. Kontrolli tickerit või proovi hiljem uuesti.")
+        for symbol, reason in failures:
+            st.caption(f"{symbol}: {reason}")
+        return
+
+    results.sort(key=lambda item: item["score"], reverse=True)
+    strongest = results[0]
+    average_score = sum(item["score"] for item in results) / len(results)
+    positive_count = sum(item["score"] >= 60 for item in results)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Skaneeritud", f"{len(results)} / {len(symbols)}")
+    m2.metric("Keskmine skoor", f"{average_score:.0f}/100")
+    m3.metric("Positiivse skooriga", f"{positive_count}")
+    m4.metric("Liider", f"{strongest['symbol']} · {strongest['score']}")
+
+    st.markdown("#### Autonoomne varade järjestus")
+    for item in results:
+        price_text = _format_price(item["price"], item["currency"])
+        day_text = _format_pct(item["day_change"])
+        day_color = "#34d399" if item["day_change"] is not None and item["day_change"] >= 0 else "#f87171"
+        trend = "Üle SMA50 ja SMA200" if item["sma50"] and item["sma200"] and item["price"] > item["sma50"] > item["sma200"] else (
+            "Üle SMA50" if item["sma50"] and item["price"] > item["sma50"] else "Alla SMA50 / segasignaal"
+        )
         show_html(f"""
-            <div class="pro-card" style="padding: 14px 18px; margin-bottom: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div style="flex: 2; min-width: 150px;">
-                        <div style="font-size: 1.05rem; font-weight: 700; color: #f9fafb;">{esc(asset['name'])} ({esc(asset['symbol'])})</div>
-                        <div style="font-size: 0.75rem; color: #9ca3af;">{esc(asset['sector'])}</div>
-                    </div>
-                    <div style="flex: 1; min-width: 90px;">
-                        <div style="font-size: 1rem; font-weight: 700; color: #f9fafb;">${current_price:,.2f}</div>
-                        <div style="font-size: 0.75rem; font-weight: 600; {color_style}">{sign_str}{change_pct}%</div>
-                    </div>
-                    <div style="flex: 1; min-width: 110px; text-align: left;">
-                        <span class="badge-pill {badge_class}">{esc(signal)}</span>
-                    </div>
-                </div>
+        <div class="pro-card" style="padding:16px 18px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap;">
+            <div style="min-width:150px; flex:2;">
+              <div style="font-size:1.08rem; font-weight:800; color:#f9fafb;">{esc(item['symbol'])}</div>
+              <div style="font-size:.78rem; color:#9ca3af;">{esc(item['name'])} · {esc(item['exchange'])}</div>
+              <div style="font-size:.76rem; color:#a5b4fc; margin-top:7px;">{esc(trend)}</div>
             </div>
+            <div style="min-width:130px;">
+              <div style="font-size:1.12rem; font-weight:800; color:#f9fafb;">{esc(price_text)}</div>
+              <div style="font-size:.8rem; font-weight:700; color:{day_color};">Päeva muutus {esc(day_text)}</div>
+            </div>
+            <div style="min-width:145px; text-align:right;">
+              <div style="font-size:1.65rem; font-weight:900; color:#fff;">{item['score']}<span style="font-size:.75rem; color:#9ca3af;"> / 100</span></div>
+              <span class="badge-pill {item['assessment_class']}">{esc(item['assessment'])}</span>
+            </div>
+          </div>
+          <div style="height:7px; background:#1e293b; border-radius:10px; margin-top:13px; overflow:hidden;">
+            <div style="height:7px; width:{item['score']}%; background:linear-gradient(90deg,#6366f1,#34d399); border-radius:10px;"></div>
+          </div>
+        </div>
         """)
+        with st.expander(f"{item['symbol']} · skoori komponendid ja riskinäitajad"):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("1 kuu", _format_pct(item["ret_1m"]))
+            c2.metric("3 kuud", _format_pct(item["ret_3m"]))
+            c3.metric("6 kuud", _format_pct(item["ret_6m"]))
+            c4.metric("RSI (14)", f"{item['rsi']:.1f}")
+            c5, c6, c7, c8 = st.columns(4)
+            c5.metric("SMA 50", _format_price(item["sma50"], item["currency"]))
+            c6.metric("SMA 200", _format_price(item["sma200"], item["currency"]))
+            c7.metric("Volatiilsus (aast.)", f"{item['volatility']:.1f}%")
+            c8.metric("Max langus (1 a)", f"{item['max_drawdown']:.1f}%")
+            st.caption(f"Viimase hinnapunkti aeg: {item['quote_time']} · Andmeallikas: Yahoo Finance")
+            st.markdown(
+                f"[Ava TradingView graafik](https://www.tradingview.com/chart/?symbol={urllib.parse.quote(item['symbol'])}) · "
+                f"[Ava Stock Analysis](https://stockanalysis.com/stocks/{urllib.parse.quote(item['symbol'].lower())}/) · "
+                f"[Ava Finviz](https://finviz.com/quote.ashx?t={urllib.parse.quote(item['symbol'])})"
+            )
+            st.line_chart(item["history"], height=130, use_container_width=True)
+
+    if failures:
+        with st.expander(f"Andmeid ei saadud {len(failures)} tickeri kohta"):
+            for symbol, reason in failures:
+                st.caption(f"{symbol}: {reason}")
+
+    with st.expander("Kuidas Neural Score arvutatakse?"):
+        st.markdown("""
+        **Skoor 0–100 on tehniline võrdlusskoor, mitte fundamentaalne ettevõtte väärtuse hinnang.**
+
+        | Komponent | Kaal | Mida mõõdab |
+        |---|---:|---|
+        | Momentum | 30% | 3 ja 6 kuu hinnaliikumine |
+        | Trend | 30% | Hind võrreldes 50 ja 200 päeva keskmisega |
+        | RSI | 15% | 14 päeva suhteline tugevus; äärmusi hinnatakse ettevaatlikumalt |
+        | Risk | 15% | 60 päeva annualiseeritud realiseerunud volatiilsus |
+        | Langus | 10% | Suurim tipust langus viimase aasta jooksul |
+
+        **Oluline:** skoor ei kasuta P/E-d, käibekasvu, võlataset, rahavoogu, analüütikute prognoose ega uudiste sentimenti. Kõrge skoor ei tähenda automaatselt ostusoovitust. Andmed pärinevad Yahoo Finance'i mitteametlikust avalikust chart-liidesest, mis võib muutuda või päringuid piirata.
+        """)
+    st.caption("Õppe- ja uurimistööriist, mitte personaalne investeerimisnõuanne. Kontrolli enne otsust algandmeid ja ettevõtte finantse.")
 
 
 # =============================================================================
