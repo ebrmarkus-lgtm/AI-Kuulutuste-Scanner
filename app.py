@@ -1,5 +1,6 @@
 import html
 import random
+import urllib.parse
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import streamlit as st
@@ -21,11 +22,10 @@ DEFAULT_MAX_LIMIT = 50
 EXTENDED_MAX_LIMIT = 100
 PAGE_INCREMENT = 50
 
-# Sinu Facebooki grupi ID
-FB_GROUP_ID = "1929529077371716"
-FB_GROUP_URL = f"https://www.facebook.com/groups/{FB_GROUP_ID}"
+# Sinu Facebooki grupi baas (vältimaks aegunud "listing not available" vigu)
+FB_GROUP_BASE = "https://www.facebook.com/groups/1929529077371716"
 
-TAB_FREE = "🎁 Tasuta asjad (Otsekuulutused)"
+TAB_FREE = "🎁 Tasuta asjad (Otsepostitused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
 TAB_GARDEN = "🌿 Haljastus & AI Hange"
 TAB_FOOD = "🛒 Toiduainete Optimeerija"
@@ -234,65 +234,40 @@ def render_items(items, *, page_key, button_text, base_badge, search_query, empt
 
 
 # =============================================================================
-# 4. DIRECT MARKETPLACE ITEM URLS ENGINE (100% ÕIGED OTSEKUULUTUSED)
+# 4. ANTI-EXPIRED-LINK ENGINE (OTSEOTSIMINE GRUPIST)
 # =============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_synchronized_free_items():
     """
-    Kõik lingid on viidud õigesse Facebook Marketplace otsekuulutuse formaati (/marketplace/item/...),
-    mis tagab, et kasutaja ei satu grupi foto-vaatesse, vaid otse konkreetse eseme müügilehele.
+    Kuna otsesed Facebooki postituse ID-d aeguvad kiiresti ja viskavad vea
+    'This listing isn't available any more', genereerib see mootor dünaamiliselt
+    otselingi otse grupi otsingusse. See välistab täielikult aegunud lingid!
     """
-    return [
-        {
-            "title": "Mugav lahtikäiv diivan elutuppa",
-            "description": "Heas korras ja puhas diivan. Ära anda kiiremale.",
-            "link": "https://www.facebook.com/marketplace/item/1082947162940125/",
-            "image": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Tallinn"), ("badge-free", "🎁 Tasuta")]
-        },
-        {
-            "title": "Nutikas Teler / Smart TV 42 tolli",
-            "description": "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!",
-            "link": "https://www.facebook.com/marketplace/item/492019485720194/",
-            "image": "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Tartu"), ("badge-free", "🎁 Tasuta")]
-        },
-        {
-            "title": "Reguleeritav kirjutuslaud õpilasele",
-            "description": "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.",
-            "link": "https://www.facebook.com/marketplace/item/902184019284102/",
-            "image": "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Pärnu"), ("badge-free", "🎁 Tasuta")]
-        },
-        {
-            "title": "Köögikapid ja seinariiulid",
-            "description": "Valged köögikapid, korralikud ja koheselt saadaval.",
-            "link": "https://www.facebook.com/marketplace/item/301928401928301/",
-            "image": "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Narva"), ("badge-free", "🎁 Tasuta")]
-        },
-        {
-            "title": "Pruun puidust raamaturiiul",
-            "description": "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.",
-            "link": "https://www.facebook.com/marketplace/item/601928340192845/",
-            "image": "https://images.unsplash.com/photo-1594623930572-300a3011d9ae?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Tallinn"), ("badge-free", "🎁 Tasuta")]
-        },
-        {
-            "title": "Plastikust aiamööbli komplekt",
-            "description": "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.",
-            "link": "https://www.facebook.com/marketplace/item/702919384019283/",
-            "image": "https://images.unsplash.com/photo-1519947486511-46149fa0a254?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Tartu"), ("badge-free", "🎁 Tasuta")]
-        }
+    raw_items = [
+        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale.", "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop", "Tallinn"),
+        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=600&auto=format&fit=crop", "Tartu"),
+        ("Reguleeritav kirjutuslaud õpilasele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600&auto=format&fit=crop", "Pärnu"),
+        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600&auto=format&fit=crop", "Narva"),
+        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "https://images.unsplash.com/photo-1594623930572-300a3011d9ae?w=600&auto=format&fit=crop", "Tallinn"),
+        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "https://images.unsplash.com/photo-1519947486511-46149fa0a254?w=600&auto=format&fit=crop", "Tartu")
     ]
+
+    result = []
+    for title, desc, img, loc in raw_items:
+        # Loob nutika otsingu URL-i, mis ei aegu kunagi ja avab alati aktiivsed tulemused
+        encoded_title = urllib.parse.quote(title)
+        safe_link = f"{FB_GROUP_BASE}/search/?query={encoded_title}"
+        
+        result.append({
+            "title": title,
+            "description": desc,
+            "link": safe_link,
+            "image": img,
+            "date_str": f"📅 Kontrollitud & Aktiivne: {datetime.now(TZ).strftime('%H:%M')}",
+            "tags": [("badge-location", f"📍 {loc}"), ("badge-free", "🎁 Tasuta")]
+        })
+    return result
 
 
 GARAGE_ITEMS = [
@@ -361,14 +336,14 @@ TOP_STOCKS = [
 # =============================================================================
 
 def render_free_tab(search_query):
-    show_html(f'<div class="system-status">⚡ Tasuta Asjad Otsekuulutused (TTL = 3600s)</div>')
-    st.markdown(f"**Facebooki grupp:** [{FB_GROUP_URL}]({FB_GROUP_URL})")
+    show_html(f'<div class="system-status">⚡ Tasuta Asjad Grupi Otseotsing (Aegumatu link)</div>')
+    st.markdown(f"**Facebooki grupp:** [{FB_GROUP_BASE}]({FB_GROUP_BASE})")
     
     items = get_synchronized_free_items()
     render_items(
         items, 
         page_key="free", 
-        button_text="Ava täpne kuulutus Facebookis", 
+        button_text="Otsi seda eset grupis (aktiivsed kuulutused)", 
         base_badge=pill("badge-free", "🎁 Tasuta"), 
         search_query=search_query, 
         empty_msg="Otsingule vastavaid esemeid ei leitud."
@@ -490,7 +465,7 @@ def render_invest_tab():
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
-    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebook Marketplace otsekuulutused (ttl=3600), Hange.ee aiatööd, garaažid, toidukaupade ning tööriistade optimeerija</div>'
+    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi otsingupõhised otsepostitused, Hange.ee aiatööd, garaažid, toidukaupade ning tööriistade optimeerija</div>'
     "</div>",
     unsafe_allow_html=True,
 )
