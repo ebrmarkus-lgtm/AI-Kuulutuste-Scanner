@@ -17,10 +17,9 @@ st.set_page_config(
 )
 
 TZ = ZoneInfo("Europe/Tallinn")
-
 PAGE_INCREMENT = 20
 
-# Sinu Facebooki grupp
+# Sinu Facebooki grupi ID ja baas-URL
 FB_GROUP_ID = "1929529077371716"
 FB_GROUP_URL = f"https://www.facebook.com/groups/{FB_GROUP_ID}"
 
@@ -57,24 +56,14 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
     background: #0f172a;
     border: 1px solid #1e293b;
     border-radius: 14px;
-    padding: 18px;
+    padding: 20px;
     margin-bottom: 14px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     transition: all 0.2s ease;
 }
 .pro-card:hover { border-color: #6366f1; }
 
-.card-row { display: flex; gap: 20px; align-items: flex-start; }
-.card-img { flex: 0 0 240px; max-width: 240px; }
-.card-img img { width: 100%; border-radius: 10px; display: block; object-fit: cover; aspect-ratio: 16 / 10; background-color: #1e293b; }
-.card-body { flex: 1; min-width: 0; }
-
-@media (max-width: 768px) {
-    .main-title { font-size: 1.75rem; }
-    .card-row { flex-direction: column; }
-    .card-img { flex: none; width: 100%; max-width: 100%; margin-bottom: 12px; }
-}
-
+.card-body { width: 100%; }
 .card-title { font-size: 1.15rem; font-weight: 700; color: #f9fafb; margin-bottom: 6px; line-height: 1.4; }
 .card-date { font-size: 0.75rem; color: #9ca3af; margin-bottom: 8px; font-weight: 500; }
 .card-desc { font-size: 0.9rem; color: #d1d5db; line-height: 1.5; margin-bottom: 14px; }
@@ -113,7 +102,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
 
 # =============================================================================
-# 3. CORE UTILITIES & "KERI EDASI" PAGINATION ENGINE
+# 3. CORE UTILITIES & PAGINATION ENGINE
 # =============================================================================
 
 def esc(value) -> str:
@@ -147,7 +136,6 @@ def render_pagination_scroll(items, category_key):
         st.session_state[count_key] = PAGE_INCREMENT
 
     visible_count = min(total, max(0, int(st.session_state[count_key])))
-
     st.caption(f"Kuvatud {visible_count} / {total} aktiivset kirjet.")
 
     current_batch = items[:visible_count]
@@ -155,7 +143,6 @@ def render_pagination_scroll(items, category_key):
     if visible_count < total:
         remaining = total - visible_count
         next_batch_size = min(PAGE_INCREMENT, remaining)
-        
         if st.button(f"⬇️ Keri edasi (laadi veel {next_batch_size} eset)", key=f"scroll_more_{category_key}", use_container_width=True):
             st.session_state[count_key] = visible_count + PAGE_INCREMENT
             st.rerun()
@@ -165,17 +152,6 @@ def render_pagination_scroll(items, category_key):
 
 def render_card(item, button_text, badges=""):
     link = item.get("link")
-    img_url = item.get("image")
-
-    img_html = ""
-    if img_url:
-        img_html = (
-            '<div class="card-img">'
-            f'<img src="{esc(img_url)}" loading="lazy" decoding="async" '
-            f'referrerpolicy="no-referrer" alt="{esc(item.get("title", "Resource"))}">'
-            "</div>"
-        )
-
     date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
     desc_html = f'<div class="card-desc">{esc(item["description"])}</div>' if item.get("description") else ""
     tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
@@ -188,15 +164,12 @@ def render_card(item, button_text, badges=""):
     show_html(
         f"""
         <div class="pro-card">
-          <div class="card-row">
-            {img_html}
-            <div class="card-body">
-              <div class="card-title">{esc(item.get("title", "Kirje"))}</div>
-              {date_html}
-              {desc_html}
-              {tags_html}
-              {button_html}
-            </div>
+          <div class="card-body">
+            <div class="card-title">{esc(item.get("title", "Kirje"))}</div>
+            {date_html}
+            {desc_html}
+            {tags_html}
+            {button_html}
           </div>
         </div>
         """
@@ -220,40 +193,40 @@ def render_items_with_scroll(items, *, page_key, button_text, base_badge, search
 
 
 # =============================================================================
-# 4. EXPANDED "TASUTA ASJAD" ENGINE WITH SMART GIVE-AWAY FILTER
+# 4. EXPANDED DATASETS & DIRECT GROUP SEARCH ROUTING
 # =============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_extended_free_items():
     raw_data = [
-        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale järeletulijale.", "photo-1555041469-a586c61ea9bc", "Tallinn", True),
-        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "photo-1593305841991-05c297ba4575", "Tartu", True),
-        ("Reguleeritav kirjutuslaud õpilasele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "photo-1518455027359-f3f8164ba6bd", "Pärnu", True),
-        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "photo-1595428774223-ef52624120d2", "Narva", True),
-        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "photo-1594623930572-300a3011d9ae", "Tallinn", True),
-        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "photo-1519947486511-46149fa0a254", "Tartu", True),
-        ("Soovin ära anda vana pesumasina", "Töötab, aga tsentrifuug teeb häält. Ise ära viia.", "photo-1626806787461-102c1bfaaea1", "Viljandi", True),
-        ("Laste voodi madratsiga", "Vähekasutatud puhta kattega madrats ja raam.", "photo-1505693416388-ac5ce068fe85", "Tallinn", True),
-        ("Seisev riidenagi", "Metallist must nagi esikusse.", "photo-1595515106967-1ce2e1762128", "Haapsalu", True),
-        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks nupp aga funktsioneerib.", "photo-1574269909862-7e1d70bb8078", "Tartu", True),
-        ("Seinapeegel puitraamis", "Mõõdud 80x120cm, terve ja korralik.", "photo-1618221195710-dd6b41faaea6", "Pärnu", True),
-        ("Vanemad raamatud (eesti keeles)", "Ilukirjandus ja entsüklopeediad ära anda.", "photo-1495640388908-05fa85288e61", "Tallinn", True),
-        ("Aiamaja materjalid / lauad", "Ehitusjäägid tasuta ära anda.", "photo-1541888946425-d0fbb18f64e8", "Rakvere", True),
-        ("Laste jalgratas 16 tolli", "Kasutatud, aga täiesti sõidukorras.", "photo-1576435728678-68d0fbf94e91", "Tallinn", True),
-        ("Kontoritool must", "Kõrgus reguleeritav, rattad töötavad.", "photo-1580481077494-e3299ac0505d", "Tartu", True),
-        ("Vaip elutuppa (160x230)", "Puhastust vajav, aga aukudeta vaip.", "photo-1579656381226-5fc0f0100c3b", "Pärnu", True),
-        ("Seinakell suur", "Patareiga töötav disainkell.", "photo-1563861826100-9cb868fdbe1c", "Viljandi", True),
-        ("Kingariiul metallist", "Mahutab 12 paari kingi.", "photo-1595428774174-88484196120b", "Narva", True),
-        ("Triikraud Philips", "Töökorras aurutriikraud.", "photo-1585659722983-3c675f904ac8", "Tallinn", True),
-        ("Laualamp must", "Töölaua lamp koos pirniga.", "photo-1507473885765-e6ed057f782c", "Tartu", True),
-        # Otsingukuulutused
-        ("OTSIN: Kas kellelgi on ära anda korralikku pesumasinat?", "Soovime noore perega soetada toimivat pesumasinat.", "photo-1582738408868-54b1b590e42c", "Tallinn", False),
-        ("Soovin võtta vastu lapsevankri", "Võtan tänulikult vastu heas korras lapsevankri.", "photo-1516627145497-ae6968895b74", "Tartu", False),
-        ("OTSIN diivanit elutuppa", "Kolisime uude korterisse ja oleks tarvis tasuta või odavat diivanit.", "photo-1555041469-a586c61ea9bc", "Pärnu", False)
+        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale järeletulijale.", "Tallinn", True),
+        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "Tartu", True),
+        ("Reguleeritav kirjutuslaud õpilasele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "Pärnu", True),
+        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "Narva", True),
+        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "Tallinn", True),
+        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "Tartu", True),
+        ("Soovin ära anda vana pesumasina", "Töötab, aga tsentrifuug teeb häält. Ise ära viia.", "Viljandi", True),
+        ("Laste voodi madratsiga", "Vähekasutatud puhta kattega madrats ja raam.", "Tallinn", True),
+        ("Seisev riidenagi", "Metallist must nagi esikusse.", "Haapsalu", True),
+        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks nupp aga funktsioneerib.", "Tartu", True),
+        ("Seinapeegel puitraamis", "Mõõdud 80x120cm, terve ja korralik.", "Pärnu", True),
+        ("Vanemad raamatud (eesti keeles)", "Ilukirjandus ja entsüklopeediad ära anda.", "Tallinn", True),
+        ("Aiamaja materjalid / lauad", "Ehitusjäägid tasuta ära anda.", "Rakvere", True),
+        ("Laste jalgratas 16 tolli", "Kasutatud, aga täiesti sõidukorras.", "Tallinn", True),
+        ("Kontoritool must", "Kõrgus reguleeritav, rattad töötavad.", "Tartu", True),
+        ("Vaip elutuppa (160x230)", "Puhastust vajav, aga aukudeta vaip.", "Pärnu", True),
+        ("Seinakell suur", "Patareiga töötav disainkell.", "Viljandi", True),
+        ("Kingariiul metallist", "Mahutab 12 paari kingi.", "Narva", True),
+        ("Triikraud Philips", "Töökorras aurutriikraud.", "Tallinn", True),
+        ("Laualamp must", "Töölaua lamp koos pirniga.", "Tartu", True),
+        # Otsingukuulutused (filtriga peidetavad)
+        ("OTSIN: Kas kellelgi on ära anda korralikku pesumasinat?", "Soovime noore perega soetada toimivat pesumasinat.", "Tallinn", False),
+        ("Soovin võtta vastu lapsevankri", "Võtan tänulikult vastu heas korras lapsevankri.", "Tartu", False),
+        ("OTSIN diivanit elutuppa", "Kolisime uude korterisse ja oleks tarvis tasuta või odavat diivanit.", "Pärnu", False)
     ]
 
     result = []
-    for title, desc, img_photo, loc, is_giving in raw_data:
+    for title, desc, loc, is_giving in raw_data:
         encoded_title = urllib.parse.quote(title)
         precise_link = f"{FB_GROUP_URL}/search/?query={encoded_title}"
         
@@ -261,7 +234,6 @@ def get_extended_free_items():
             "title": title,
             "description": desc,
             "link": precise_link,
-            "image": f"https://images.unsplash.com/{img_photo}?w=600&auto=format&fit=crop",
             "date_str": f"📅 Sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
             "is_giving_away": is_giving,
             "tags": [
@@ -278,7 +250,6 @@ GARAGE_ITEMS = [
         "title": "Soe ja kuiv garaažiboks Mustamäel",
         "description": "Turvaline garaaž, elekter olemas. Sobib auto hoidmiseks või laoks.",
         "link": "https://www.kinnisvara24.ee",
-        "image": "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=600&auto=format&fit=crop",
         "date_str": "📅 Uus",
         "tags": [("badge-price", "💶 95 € / kuu"), ("badge-location", "📍 Tallinn")]
     },
@@ -286,7 +257,6 @@ GARAGE_ITEMS = [
         "title": "Garaaž Annelinnas",
         "description": "Metallist garaažiboks heas asukohas. Valgustus ja ööpäevane ligipääs.",
         "link": "https://www.kinnisvara24.ee",
-        "image": "https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=600&auto=format&fit=crop",
         "date_str": "📅 2 päeva tagasi",
         "tags": [("badge-price", "💶 75 € / kuu"), ("badge-location", "📍 Tartu")]
     },
@@ -297,7 +267,6 @@ GARDEN_ITEMS = [
         "title": "Heki pügamine ja korrastus",
         "description": "Vaja pügada ca 30m elupuuheekki ja ära viia oksi.",
         "link": "https://www.hange.ee/hanked/?category=aia-ehitus",
-        "image": "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600&auto=format&fit=crop",
         "date_str": "📅 Täna",
         "tags": [("badge-gardening", "🌿 Haljastus"), ("badge-price", "💶 Keskmine hind 350 €"), ("badge-location", "👥 Pakkujaid: 4")]
     },
@@ -305,7 +274,6 @@ GARDEN_ITEMS = [
         "title": "Muru rajamine ja tasandamine",
         "description": "Uue muru külvamine 600m2 alale, pinnase freesimine ja silumine.",
         "link": "https://www.hange.ee/hanked/?category=aia-ehitus",
-        "image": "https://images.unsplash.com/photo-1557429287-b2e26467fc2b?w=600&auto=format&fit=crop",
         "date_str": "📅 Eile",
         "tags": [("badge-gardening", "🌿 Aiatööd"), ("badge-price", "💶 Keskmine hind 1200 €"), ("badge-location", "👥 Pakkujaid: 7")]
     },
@@ -324,7 +292,7 @@ TOP_STOCKS = [
 # =============================================================================
 
 def render_free_tab(search_query):
-    show_html(f'<div class="system-status">🎁 Tasuta Asjad Grupi Otseotsing (Täpsed päringud)</div>')
+    show_html(f'<div class="system-status">🎁 Tasuta Asjad Grupi Otseotsing (Aktiivsed vasted)</div>')
     st.markdown(f"**Facebooki grupp:** [{FB_GROUP_URL}]({FB_GROUP_URL})")
     
     only_giving_away = st.checkbox("✨ Näita ainult asju, mida antakse ära (peida otsijad)", value=True)
