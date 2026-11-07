@@ -316,16 +316,20 @@ TOP_STOCKS = [
 
 
 # =============================================================================
-# 4b. HANGE.EE: AINULT PÄRISELT AKTIIVSED HANKED
+# 4b. HANGE.EE: KASUTAJA VALITUD KATEGOORIAD, AINULT AKTIIVSED HANKED
 # =============================================================================
-# Allikas on ainult Hange.ee avalik aktiivsete hangete nimekiri.
-# Pealkirju ega hankeid ei genereerita. Vahemälu aegub 24 tunni järel.
-# Märksõnade vaste tehakse hanke PEALKIRJA põhjal, mitte väljamõeldud näidisandmetest.
+# Kuvab Hange.ee enda kategooriafiltriga aktiivsete hangete tulemused.
+# Otsingu- ega lisafiltreid siin ei rakendata. Andmed uuenevad 24 h järel.
 
-HANGE_LIST_URL = "https://www.hange.ee/hanked/?filter=all-active"
+HANGE_LIST_URL = (
+    "https://www.hange.ee/hanked/?category="
+    "aia-ehitus%2Cfassaaditood%2Chaljastustood%2Cvaiatood%2Cviimistlustood"
+    "&filter=all-active"
+)
 HANGE_LIST_BASE = "https://www.hange.ee/hanked/"
+HANGE_CATEGORY = "aia-ehitus,fassaaditood,haljastustood,vaiatood,viimistlustood"
 HANGE_MAX_PAGES = 30
-HANGE_CACHE_TTL = 24 * 60 * 60
+HANGE_CACHE_TTL = 24 * 60 * 60  # 24 tundi
 HANGE_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -337,61 +341,6 @@ HANGE_LINK_RE = re.compile(
     r"^(?:https?://(?:www\.)?hange\.ee)?/(\d+)/([^/?#]+)/?$",
     re.IGNORECASE,
 )
-
-# Sõnamustrid katavad eesti käändeid, kuid ei lisa sinu loetelusse sünonüüme.
-TREE = r"\b(?:puu|puud|puude|puudel|puudele|puudelt|puudega|puid)\b"
-PLANTS = r"\btaim\w*"
-FENCE = r"\b(?:aed|aeda|aedu|aedade\w*|aiad|aia|aiaga|aiale)\b"
-PLANT_VERB = r"\bistut\w*"
-CUT_VERB = r"\blõi[kg]\w*"
-BUILD_VERB = r"\braja\w*"
-CARE_NOUN = r"\bkorrashoi\w*"
-
-
-def _near(a: str, b: str, gap: int = 4) -> str:
-    """Kaks märksõna samas pealkirjas, kuni gap sõna vahel."""
-    middle = rf"(?:\W+\w+){{0,{gap}}}?\W+"
-    return rf"(?:{a}{middle}{b}|{b}{middle}{a})"
-
-
-KEYWORD_RULES = [
-    ("Aiatööd", [r"\baia\s*töö\w*"]),
-    ("Lokaalne kanalisatsioon", [
-        r"\blokaal\w*\W+(?:\w+\W+){0,2}kanalisatsioon\w*",
-        r"\blokaalkanalisatsioon\w*",
-    ]),
-    ("Puude istutamine", [_near(TREE, PLANT_VERB)]),
-    ("Puude lõikus", [_near(TREE, CUT_VERB)]),
-    ("Aedade rajamine", [_near(FENCE, BUILD_VERB)]),
-    # Selle kategooria pealkirjas peavad KÕIK kolm sõna olemas olema:
-    # puu + taim + istutamise/istutada/istutus tüvi.
-    ("Puude ja taimede istutamine", [
-        rf"^(?=.*{TREE})(?=.*{PLANTS})(?=.*{PLANT_VERB})"
-    ]),
-    ("Aedade korrashoid", [_near(FENCE, CARE_NOUN)]),
-]
-
-COMPILED_RULES = [
-    (label, [re.compile(pattern, re.IGNORECASE) for pattern in patterns])
-    for label, patterns in KEYWORD_RULES
-]
-KEYWORD_LABELS = [label for label, _ in COMPILED_RULES]
-
-
-def match_keywords(title: str) -> list:
-    """Tagastab ainult pealkirjale vastavad kasutaja valitud kategooriad."""
-    title = " ".join(str(title or "").split())
-    labels = [
-        label for label, patterns in COMPILED_RULES
-        if any(pattern.search(title) for pattern in patterns)
-    ]
-    # Kolme sõna nõudega kategooria asendab üldisema "Puude istutamine" sildi.
-    if (
-        "Puude ja taimede istutamine" in labels
-        and "Puude istutamine" in labels
-    ):
-        labels.remove("Puude istutamine")
-    return labels
 
 
 def _clean(text) -> str:
@@ -406,11 +355,7 @@ def _parse_date(value):
 
 
 def _extract_listing_metadata(anchor):
-    """
-    Hange.ee nimekirjas on hanke pealkiri ja metaandmed kõrvuti.
-    Otsime lähimast sobivast ümbrisest asukoha, korraldaja, pakkumiste arvu
-    ja pakkumiste tähtaja. Kui mõni väli puudub, jätame selle tühjaks.
-    """
+    """Loeb hanke nimekirjareast nähtavad metaandmed."""
     containers = []
     node = anchor
     for _ in range(6):
@@ -442,10 +387,7 @@ def _extract_listing_metadata(anchor):
         r"(?:Pakkumiste tegemine kuni|kuni)\s*(\d{2}\.\d{2}\.\d{4})",
         block_text,
     )
-    added = re.search(
-        r"(\d{2}\.\d{2}\.\d{4})\s+\d+p?\s*",
-        block_text,
-    )
+    added = re.search(r"(\d{2}\.\d{2}\.\d{4})\s+\d+p?\s*", block_text)
 
     return {
         "location": location.group(1).strip(" .") if location else "",
@@ -457,7 +399,7 @@ def _extract_listing_metadata(anchor):
 
 
 def parse_hange_page(html_text: str) -> list:
-    """Loeb aktiivsete hangete nimekirja ühe lehe."""
+    """Loeb ühe Hange.ee kategooriafiltriga aktiivsete hangete lehe."""
     soup = BeautifulSoup(html_text, "html.parser")
     found = {}
 
@@ -475,7 +417,6 @@ def parse_hange_page(html_text: str) -> list:
         if label.lower() in {"hange on lõppenud", "hanke võitja"}:
             continue
 
-        # Sama hanke juures võib olla mitu linki; pealkiri salvestatakse ühe korra.
         if tender_id not in found:
             found[tender_id] = {
                 "id": tender_id,
@@ -508,88 +449,70 @@ def _get_page(session, params, tries=3):
     raise last_error
 
 
-@st.cache_data(ttl=HANGE_CACHE_TTL, show_spinner="Laen Hange.ee aktiivseid hankeid...")
+@st.cache_data(ttl=HANGE_CACHE_TTL, show_spinner="Laen Hange.ee aktiivseid kategooriahankeid...")
 def load_hange_tenders():
-    """
-    Loeb järjest Hange.ee aktiivsete hangete leheküljed.
-    Jätkab, kuni lehtedel pole enam uusi hanke-ID-sid.
-    Kui allikas ei vasta või HTML muutub ootamatult, annab vea
-    ega esita vanu ega genereeritud hankeid uute pähe.
-    """
+    """Laeb valitud Hange.ee kategooriate aktiivsed hanked; vahemälu 24 h."""
     session = requests.Session()
     session.headers.update(HANGE_HEADERS)
 
     seen_ids = set()
-    scanned = []
+    tenders = []
     pages_read = 0
 
     for page_number in range(1, HANGE_MAX_PAGES + 1):
-        params = {"filter": "all-active"}
+        params = {
+            "category": HANGE_CATEGORY,
+            "filter": "all-active",
+        }
         if page_number > 1:
             params["page"] = page_number
 
         page_html = _get_page(session, params)
         page_items = parse_hange_page(page_html)
         new_items = [item for item in page_items if item["id"] not in seen_ids]
-
         if not new_items:
             break
 
         seen_ids.update(item["id"] for item in new_items)
-        scanned.extend(new_items)
+        tenders.extend(new_items)
         pages_read += 1
         time.sleep(0.4)
 
-    if not scanned:
+    if not tenders:
         raise RuntimeError(
-            "Hange.ee aktiivsete hangete lehelt ei leitud ühtegi hanke kirjet. "
-            "Võimalik, et Hange.ee muutis lehe HTML-struktuuri."
+            "Hange.ee valitud kategooriate aktiivsete hangete lehelt ei leitud kirjeid."
         )
 
     today = datetime.now(TZ).date()
-    matched = []
-
-    for tender in scanned:
-        # Nimekiri on Hange.ee enda aktiivsete hangete vaade.
-        # Kui tähtaja kuupäev on olemas, kontrollime selle ka üle.
-        if tender["deadline"] and tender["deadline"] < today:
-            continue
-
-        labels = match_keywords(tender["title"])
-        if labels:
-            matched.append({**tender, "labels": labels})
-
-    matched.sort(key=lambda item: int(item["id"]), reverse=True)
+    active = [
+        tender for tender in tenders
+        if tender["deadline"] is None or tender["deadline"] >= today
+    ]
+    active.sort(key=lambda item: int(item["id"]), reverse=True)
 
     now = datetime.now(TZ)
     return {
-        "items": matched,
-        "scanned": len(scanned),
+        "items": active,
+        "scanned": len(tenders),
         "pages": pages_read,
         "fetched_at": now.strftime("%d.%m.%Y %H:%M"),
-        "next_refresh": (
-            now + timedelta(seconds=HANGE_CACHE_TTL)
-        ).strftime("%d.%m.%Y %H:%M"),
+        "next_refresh": (now + timedelta(seconds=HANGE_CACHE_TTL)).strftime("%d.%m.%Y %H:%M"),
     }
 
 
 def hange_to_card(t: dict) -> dict:
-    """Muudab päris Hange.ee kirje veebilehe kaardi vormingusse."""
+    """Muudab Hange.ee päris hanke olemasoleva veebikaardi vormingusse."""
     deadline_text = (
         t["deadline"].strftime("%d.%m.%Y")
         if t.get("deadline")
-        else "Hange.ee aktiivsete hangete nimekirjas"
+        else "Aktiivne Hange.ee-s"
     )
-    tags = [
-        ("badge-gardening", f"🌿 {label}")
-        for label in t.get("labels", [])
-    ]
-
+    tags = []
     if t.get("location"):
         tags.append(("badge-location", f"📍 {t['location']}"))
     if t.get("bids") is not None:
         tags.append(("badge-price", f"💬 Pakkumisi: {t['bids']}"))
-    tags.append(("badge-year", f"⏳ {deadline_text}"))
+    tags.append(("badge-year", f"⏳ Kuni {deadline_text}"))
 
     description_parts = []
     if t.get("organizer"):
@@ -651,70 +574,32 @@ def render_garages_tab(search_query):
 
 
 def render_garden_tab(search_query):
-    show_html('<div class="system-status">🌿 Hange.ee aktiivsed hanked · ainult sinu märksõnad</div>')
-    st.markdown(f"**Allikas:** [Hange.ee – kõik aktiivsed hanked]({HANGE_LIST_URL})")
-
-    col_kw, col_btn = st.columns([4, 1])
-    with col_kw:
-        chosen = st.multiselect(
-            "Märksõnad",
-            KEYWORD_LABELS,
-            default=KEYWORD_LABELS,
-            key="hange_keywords",
-            label_visibility="collapsed",
-        )
-    with col_btn:
-        if st.button("🔄 Värskenda", key="hange_refresh", use_container_width=True):
-            load_hange_tenders.clear()
+    show_html('<div class="system-status">🌿 Hange.ee aktiivsed hanked · valitud kategooriad · uuendus iga 24 h järel</div>')
+    st.markdown(f"**Allikas:** [Hange.ee – valitud aktiivsed kategooriad]({HANGE_LIST_URL})")
 
     try:
         data = load_hange_tenders()
-    except Exception as exc:  # võrguviga, lehe struktuur muutunud vms
-        st.error("Hange.ee hankeid ei õnnestunud praegu laadida. Näitan pigem tühja kui väljamõeldud andmeid.")
+    except Exception as exc:
+        st.error("Hange.ee hankeid ei õnnestunud praegu laadida. Kuvan ainult allikast saadud andmeid.")
         st.caption(f"Tehniline põhjus: {type(exc).__name__}: {exc}")
-        st.markdown(f"Ava käsitsi: [Hange.ee aktiivsed hanked]({HANGE_LIST_URL})")
+        st.markdown(f"Ava hanked otse: [Hange.ee aktiivsed kategooriad]({HANGE_LIST_URL})")
         return
 
-    today = datetime.now(TZ).date()
-    chosen_set = set(chosen)
-    active = [
-        t for t in data["items"]
-        if (t["deadline"] is None or t["deadline"] >= today)  # ainult aktiivsed
-        and chosen_set.intersection(t["labels"])
-    ]
-
     st.caption(
-        f"Skaneeritud {data['scanned']} aktiivset hanget ({data['pages']} lehte). "
-        f"Märksõnadele vastab {len(data['items'])}, kuvatakse {len(active)}. "
-        f"Viimati uuendatud: {data['fetched_at']} · uueneb automaatselt kord ööpäevas "
-        f"(järgmine {data['next_refresh']} järel esimesel külastusel)."
+        f"Kuvatakse {len(data['items'])} aktiivset hanget · "
+        f"Viimati uuendatud: {data['fetched_at']} · "
+        f"järgmine automaatne andmete uuendamine pärast vahemälu aegumist: {data['next_refresh']}."
     )
-
-    if search_query:
-        empty_msg = f"Otsingukastis on tekst “{search_query}”. Kustuta see, et näha kõiki märksõnadele vastavaid hankeid."
-    else:
-        empty_msg = (
-            "Praegu ei ole ühtegi aktiivset hanget, mille pealkirjas oleks need märksõnad. "
-            "See on korrektne tulemus: uued hanked ilmuvad siia, kui neid Hange.ee-sse lisatakse."
-        )
 
     render_items_with_scroll(
-        [hange_to_card(t) for t in active],
+        [hange_to_card(t) for t in data["items"]],
         page_key="hange",
-        button_text="Ava Hange.ee-s",
-        base_badge=pill("badge-gardening", "🌿 Haljastus"),
-        search_query=search_query,
-        empty_msg=empty_msg,
+        button_text="Ava hange Hange.ee-s",
+        base_badge=pill("badge-gardening", "🌿 Hange.ee"),
+        search_query="",
+        empty_msg="Hange.ee valitud kategooriates ei ole praegu aktiivseid hankeid.",
         only_current_year=False,
     )
-
-    with st.expander("🔧 Diagnostika"):
-        st.write(
-            f"Skaneeritud: {data['scanned']} · lehti: {data['pages']} · "
-            f"märksõnadele sobis: {len(data['items'])} · "
-            f"andmed laaditud: {data['fetched_at']}"
-        )
-        st.caption("Märksõnad: " + ", ".join(KEYWORD_LABELS))
 
 
 def render_invest_tab():
