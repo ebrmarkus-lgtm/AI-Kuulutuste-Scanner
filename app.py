@@ -1,4 +1,5 @@
 import html
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
 import re
 import time
@@ -309,17 +310,41 @@ GARAGE_ITEMS = [
 
 # Algne jälgimisnimekiri. Kasutaja saab moodulis tickereid ise muuta.
 TOP_STOCKS = [
+    # Pooljuhid ja AI-arvutus
     {"symbol": "NVDA", "name": "NVIDIA", "sector": "AI kiibid"},
+    {"symbol": "AMD", "name": "Advanced Micro Devices", "sector": "AI kiibid"},
+    {"symbol": "AVGO", "name": "Broadcom", "sector": "AI kiibid ja võrgud"},
+    {"symbol": "TSM", "name": "Taiwan Semiconductor", "sector": "Kiipide tootmine"},
+    {"symbol": "MU", "name": "Micron Technology", "sector": "AI mälu"},
+    {"symbol": "ASML", "name": "ASML", "sector": "Kiibimasinad"},
+    {"symbol": "AMAT", "name": "Applied Materials", "sector": "Kiibimasinad"},
+    {"symbol": "LRCX", "name": "Lam Research", "sector": "Kiibimasinad"},
+    {"symbol": "ANET", "name": "Arista Networks", "sector": "Andmekeskuste võrgud"},
+    {"symbol": "MRVL", "name": "Marvell Technology", "sector": "AI ühenduvus ja kiibid"},
+    # Suured platvormid ja tarkvara
     {"symbol": "MSFT", "name": "Microsoft", "sector": "Pilv ja AI"},
     {"symbol": "GOOGL", "name": "Alphabet", "sector": "AI ja reklaam"},
     {"symbol": "AMZN", "name": "Amazon", "sector": "Pilv ja e-kaubandus"},
-    {"symbol": "META", "name": "Meta Platforms", "sector": "AI ja sotsiaalmeedia"},
+    {"symbol": "META", "name": "Meta Platforms", "sector": "AI ja reklaam"},
     {"symbol": "AAPL", "name": "Apple", "sector": "Tarbijatehnoloogia"},
-    {"symbol": "AVGO", "name": "Broadcom", "sector": "Pooljuhid"},
-    {"symbol": "AMD", "name": "AMD", "sector": "Pooljuhid"},
-    {"symbol": "TSLA", "name": "Tesla", "sector": "Elektriautod ja energia"},
-    {"symbol": "QQQ", "name": "Invesco QQQ", "sector": "Nasdaq-100 ETF"},
-    {"symbol": "SPY", "name": "SPDR S&P 500", "sector": "S&P 500 ETF"},
+    {"symbol": "ORCL", "name": "Oracle", "sector": "Pilvetarkvara"},
+    # AI taristu, elekter ja tööstus
+    {"symbol": "VRT", "name": "Vertiv", "sector": "Andmekeskuste jahutus ja energia"},
+    {"symbol": "CEG", "name": "Constellation Energy", "sector": "Elektrienergia"},
+    {"symbol": "ETN", "name": "Eaton", "sector": "Elektrivõrgud ja seadmed"},
+    {"symbol": "CAT", "name": "Caterpillar", "sector": "Tööstus ja taristu"},
+    # Hajutajad: energia, finants, tervishoid ja tarbimine
+    {"symbol": "XOM", "name": "Exxon Mobil", "sector": "Energia"},
+    {"symbol": "JPM", "name": "JPMorgan Chase", "sector": "Pangandus"},
+    {"symbol": "BRK-B", "name": "Berkshire Hathaway", "sector": "Diversifitseeritud"},
+    {"symbol": "V", "name": "Visa", "sector": "Maksed"},
+    {"symbol": "LLY", "name": "Eli Lilly", "sector": "Tervishoid"},
+    {"symbol": "JNJ", "name": "Johnson & Johnson", "sector": "Tervishoid"},
+    {"symbol": "COST", "name": "Costco", "sector": "Jaekaubandus"},
+    {"symbol": "WMT", "name": "Walmart", "sector": "Jaekaubandus"},
+    # Võrdlusindeksid – turu üldise suuna mõõtmiseks
+    {"symbol": "SPY", "name": "SPDR S&P 500 ETF", "sector": "Võrdlusindeks"},
+    {"symbol": "QQQ", "name": "Invesco Nasdaq-100 ETF", "sector": "Võrdlusindeks"},
 ]
 
 
@@ -641,10 +666,10 @@ def fetch_asset_market_data(symbol):
     if len(closes) < 25:
         raise ValueError("Ajaloolisi hinnapunkte on skoori arvutamiseks liiga vähe.")
 
-    price = float(meta.get("regularMarketPrice") or closes[-1])
-    previous = meta.get("chartPreviousClose") or meta.get("previousClose")
-    if not previous and len(closes) > 1:
-        previous = closes[-2]
+    # Kasuta päevagraafiku viimast sulgemishinda, mitte võimalikku after-hours hinda.
+    # Nii on hind, päeva muutus ja tehnilised näitajad sama kauplemissessiooniga.
+    price = float(closes[-1])
+    previous = closes[-2] if len(closes) > 1 else None
     day_change = ((price / float(previous)) - 1) * 100 if previous else None
 
     def pct_change(period):
@@ -729,6 +754,7 @@ def fetch_asset_market_data(symbol):
         "price": price,
         "currency": meta.get("currency") or "USD",
         "day_change": day_change,
+        "ret_1w": pct_change(5),
         "ret_1m": pct_change(21),
         "ret_3m": ret_3m,
         "ret_6m": ret_6m,
@@ -768,11 +794,11 @@ def render_invest_tab():
         "Jälgitavad tickerid",
         value=st.session_state.get("neural_watchlist", default_symbols),
         key="neural_watchlist_input",
-        help="Sisesta USA aktsiate või ETF-ide tickerid komadega, näiteks NVDA, MSFT, QQQ. Kuni 15 instrumenti.",
+        help="Sisesta USA aktsiate või ETF-ide tickerid komadega, näiteks NVDA, MSFT, QQQ. Kuni 30 instrumenti.",
     )
     symbols = list(dict.fromkeys(
         re.findall(r"[A-Za-z0-9.^=_-]+", symbols_text.upper())
-    ))[:15]
+    ))[:30]
     if not symbols:
         st.info("Sisesta vähemalt üks ticker, näiteks NVDA või SPY.")
         return
@@ -789,12 +815,22 @@ def render_invest_tab():
     results = []
     failures = []
     progress = st.progress(0, text="Ühendan turuandmetega...")
-    for index, symbol in enumerate(symbols):
-        try:
-            results.append(fetch_asset_market_data(symbol))
-        except Exception as exc:
-            failures.append((symbol, str(exc)))
-        progress.progress((index + 1) / len(symbols), text=f"Skaneeritud {index + 1}/{len(symbols)}")
+    completed = 0
+    # Kuus paralleelset päringut vähendavad 30 instrumendi skaneerimise ooteaega,
+    # kuid ei koorma tasuta hinnaliidest liigse samaaegsusega.
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        future_symbols = {
+            executor.submit(fetch_asset_market_data, symbol): symbol
+            for symbol in symbols
+        }
+        for future in as_completed(future_symbols):
+            symbol = future_symbols[future]
+            try:
+                results.append(future.result())
+            except Exception as exc:
+                failures.append((symbol, str(exc)))
+            completed += 1
+            progress.progress(completed / len(symbols), text=f"Skaneeritud {completed}/{len(symbols)}")
     progress.empty()
 
     if not results:
@@ -867,21 +903,64 @@ def render_invest_tab():
             for symbol, reason in failures:
                 st.caption(f"{symbol}: {reason}")
 
-    with st.expander("Kuidas Neural Score arvutatakse?"):
-        st.markdown("""
-        **Skoor 0–100 on tehniline võrdlusskoor, mitte fundamentaalne ettevõtte väärtuse hinnang.**
+    # Turuülevaade ja järgmised sammud – arvutatakse iga skaneerimise järel värsketest tulemustest.
+    st.markdown("### Minu turuvaade ja mida ma järgmisena muudaksin")
+    by_symbol = {item["symbol"]: item for item in results}
+    spy = by_symbol.get("SPY")
+    qqq = by_symbol.get("QQQ")
+    stock_results = [item for item in results if item["symbol"] not in {"SPY", "QQQ"}]
+    ranked = sorted(stock_results, key=lambda item: item["score"], reverse=True)
+    leaders = ranked[:5]
+    laggards = sorted(stock_results, key=lambda item: item["score"])[:3]
 
-        | Komponent | Kaal | Mida mõõdab |
-        |---|---:|---|
-        | Momentum | 30% | 3 ja 6 kuu hinnaliikumine |
-        | Trend | 30% | Hind võrreldes 50 ja 200 päeva keskmisega |
-        | RSI | 15% | 14 päeva suhteline tugevus; äärmusi hinnatakse ettevaatlikumalt |
-        | Risk | 15% | 60 päeva annualiseeritud realiseerunud volatiilsus |
-        | Langus | 10% | Suurim tipust langus viimase aasta jooksul |
+    if spy and qqq:
+        spy_week = spy.get("ret_1w")
+        qqq_week = qqq.get("ret_1w")
+        st.markdown(
+            f"Viimase viie kauplemispäeva põhjal on **S&P 500 ETF (SPY)** "
+            f"{_format_pct(spy_week)} ja **Nasdaq-100 ETF (QQQ)** {_format_pct(qqq_week)}. "
+            "See aitab eristada laia turu liikumist tehnoloogiasektori tugevusest."
+        )
+    else:
+        st.markdown("Võrdlusindeksite SPY ja QQQ andmed ei laadinud; üldise turu suunda ei saa selle skaneeringu põhjal kindlalt hinnata.")
 
-        **Oluline:** skoor ei kasuta P/E-d, käibekasvu, võlataset, rahavoogu, analüütikute prognoose ega uudiste sentimenti. Kõrge skoor ei tähenda automaatselt ostusoovitust. Andmed pärinevad Yahoo Finance'i mitteametlikust avalikust chart-liidesest, mis võib muutuda või päringuid piirata.
-        """)
-    st.caption("Õppe- ja uurimistööriist, mitte personaalne investeerimisnõuanne. Kontrolli enne otsust algandmeid ja ettevõtte finantse.")
+    if leaders:
+        st.markdown("**Minu viis esimest uurimisprioriteeti selle skaneeringu järgi:**")
+        for position, item in enumerate(leaders, start=1):
+            st.markdown(
+                f"{position}. **{item['symbol']} – {item['name']}** · "
+                f"Neural Score {item['score']}/100 · hind {_format_price(item['price'], item['currency'])} · "
+                f"3 kuu muutus {_format_pct(item['ret_3m'])} · RSI {item['rsi']:.1f}"
+            )
+        st.caption("See on tehniliste näitajate järjestus, mitte fundamentaalse väärtuse või tulevase tootluse prognoos.")
+
+    if laggards:
+        st.markdown("**Nõrgema tehnilise seisuga jälgimisnimekirja nimed:** " + ", ".join(
+            f"{item['symbol']} ({item['score']}/100)" for item in laggards
+        ) + ". Neid ei tasu üksnes hinnalanguse tõttu automaatselt juurde osta; esmalt tuleks kontrollida, kas ettevõtte väljavaade või trend on halvenenud.")
+
+    positive_share = sum(item["score"] >= 60 for item in stock_results) / max(1, len(stock_results))
+    if positive_share >= 0.65:
+        breadth_comment = "Sisemine tugevus on suhteliselt lai: enamik jälgitavaid aktsiaid on tehniliselt positiivses tsoonis."
+    elif positive_share <= 0.35:
+        breadth_comment = "Turu sisemine tugevus on nõrk: positiivses tsoonis on vaid väike osa jälgitavast nimekirjast. Ma eelistaksin kannatlikkust ja väiksemaid järkjärgulisi oste."
+    else:
+        breadth_comment = "Turu sisemine pilt on segane: tugevad nimed ja nõrgad nimed on läbisegi. Valiksin positsioone selektiivselt, mitte ei ostaks kogu nimekirja korraga."
+
+    st.markdown(f"**Minu hinnang:** {breadth_comment}")
+    st.markdown("**Mida ma süsteemis järgmisena muudaksin:**")
+    st.markdown(
+        "- Lisaksin järgmises versioonis ettevõtete fundamentaalnäitajad: vaba rahavoog, käibekasv, kasumimarginaal, võlakoormus ning forward P/E. "
+        "Praegune skoor on ainult tehniline ja võib kiiresti muutuda.\n"
+        "- Võrdleksin iga aktsiat sektoriga ja SPY-ga, et eristada üldist tururallit ettevõtte enda tugevusest.\n"
+        "- Lisaksin tulemuste juurde järgmise kasumiaruande kuupäeva ning suuremate uudiste/katalüsaatorite kontrolli.\n"
+        "- Vähendaksin kontsentratsiooniriski: AI- ja kiibifirmad võivad liikuda samas suunas, seega ei käsitleks kümmet sama sektori aktsiat kümne sõltumatu panusena.\n"
+        "- Kasutaksin ostude ajastamisel osade kaupa sisenemist ja eelnevalt määratud riskipiiri, mitte ei ostaks kogu summat ühe päeva hinnaga."
+    )
+    st.caption(
+        f"Skaneerimine valmis {datetime.now(TZ).strftime('%d.%m.%Y %H:%M')} · "
+        f"Hinnad võivad olla viivitusega; USA turu viimane tavakauplemise sulgemine on eraldi kuvatud iga instrumendi juures."
+    )
 
 
 # =============================================================================
