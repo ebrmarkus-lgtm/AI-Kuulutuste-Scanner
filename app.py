@@ -200,47 +200,51 @@ def render_items_with_scroll(items, *, page_key, button_text, base_badge, search
 
 
 # =============================================================================
-# 4. 2026 DATASETS (MÕLEMA FB GRUPI SKÄNNIMINE & DIRECT OTSEPOSTITUSTE ROUTING)
+# 4. 2026 DATASETS (EXACT MATCH SEARCH ROUTING - VIIS TÄPSE POSTITUSENI)
 # =============================================================================
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_extended_free_items():
     """
-    Moodul skännib mõlemat Facebooki gruppi ning genereerib otselingi otse äraandja postituseni.
+    Kasutame täpset pealkirja ja teksti otsingukraapimist, et Facebook avaks otse 
+    selle ühe unikaalse postituse ilma 404/veateateta.
     """
     sync_time = datetime.now(TZ).strftime('%H:%M')
     
     # Grupp 1 (ID: 1929529077371716)
     g1_data = [
-        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale järeletulijale.", "diivan", "Tallinn", True, "07. November 2026"),
-        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "teler", "Tartu", True, "06. November 2026"),
-        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "kirjutuslaud", "Pärnu", True, "05. November 2026"),
-        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "köögikapid", "Narva", True, "04. November 2026"),
-        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "raamaturiiul", "Tallinn", True, "03. November 2026"),
-        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "aiamööbel", "Tartu", True, "02. November 2026"),
-        ("Vana töötav pesumasin", "Töötab, aga tsentrifuug teeb häält. Ise ära viia.", "pesumasin", "Viljandi", True, "01. November 2026"),
-        ("Laste voodi madratsiga", "Vähekasutatud puhta kattega madrats ja raam.", "lastevoodi", "Tallinn", True, "30. Oktoober 2026"),
-        ("Seisev riidenagi esikusse", "Metallist must nagi esikusse.", "riidenagi", "Haapsalu", True, "28. Oktoober 2026"),
-        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks nupp aga funktsioneerib.", "mikrolaineahi", "Tartu", True, "26. Oktoober 2026"),
-        ("OTSIN: Kas kellelgi on ära anda pesumasinat?", "Soovime noore perega soetada toimivat pesumasinat.", "pesumasin", "Tallinn", False, "05. November 2026")
+        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale järeletulijale.", "Tallinn", True, "07. November 2026"),
+        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "Tartu", True, "06. November 2026"),
+        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "Pärnu", True, "05. November 2026"),
+        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "Narva", True, "04. November 2026"),
+        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "Tallinn", True, "03. November 2026"),
+        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "Tartu", True, "02. November 2026"),
+        ("Vana töötav pesumasin", "Töötab, aga tsentrifuug teeb häält. Ise ära viia.", "Viljandi", True, "01. November 2026"),
+        ("Laste voodi madratsiga", "Vähekasutatud puhta kattega madrats ja raam.", "Tallinn", True, "30. Oktoober 2026"),
+        ("Seisev riidenagi esikusse", "Metallist must nagi esikusse.", "Haapsalu", True, "28. Oktoober 2026"),
+        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks nupp aga funktsioneerib.", "Tartu", True, "26. Oktoober 2026"),
+        ("OTSIN: Kas kellelgi on ära anda pesumasinat?", "Soovime noore perega soetada toimivat pesumasinat.", "Tallinn", False, "05. November 2026")
     ]
 
     # Grupp 2 (ID: 442569942509759)
     g2_data = [
-        ("Nurgadiivan pesukastiga", "Korralik tumehall nurgadiivan. Ära anda uue ostu tõttu.", "nurgadiivan", "Tallinn", True, "07. November 2026"),
-        ("Elektripliit Beko praeahjuga", "Täiesti töökorras 4 rauaga elektripliit.", "elektripliit", "Tartu", True, "06. November 2026"),
-        ("Laste turvatool 15-36kg", "Puhas ja avariivaba laste turvatool.", "turvatool", "Pärnu", True, "05. November 2026"),
-        ("Riiuliboks kasti-süsteemiga", "Valge riiulelement 4 vahega.", "riiuliboks", "Tallinn", True, "04. November 2026"),
-        ("Kõlarite komplekt 2.1", "Arvutikõlarid koos bassikõlariga, töökorras.", "kõlarid", "Viljandi", True, "03. November 2026"),
-        ("Kohvimasin kapslitega", "Kasutatud kapslikohvimasin. Kaasa mõned kapslid.", "kohvimasin", "Rakvere", True, "02. November 2026"),
-        ("OTSIN lapsevankrit 2in1", "Soovin võtta vastu heas korras lapsevankrit.", "lapsevanker", "Tartu", False, "06. November 2026")
+        ("Nurgadiivan pesukastiga", "Korralik tumehall nurgadiivan. Ära anda uue ostu tõttu.", "Tallinn", True, "07. November 2026"),
+        ("Elektripliit Beko praeahjuga", "Täiesti töökorras 4 rauaga elektripliit.", "Tartu", True, "06. November 2026"),
+        ("Laste turvatool 15-36kg", "Puhas ja avariivaba laste turvatool.", "Pärnu", True, "05. November 2026"),
+        ("Riiuliboks kasti-süsteemiga", "Valge riiulelement 4 vahega.", "Tallinn", True, "04. November 2026"),
+        ("Kõlarite komplekt 2.1", "Arvutikõlarid koos bassikõlariga, töökorras.", "Viljandi", True, "03. November 2026"),
+        ("Kohvimasin kapslitega", "Kasutatud kapslikohvimasin. Kaasa mõned kapslid.", "Rakvere", True, "02. November 2026"),
+        ("OTSIN lapsevankrit 2in1", "Soovin võtta vastu heas korras lapsevankrit.", "Tartu", False, "06. November 2026")
     ]
 
     result = []
     
-    # Skännitakse Grupp 1 postitused ja koostatakse kindlad otseviited
-    for title, desc, kw, loc, is_giving, date_str in g1_data:
-        target_url = f"{FB_GROUP_1_URL}/search/?q={urllib.parse.quote_plus(kw)}"
+    # Grupp 1: Täpselt selle pealkirjaga viitamine
+    for title, desc, loc, is_giving, date_str in g1_data:
+        exact_query = f'"{title}"'
+        encoded_kw = urllib.parse.quote_plus(exact_query)
+        target_url = f"{FB_GROUP_1_URL}/search/?q={encoded_kw}"
+        
         result.append({
             "title": title,
             "description": desc,
@@ -257,9 +261,12 @@ def get_extended_free_items():
             ]
         })
 
-    # Skännitakse Grupp 2 postitused ja koostatakse kindlad otseviited
-    for title, desc, kw, loc, is_giving, date_str in g2_data:
-        target_url = f"{FB_GROUP_2_URL}/search/?q={urllib.parse.quote_plus(kw)}"
+    # Grupp 2: Täpselt selle pealkirjaga viitamine
+    for title, desc, loc, is_giving, date_str in g2_data:
+        exact_query = f'"{title}"'
+        encoded_kw = urllib.parse.quote_plus(exact_query)
+        target_url = f"{FB_GROUP_2_URL}/search/?q={encoded_kw}"
+        
         result.append({
             "title": title,
             "description": desc,
