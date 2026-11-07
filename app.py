@@ -209,6 +209,18 @@ STOCKS = [
 
 
 
+
+from urllib.parse import quote_plus
+FB_SLUGS = {"Tallinn": "tallinn", "Tartu": "tartu"}  # teiste linnade slugid pole kontrollitud
+
+
+def fb_search(title, city):
+    """Facebook Marketplace'i otsing: linn + märksõna + hind 0 €."""
+    kw = title.split("(")[0].strip()
+    slug = FB_SLUGS.get(city)
+    base = f"https://www.facebook.com/marketplace/{slug}/search/" if slug else "https://www.facebook.com/marketplace/search/"
+    return f"{base}?query={quote_plus(kw)}&maxPrice=0&exact=false"
+
 # ----------------------------- LAIENDATUD ANDMED ----------------------------
 _rng = random.Random(42)
 CITIES = ["Tallinn", "Tartu", "Pärnu", "Narva", "Viljandi", "Kuressaare", "Rakvere", "Haapsalu", "Jõhvi", "Võru"]
@@ -224,6 +236,9 @@ for n, e in _free_t:
                      "description": f"{n} annetatakse tasuta. Ise äraviimisega.", "price": "Tasuta",
                      "facts": [("Asukoht", c), ("Seisukord", _rng.choice(_cond)), ("Kätte saamine", "Ise järele")],
                      "tags": [("green", "Tasuta")]})
+
+for _it in FREE:
+    _it["link"] = fb_search(_it["title"], dict(_it["facts"]).get("Asukoht", ""))
 
 _dist = [("Tallinn", d) for d in ["Mustamäe", "Lasnamäe", "Õismäe", "Kristiine", "Nõmme", "Pirita", "Haabersti"]] + \
         [("Tartu", d) for d in ["Annelinn", "Karlova", "Ropka", "Tähtvere"]] + [("Pärnu", "Ranna"), ("Narva", "Kreenholm")]
@@ -378,7 +393,7 @@ q = st.text_input("Otsi", placeholder="nt muru, piim, akutrell, NVIDIA…", labe
 tab = st.radio("Moodul", TABS, horizontal=True, label_visibility="collapsed")
 
 if tab == TABS[0]:
-    render(FREE, "free", "Ava Facebookis", q, "Tasuta asju ei leitud.")
+    render(FREE, "free", "Otsi Facebook Marketplace'ist", q, "Tasuta asju ei leitud.")
 elif tab == TABS[1]:
     render(GARAGES, "garages", "Ava kuulutus", q, "Garaaže ei leitud.")
 elif tab == TABS[2]:
