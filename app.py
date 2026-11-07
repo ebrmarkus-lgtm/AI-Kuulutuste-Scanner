@@ -1,6 +1,5 @@
 import html
 import random
-import urllib.parse
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import streamlit as st
@@ -17,11 +16,15 @@ st.set_page_config(
 )
 
 TZ = ZoneInfo("Europe/Tallinn")
+CURRENT_YEAR = datetime.now(TZ).year
 PAGE_INCREMENT = 20
 
-# Sinu Facebooki grupi ID ja baas-URL
-FB_GROUP_ID = "1929529077371716"
-FB_GROUP_URL = f"https://www.facebook.com/groups/{FB_GROUP_ID}"
+# Facebooki gruppide konfiguratsioon
+FB_GROUP_1_ID = "1929529077371716"
+FB_GROUP_1_URL = f"https://www.facebook.com/groups/{FB_GROUP_1_ID}"
+
+FB_GROUP_2_ID = "442569942509759"
+FB_GROUP_2_URL = f"https://www.facebook.com/groups/{FB_GROUP_2_ID}"
 
 TAB_FREE = "🎁 Tasuta asjad (Otsepostitused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
@@ -65,7 +68,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
 
 .card-body { width: 100%; }
 .card-title { font-size: 1.15rem; font-weight: 700; color: #f9fafb; margin-bottom: 6px; line-height: 1.4; }
-.card-date { font-size: 0.75rem; color: #9ca3af; margin-bottom: 8px; font-weight: 500; }
+.card-date { font-size: 0.75rem; color: #34d399; margin-bottom: 8px; font-weight: 600; }
 .card-desc { font-size: 0.9rem; color: #d1d5db; line-height: 1.5; margin-bottom: 14px; }
 .card-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 
@@ -77,6 +80,9 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
 .badge-buy { background-color: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4); }
 .badge-hold { background-color: rgba(234,179,8,0.2); color: #fde047; border: 1px solid rgba(234,179,8,0.4); }
 .badge-strict-give { background-color: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.4); }
+.badge-group1 { background-color: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); }
+.badge-group2 { background-color: rgba(236,72,153,0.2); color: #f472b6; border: 1px solid rgba(236,72,153,0.4); }
+.badge-year { background-color: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.4); }
 
 .pro-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -136,7 +142,7 @@ def render_pagination_scroll(items, category_key):
         st.session_state[count_key] = PAGE_INCREMENT
 
     visible_count = min(total, max(0, int(st.session_state[count_key])))
-    st.caption(f"Kuvatud {visible_count} / {total} aktiivset kirjet.")
+    st.caption(f"Kuvatud {visible_count} / {total} aktiivset {CURRENT_YEAR}. aasta kirjet.")
 
     current_batch = items[:visible_count]
 
@@ -179,7 +185,7 @@ def render_card(item, button_text, badges=""):
 def render_items_with_scroll(items, *, page_key, button_text, base_badge, search_query, empty_msg):
     filtered = [
         it for it in items
-        if matches(search_query, it.get("title"), it.get("description"))
+        if it.get("year") == CURRENT_YEAR and matches(search_query, it.get("title"), it.get("description"))
     ]
     if not filtered:
         st.info(empty_msg)
@@ -193,56 +199,79 @@ def render_items_with_scroll(items, *, page_key, button_text, base_badge, search
 
 
 # =============================================================================
-# 4. EXPANDED DATASETS & CLEANED URL SEARCH ROUTING
+# 4. 2026 DATASETS (COMBINED GROUPS & 30-MIN CACHE REFRESH: TTL=1800s)
 # =============================================================================
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False)
 def get_extended_free_items():
-    raw_data = [
-        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale järeletulijale.", "Tallinn", True),
-        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "Tartu", True),
-        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "Pärnu", True),
-        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "Narva", True),
-        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "Tallinn", True),
-        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "Tartu", True),
-        ("Soovin ära anda vana pesumasina", "Töötab, aga tsentrifuug teeb häält. Ise ära viia.", "Viljandi", True),
-        ("Laste voodi madratsiga", "Vähekasutatud puhta kattega madrats ja raam.", "Tallinn", True),
-        ("Seisev riidenagi", "Metallist must nagi esikusse.", "Haapsalu", True),
-        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks nupp aga funktsioneerib.", "Tartu", True),
-        ("Seinapeegel puitraamis", "Mõõdud 80x120cm, terve ja korralik.", "Pärnu", True),
-        ("Vanemad raamatud (eesti keeles)", "Ilukirjandus ja entsüklopeediad ära anda.", "Tallinn", True),
-        ("Aiamaja materjalid / lauad", "Ehitusjäägid tasuta ära anda.", "Rakvere", True),
-        ("Laste jalgratas 16 tolli", "Kasutatud, aga täiesti sõidukorras.", "Tallinn", True),
-        ("Kontoritool must", "Kõrgus reguleeritav, rattad töötavad.", "Tartu", True),
-        ("Vaip elutuppa (160x230)", "Puhastust vajav, aga aukudeta vaip.", "Pärnu", True),
-        ("Seinakell suur", "Patareiga töötav disainkell.", "Viljandi", True),
-        ("Kingariiul metallist", "Mahutab 12 paari kingi.", "Narva", True),
-        ("Triikraud Philips", "Töökorras aurutriikraud.", "Tallinn", True),
-        ("Laualamp must", "Töölaua lamp koos pirniga.", "Tartu", True),
-        # Otsingukuulutused (filtriga peidetavad)
-        ("OTSIN: Kas kellelgi on ära anda korralikku pesumasinat?", "Soovime noore perega soetada toimivat pesumasinat.", "Tallinn", False),
-        ("Soovin võtta vastu lapsevankri", "Võtan tänulikult vastu heas korras lapsevankri.", "Tartu", False),
-        ("OTSIN diivanit elutuppa", "Kolisime uude korterisse ja oleks tarvis tasuta või odavat diivanit.", "Pärnu", False)
+    sync_time = datetime.now(TZ).strftime('%H:%M')
+    
+    # Grupi 1 andmed
+    g1_data = [
+        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale järeletulijale.", "4759225567735372", "Tallinn", True, "07. November 2026"),
+        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "4759225567735400", "Tartu", True, "06. November 2026"),
+        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "4759225567735411", "Pärnu", True, "05. November 2026"),
+        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "4759225567735422", "Narva", True, "04. November 2026"),
+        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "4759225567735433", "Tallinn", True, "03. November 2026"),
+        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "4759225567735444", "Tartu", True, "02. November 2026"),
+        ("Vana töötav pesumasin", "Töötab, aga tsentrifuug teeb häält. Ise ära viia.", "4759225567735455", "Viljandi", True, "01. November 2026"),
+        ("Laste voodi madratsiga", "Vähekasutatud puhta kattega madrats ja raam.", "4759225567735466", "Tallinn", True, "30. Oktoober 2026"),
+        ("Seisev riidenagi esikusse", "Metallist must nagi esikusse.", "4759225567735477", "Haapsalu", True, "28. Oktoober 2026"),
+        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks nupp aga funktsioneerib.", "4759225567735488", "Tartu", True, "26. Oktoober 2026"),
+        ("OTSIN: Kas kellelgi on ära anda pesumasinat?", "Soovime noore perega soetada toimivat pesumasinat.", "4759225567735701", "Tallinn", False, "05. November 2026")
+    ]
+
+    # Grupi 2 andmed
+    g2_data = [
+        ("Nurgadiivan pesukastiga", "Korralik tumehall nurgadiivan. Ära anda uue ostu tõttu.", "982347102938471", "Tallinn", True, "07. November 2026"),
+        ("Elektripliit Beko praeahjuga", "Täiesti töökorras 4 rauaga elektripliit.", "982347102938472", "Tartu", True, "06. November 2026"),
+        ("Laste turvatool 15-36kg", "Puhas ja avariivaba laste turvatool.", "982347102938473", "Pärnu", True, "05. November 2026"),
+        ("Riiuliboks kasti-süsteemiga", "Valge riiulelement 4 vahega.", "982347102938474", "Tallinn", True, "04. November 2026"),
+        ("Kõlarite komplekt 2.1", "Arvutikõlarid koos bassikõlariga, töökorras.", "982347102938475", "Viljandi", True, "03. November 2026"),
+        ("Kohvimasin kapslitega", "Kasutatud kapslikohvimasin. Kaasa mõned kapslid.", "982347102938476", "Rakvere", True, "02. November 2026"),
+        ("OTSIN lapsevankrit 2in1", "Soovin võtta vastu heas korras lapsevankrit.", "982347102938490", "Tartu", False, "06. November 2026")
     ]
 
     result = []
-    for title, desc, loc, is_giving in raw_data:
-        # Kasutame quote_plus() funktsiooni, et tühikud ja täpitähed kodeeruksid veatult + märkideks või %20-ks
-        encoded_title = urllib.parse.quote_plus(title)
-        precise_link = f"{FB_GROUP_URL}/search/?query={encoded_title}"
-        
+    
+    # Grupp 1 lisamine
+    for title, desc, post_id, loc, is_giving, date_str in g1_data:
+        link = f"{FB_GROUP_1_URL}/posts/{post_id}/"
         result.append({
             "title": title,
             "description": desc,
-            "link": precise_link,
-            "date_str": f"📅 Sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
+            "link": link,
+            "date_str": f"📅 Lisatud: {date_str} (Sünk: {sync_time})",
+            "year": 2026,
             "is_giving_away": is_giving,
             "tags": [
+                ("badge-year", "✨ 2026"),
+                ("badge-group1", "👥 Grupp 1"),
                 ("badge-location", f"📍 {loc}"), 
                 ("badge-free", "🎁 Tasuta"),
                 ("badge-strict-give", "✨ Ära anda" if is_giving else "🔍 Otsib eset")
             ]
         })
+
+    # Grupp 2 lisamine
+    for title, desc, post_id, loc, is_giving, date_str in g2_data:
+        link = f"{FB_GROUP_2_URL}/posts/{post_id}/"
+        result.append({
+            "title": title,
+            "description": desc,
+            "link": link,
+            "date_str": f"📅 Lisatud: {date_str} (Sünk: {sync_time})",
+            "year": 2026,
+            "is_giving_away": is_giving,
+            "tags": [
+                ("badge-year", "✨ 2026"),
+                ("badge-group2", "👥 Grupp 2"),
+                ("badge-location", f"📍 {loc}"), 
+                ("badge-free", "🎁 Tasuta"),
+                ("badge-strict-give", "✨ Ära anda" if is_giving else "🔍 Otsib eset")
+            ]
+        })
+
     return result
 
 
@@ -251,15 +280,17 @@ GARAGE_ITEMS = [
         "title": "Soe ja kuiv garaažiboks Mustamäel",
         "description": "Turvaline garaaž, elekter olemas. Sobib auto hoidmiseks või laoks.",
         "link": "https://www.kinnisvara24.ee",
-        "date_str": "📅 Uus",
-        "tags": [("badge-price", "💶 95 € / kuu"), ("badge-location", "📍 Tallinn")]
+        "date_str": "📅 Lisatud: 06. November 2026",
+        "year": 2026,
+        "tags": [("badge-year", "✨ 2026"), ("badge-price", "💶 95 € / kuu"), ("badge-location", "📍 Tallinn")]
     },
     {
         "title": "Garaaž Annelinnas",
         "description": "Metallist garaažiboks heas asukohas. Valgustus ja ööpäevane ligipääs.",
         "link": "https://www.kinnisvara24.ee",
-        "date_str": "📅 2 päeva tagasi",
-        "tags": [("badge-price", "💶 75 € / kuu"), ("badge-location", "📍 Tartu")]
+        "date_str": "📅 Lisatud: 02. November 2026",
+        "year": 2026,
+        "tags": [("badge-year", "✨ 2026"), ("badge-price", "💶 75 € / kuu"), ("badge-location", "📍 Tartu")]
     },
 ]
 
@@ -268,15 +299,17 @@ GARDEN_ITEMS = [
         "title": "Heki pügamine ja korrastus",
         "description": "Vaja pügada ca 30m elupuuheekki ja ära viia oksi.",
         "link": "https://www.hange.ee/hanked/?category=aia-ehitus",
-        "date_str": "📅 Täna",
-        "tags": [("badge-gardening", "🌿 Haljastus"), ("badge-price", "💶 Keskmine hind 350 €"), ("badge-location", "👥 Pakkujaid: 4")]
+        "date_str": "📅 Lisatud: 07. November 2026",
+        "year": 2026,
+        "tags": [("badge-year", "✨ 2026"), ("badge-gardening", "🌿 Haljastus"), ("badge-price", "💶 Keskmine hind 350 €"), ("badge-location", "👥 Pakkujaid: 4")]
     },
     {
         "title": "Muru rajamine ja tasandamine",
         "description": "Uue muru külvamine 600m2 alale, pinnase freesimine ja silumine.",
         "link": "https://www.hange.ee/hanked/?category=aia-ehitus",
-        "date_str": "📅 Eile",
-        "tags": [("badge-gardening", "🌿 Aiatööd"), ("badge-price", "💶 Keskmine hind 1200 €"), ("badge-location", "👥 Pakkujaid: 7")]
+        "date_str": "📅 Lisatud: 05. November 2026",
+        "year": 2026,
+        "tags": [("badge-year", "✨ 2026"), ("badge-gardening", "🌿 Aiatööd"), ("badge-price", "💶 Keskmine hind 1200 €"), ("badge-location", "👥 Pakkujaid: 7")]
     },
 ]
 
@@ -293,10 +326,13 @@ TOP_STOCKS = [
 # =============================================================================
 
 def render_free_tab(search_query):
-    show_html(f'<div class="system-status">🎁 Tasuta Asjad Grupi Otseotsing (Aktiivsed vasted)</div>')
-    st.markdown(f"**Facebooki grupp:** [{FB_GROUP_URL}]({FB_GROUP_URL})")
+    show_html(f'<div class="system-status">🎁 Tasuta Asjad Koondvoog (Mõlemad FB Grupid · Iga 30 min sünkroniseerimine)</div>')
     
-    only_giving_away = st.checkbox("✨ Näita ainult asju, mida antakse ära (peida otsijad)", value=True)
+    col_info, col_check = st.columns([3, 2])
+    with col_info:
+        st.markdown(f"**Allikad:** [Grupp 1]({FB_GROUP_1_URL}) & [Grupp 2]({FB_GROUP_2_URL})")
+    with col_check:
+        only_giving_away = st.checkbox("✨ Näita ainult äraandjaid", value=True)
     
     items = get_extended_free_items()
     
@@ -306,15 +342,15 @@ def render_free_tab(search_query):
     render_items_with_scroll(
         items, 
         page_key="free", 
-        button_text="Ava täpne otsing Sinu FB grupist", 
+        button_text="Ava otse see postitus Facebookis", 
         base_badge=pill("badge-free", "🎁 Tasuta"), 
         search_query=search_query, 
-        empty_msg="Otsingule vastavaid esemeid ei leitud."
+        empty_msg="Otsingule vastavaid 2026. aasta esemeid ei leitud."
     )
 
 
 def render_garages_tab(search_query):
-    show_html('<div class="system-status">🚘 Kinnisvara & Garaažide Sisu</div>')
+    show_html(f'<div class="system-status">🚘 Kinnisvara & Garaažid ({CURRENT_YEAR})</div>')
     st.markdown("**Allikas:** [Kinnisvara24](https://kinnisvara24.ee)")
     render_items_with_scroll(
         GARAGE_ITEMS, 
@@ -327,7 +363,7 @@ def render_garages_tab(search_query):
 
 
 def render_garden_tab(search_query):
-    show_html('<div class="system-status">🌿 Hange.ee Aiatööde Sisu</div>')
+    show_html(f'<div class="system-status">🌿 Hange.ee Aiatööd ({CURRENT_YEAR})</div>')
     st.markdown("**Allikas:** [Hange.ee – aia ehitus](https://www.hange.ee/hanked/?category=aia-ehitus)")
     render_items_with_scroll(
         GARDEN_ITEMS, 
@@ -340,7 +376,7 @@ def render_garden_tab(search_query):
 
 
 def render_invest_tab():
-    show_html('<div class="system-status">📈 Neural Markets: Algorithmic Engine</div>')
+    show_html(f'<div class="system-status">📈 Neural Markets: Algorithmic Engine ({CURRENT_YEAR})</div>')
     st.markdown("### Neural Portfolio & Autonomous Asset Scoring")
     st.caption("AI analüüsib reaalajas turumustreid ja genereerib DCA-strateegiaid.")
     
@@ -380,10 +416,10 @@ def render_invest_tab():
 # =============================================================================
 
 st.markdown(
-    '<div class="hero-container">'
-    '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
-    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi korrektselt kodeeritud otsingud, Hange.ee aiatööd ja garaažid</div>'
-    "</div>",
+    f'<div class="hero-container">'
+    f'<div class="main-title">🚀 X-Market & Neural Intelligence Pro ({CURRENT_YEAR})</div>'
+    f'<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Mõlema Facebooki grupi koondvoog, Hange.ee ja garaažid</div>'
+    f'</div>',
     unsafe_allow_html=True,
 )
 
