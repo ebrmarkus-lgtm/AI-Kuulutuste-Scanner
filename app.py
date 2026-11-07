@@ -18,20 +18,16 @@ st.set_page_config(
 
 TZ = ZoneInfo("Europe/Tallinn")
 
-DEFAULT_MAX_LIMIT = 50
-EXTENDED_MAX_LIMIT = 100
-PAGE_INCREMENT = 50
+# Piirangud eemaldatud – näitame korraga suuremaid plokke
+PAGE_INCREMENT = 20
 
-# Sinu Facebooki grupi baas (vältimaks aegunud "listing not available" vigu)
 FB_GROUP_BASE = "https://www.facebook.com/groups/1929529077371716"
 
 TAB_FREE = "🎁 Tasuta asjad (Otsepostitused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
 TAB_GARDEN = "🌿 Haljastus & AI Hange"
-TAB_FOOD = "🛒 Toiduainete Optimeerija"
-TAB_TOOLS = "🛠️ Riistvara & Tööriistad"
 TAB_INVEST = "📈 Neural Portfolio & AI"
-TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_FOOD, TAB_TOOLS, TAB_INVEST]
+TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_INVEST]
 
 
 # =============================================================================
@@ -90,6 +86,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
 .badge-gardening { background-color: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
 .badge-buy { background-color: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4); }
 .badge-hold { background-color: rgba(234,179,8,0.2); color: #fde047; border: 1px solid rgba(234,179,8,0.4); }
+.badge-strict-give { background-color: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.4); }
 
 .pro-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -115,7 +112,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
 
 # =============================================================================
-# 3. CORE UTILITIES & PAGINATION ENGINE
+# 3. CORE UTILITIES & "KERI EDASI" PAGINATION ENGINE
 # =============================================================================
 
 def esc(value) -> str:
@@ -140,13 +137,11 @@ def pill(css_class, text):
     return f'<span class="badge-pill {css_class}">{esc(text)}</span>'
 
 
-def get_current_max_limit():
-    return st.session_state.get("display_limit_choice", DEFAULT_MAX_LIMIT)
-
-
-def paginate_items(items, category_key):
-    max_limit = get_current_max_limit()
-    items = list(items)[:max_limit]
+def render_pagination_scroll(items, category_key):
+    """
+    Eemaldatud on igasugused limiidi-valikud ning lisatud sujuv 'Keri edasi' nupp.
+    """
+    items = list(items)
     total = len(items)
     count_key = f"visible_count_{category_key}"
 
@@ -155,27 +150,21 @@ def paginate_items(items, category_key):
 
     visible_count = min(total, max(0, int(st.session_state[count_key])))
 
-    st.caption(
-        f"Andmekogum: {total} ühikut · Kuvatud {visible_count} "
-        f"(maksimaalselt: {max_limit})."
-    )
+    st.caption(f"Kuvatud {visible_count} / {total} aktiivset kirjet.")
+
+    # Kuvame esemed
+    current_batch = items[:visible_count]
 
     if visible_count < total:
         remaining = total - visible_count
-        c1, c2, _ = st.columns([1, 1, 4])
-        with c1:
-            if st.button(
-                f"Laadi veel {min(PAGE_INCREMENT, remaining)}",
-                key=f"load_more_{category_key}",
-            ):
-                st.session_state[count_key] = min(total, visible_count + PAGE_INCREMENT)
-                st.rerun()
-        with c2:
-            if st.button(f"Laadi kõik ({total})", key=f"show_all_{category_key}"):
-                st.session_state[count_key] = total
-                st.rerun()
+        next_batch_size = min(PAGE_INCREMENT, remaining)
+        
+        # 'Keri edasi' nupp kategooria all
+        if st.button(f"⬇️ Keri edasi (laadi veel {next_batch_size} eset)", key=f"scroll_more_{category_key}", use_container_width=True):
+            st.session_state[count_key] = visible_count + PAGE_INCREMENT
+            st.rerun()
 
-    return items[:visible_count]
+    return current_batch
 
 
 def render_card(item, button_text, badges=""):
@@ -218,15 +207,16 @@ def render_card(item, button_text, badges=""):
     )
 
 
-def render_items(items, *, page_key, button_text, base_badge, search_query, empty_msg):
+def render_items_with_scroll(items, *, page_key, button_text, base_badge, search_query, empty_msg):
     filtered = [
         it for it in items
         if matches(search_query, it.get("title"), it.get("description"))
     ]
     if not filtered:
         st.info(empty_msg)
+        return
 
-    for item in paginate_items(filtered, page_key):
+    for item in render_pagination_scroll(filtered, page_key):
         badges = (base_badge or "") + "".join(
             pill(css, text) for css, text in item.get("tags", [])
         )
@@ -234,28 +224,40 @@ def render_items(items, *, page_key, button_text, base_badge, search_query, empt
 
 
 # =============================================================================
-# 4. ANTI-EXPIRED-LINK ENGINE (OTSEOTSIMINE GRUPIST)
+# 4. MASSIVE "TASUTA ASJAD" DATASET (ROHKEM ESEMEID)
 # =============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_synchronized_free_items():
-    """
-    Kuna otsesed Facebooki postituse ID-d aeguvad kiiresti ja viskavad vea
-    'This listing isn't available any more', genereerib see mootor dünaamiliselt
-    otselingi otse grupi otsingusse. See välistab täielikult aegunud lingid!
-    """
-    raw_items = [
-        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale.", "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop", "Tallinn"),
-        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=600&auto=format&fit=crop", "Tartu"),
-        ("Reguleeritav kirjutuslaud õpilasele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600&auto=format&fit=crop", "Pärnu"),
-        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600&auto=format&fit=crop", "Narva"),
-        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "https://images.unsplash.com/photo-1594623930572-300a3011d9ae?w=600&auto=format&fit=crop", "Tallinn"),
-        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "https://images.unsplash.com/photo-1519947486511-46149fa0a254?w=600&auto=format&fit=crop", "Tartu")
+def get_extended_free_items():
+    raw_data = [
+        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale järeletulijale.", "photo-1555041469-a586c61ea9bc", "Tallinn", True),
+        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "photo-1593305841991-05c297ba4575", "Tartu", True),
+        ("Reguleeritav kirjutuslaud õpilasele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "photo-1518455027359-f3f8164ba6bd", "Pärnu", True),
+        ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "photo-1595428774223-ef52624120d2", "Narva", True),
+        ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "photo-1594623930572-300a3011d9ae", "Tallinn", True),
+        ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "photo-1519947486511-46149fa0a254", "Tartu", True),
+        ("Soovin ära anda vana pesumasina", "Töötab, aga tsentrifuug teeb häält. Ise ära viia.", "photo-1626806787461-102c1bfaaea1", "Viljandi", True),
+        ("Laste voodi madratsiga", "Vähekasutatud puhta kattega madrats ja raam.", "photo-1505693416388-ac5ce068fe85", "Tallinn", True),
+        ("Seisev riidenagi", "Metallist must nagi esikusse.", "photo-1595515106967-1ce2e1762128", "Haapsalu", True),
+        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks nupp aga funktsioneerib.", "photo-1574269909862-7e1d70bb8078", "Tartu", True),
+        ("Seinapeegel puitraamis", "Mõõdud 80x120cm, terve ja korralik.", "photo-1618221195710-dd6b41faaea6", "Pärnu", True),
+        ("Vanemad raamatud (eesti keeles)", "Ilukirjandus ja entsüklopeediad ära anda.", "photo-1495640388908-05fa85288e61", "Tallinn", True),
+        ("Aiamaja materjalid / lauad", "Ehitusjäägid tasuta ära anda.", "photo-1541888946425-d0fbb18f64e8", "Rakvere", True),
+        ("Laste jalgratas 16 tolli", "Kasutatud, aga täiesti sõidukorras.", "photo-1576435728678-68d0fbf94e91", "Tallinn", True),
+        ("Kontoritool must", "Kõrgus reguleeritav, rattad töötavad.", "photo-1580481077494-e3299ac0505d", "Tartu", True),
+        ("Vaip elutuppa (160x230)", "Puhastust vajav, aga aukudeta vaip.", "photo-1579656381226-5fc0f0100c3b", "Pärnu", True),
+        ("Seinakell suur", "Patareiga töötav disainkell.", "photo-1563861826100-9cb868fdbe1c", "Viljandi", True),
+        ("Kingariiul metallist", "Mahutab 12 paari kingi.", "photo-1595428774174-88484196120b", "Narva", True),
+        ("Triikraud Philips", "Töökorras aurutriikraud.", "photo-1585659722983-3c675f904ac8", "Tallinn", True),
+        ("Laualamp must", "Töölaua lamp koos pirniga.", "photo-1507473885765-e6ed057f782c", "Tartu", True),
+        # Otsingukuulutused
+        ("OTSIN: Kas kellelgi on ära anda korralikku pesumasinat?", "Soovime noore perega soetada toimivat pesumasinat.", "photo-1582738408868-54b1b590e42c", "Tallinn", False),
+        ("Soovin võtta vastu lapsevankri", "Võtan tänulikult vastu heas korras lapsevankri.", "photo-1516627145497-ae6968895b74", "Tartu", False),
+        ("OTSIN diivanit elutuppa", "Kolisime uude korterisse ja oleks tarvis tasuta või odavat diivanit.", "photo-1555041469-a586c61ea9bc", "Pärnu", False)
     ]
 
     result = []
-    for title, desc, img, loc in raw_items:
-        # Loob nutika otsingu URL-i, mis ei aegu kunagi ja avab alati aktiivsed tulemused
+    for title, desc, img_photo, loc, is_giving in raw_data:
         encoded_title = urllib.parse.quote(title)
         safe_link = f"{FB_GROUP_BASE}/search/?query={encoded_title}"
         
@@ -263,9 +265,14 @@ def get_synchronized_free_items():
             "title": title,
             "description": desc,
             "link": safe_link,
-            "image": img,
-            "date_str": f"📅 Kontrollitud & Aktiivne: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", f"📍 {loc}"), ("badge-free", "🎁 Tasuta")]
+            "image": f"https://images.unsplash.com/{img_photo}?w=600&auto=format&fit=crop",
+            "date_str": f"📅 Kontrollitud: {datetime.now(TZ).strftime('%H:%M')}",
+            "is_giving_away": is_giving,
+            "tags": [
+                ("badge-location", f"📍 {loc}"), 
+                ("badge-free", "🎁 Tasuta"),
+                ("badge-strict-give", "✨ Ära anda" if is_giving else "🔍 Otsib eset")
+            ]
         })
     return result
 
@@ -308,21 +315,6 @@ GARDEN_ITEMS = [
     },
 ]
 
-GROCERIES = [
-    ("Banaanid (kg)", 0.99, "Lidl", "https://www.lidl.ee", "photo-1571771894821-ce9b6c11b08e"),
-    ("Värske piim 2.5% (1 l)", 0.69, "Prisma", "https://www.prisma.ee", "photo-1550583724-b2692b85b150"),
-    ("Sea välisfilee (kg)", 5.99, "Rimi", "https://www.rimi.ee", "photo-1603048588665-791ca8aea617"),
-    ("Kohviuba President (1 kg)", 9.99, "Selver", "https://www.selver.ee", "photo-1559056199-641a0ac8b55e"),
-    ("Eesti või 82% (200 g)", 1.89, "Coop", "https://www.coop.ee", "photo-1589985270826-4b7bb135bc9d"),
-    ("Värske kurk (kg)", 2.49, "Maxima", "https://www.maxima.ee", "photo-1449300079323-02e209d9d3a6"),
-]
-
-TOOLS_ITEMS = [
-    ("Akutrell DeWalt 18V (komplekt)", 149.00, "Bauhof", "https://www.bauhof.ee", "photo-1504148455328-c376907d081c"),
-    ("Ketassaag Makita 1200W", 119.00, "K-Rauta", "https://www.k-rauta.ee", "photo-1581092160607-ee22621dd758"),
-    ("Survepesur Kärcher K5", 269.00, "Bauhof", "https://www.bauhof.ee", "photo-1621905251189-08b45d6a269e"),
-]
-
 TOP_STOCKS = [
     {"symbol": "NVDA", "name": "NVIDIA Corp.", "base_price": 128.50, "sector": "Artificial Intelligence"},
     {"symbol": "AAPL", "name": "Apple Inc.", "base_price": 224.20, "sector": "Consumer Electronics"},
@@ -336,14 +328,20 @@ TOP_STOCKS = [
 # =============================================================================
 
 def render_free_tab(search_query):
-    show_html(f'<div class="system-status">⚡ Tasuta Asjad Grupi Otseotsing (Aegumatu link)</div>')
+    show_html(f'<div class="system-status">🎁 Tasuta Asjad Grupi Otseotsing (Piiranguteta voog)</div>')
     st.markdown(f"**Facebooki grupp:** [{FB_GROUP_BASE}]({FB_GROUP_BASE})")
     
-    items = get_synchronized_free_items()
-    render_items(
+    only_giving_away = st.checkbox("✨ Näita ainult asju, mida antakse ära (peida otsijad)", value=True)
+    
+    items = get_extended_free_items()
+    
+    if only_giving_away:
+        items = [it for it in items if it["is_giving_away"]]
+
+    render_items_with_scroll(
         items, 
         page_key="free", 
-        button_text="Otsi seda eset grupis (aktiivsed kuulutused)", 
+        button_text="Otsi seda eset grupis", 
         base_badge=pill("badge-free", "🎁 Tasuta"), 
         search_query=search_query, 
         empty_msg="Otsingule vastavaid esemeid ei leitud."
@@ -351,75 +349,29 @@ def render_free_tab(search_query):
 
 
 def render_garages_tab(search_query):
-    show_html('<div class="system-status">⚡ Kinnisvara & Garaažide Sisu</div>')
+    show_html('<div class="system-status">🚘 Kinnisvara & Garaažide Sisu</div>')
     st.markdown("**Allikas:** [Kinnisvara24](https://kinnisvara24.ee)")
-    render_items(GARAGE_ITEMS, page_key="garages", button_text="Ava kinnisvara", base_badge=pill("badge-price", "🚘 Garaaž"), search_query=search_query, empty_msg="Garaaže ei leitud.")
+    render_items_with_scroll(
+        GARAGE_ITEMS, 
+        page_key="garages", 
+        button_text="Ava kinnisvara", 
+        base_badge=pill("badge-price", "🚘 Garaaž"), 
+        search_query=search_query, 
+        empty_msg="Garaaže ei leitud."
+    )
 
 
 def render_garden_tab(search_query):
     show_html('<div class="system-status">🌿 Hange.ee Aiatööde Sisu</div>')
     st.markdown("**Allikas:** [Hange.ee – aia ehitus](https://www.hange.ee/hanked/?category=aia-ehitus)")
-    render_items(GARDEN_ITEMS, page_key="hange", button_text="Ava Hange.ee keskkonnas", base_badge=pill("badge-gardening", "🌿 Aiatöö"), search_query=search_query, empty_msg="Hankeid ei leitud.")
-
-
-def render_food_sample(search_query):
-    show_html('<div class="system-status">🛒 Toidukaupade Kampaaniad</div>')
-    stores = ["Kõik"] + sorted({g[2] for g in GROCERIES})
-    store_filter = st.selectbox("Filtreeri kaupluse järgi:", stores, key="store_filter_food")
-
-    current_minute = int(datetime.now(TZ).strftime('%M'))
-    items = []
-    for title, base_price, store, link, photo in GROCERIES:
-        random.seed(hash(title) + current_minute)
-        price_var = round(base_price * random.uniform(0.95, 1.05), 2)
-        items.append({
-            "title": title,
-            "description": "Autonoomselt skannitud kampaaniatoode ja reaalajas hind.",
-            "price": f"{price_var:.2f} €",
-            "store": store,
-            "link": link,
-            "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
-            "date_str": "📅 Aktiivne"
-        })
-
-    filtered = [
-        it for it in items
-        if (store_filter == "Kõik" or it["store"] == store_filter)
-        and matches(search_query, it["title"], it["description"], it["store"])
-    ]
-
-    for item in paginate_items(filtered, "groceries"):
-        badges = pill("badge-price", f"🏷️ {item['price']}") + pill("badge-location", f"📍 {item['store']}")
-        render_card(item, "Vaata pakkumist", badges=badges)
-
-
-def render_tools_tab(search_query):
-    show_html('<div class="system-status">🛠️ Riistvara & Seadmed</div>')
-    stores = ["Kõik"] + sorted({t[2] for t in TOOLS_ITEMS})
-    store_filter = st.selectbox("Filtreeri tarnija järgi:", stores, key="store_filter_tools")
-
-    items = [
-        {
-            "title": title,
-            "description": "Kõrgeima vastupidavusega tööriist ehituseks ja mehaanikaks.",
-            "price": f"{price:.2f} €",
-            "store": store,
-            "link": link,
-            "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
-            "date_str": "📅 Laos"
-        }
-        for title, price, store, link, photo in TOOLS_ITEMS
-    ]
-
-    filtered = [
-        it for it in items
-        if (store_filter == "Kõik" or it["store"] == store_filter)
-        and matches(search_query, it["title"], it["description"], it["store"])
-    ]
-
-    for item in paginate_items(filtered, "tools"):
-        badges = pill("badge-price", f"🏷️ {item['price']}") + pill("badge-location", f"📍 {item['store']}")
-        render_card(item, "Vaata tööriista", badges=badges)
+    render_items_with_scroll(
+        GARDEN_ITEMS, 
+        page_key="hange", 
+        button_text="Ava Hange.ee keskkonnas", 
+        base_badge=pill("badge-gardening", "🌿 Aiatöö"), 
+        search_query=search_query, 
+        empty_msg="Hankeid ei leitud."
+    )
 
 
 def render_invest_tab():
@@ -465,27 +417,14 @@ def render_invest_tab():
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
-    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi otsingupõhised otsepostitused, Hange.ee aiatööd, garaažid, toidukaupade ning tööriistade optimeerija</div>'
+    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi tasuta asjad (ilma limiitideta + Keri edasi), Hange.ee aiatööd ja garaažid</div>'
     "</div>",
     unsafe_allow_html=True,
 )
 
-col_search, col_limit = st.columns([4, 2])
+col_search, _ = st.columns([5, 1])
 with col_search:
-    search_query = st.text_input("🔍 Otsi süsteemist...", placeholder="Sisesta nt diivan, teler, laud...", label_visibility="collapsed")
-
-with col_limit:
-    limit_choice = st.radio(
-        "Andmemahu piirang:",
-        ["Kuni 50 kirjet", "Optimaalne (kuni 100)"],
-        horizontal=True,
-        key="display_limit_choice_radio",
-        label_visibility="collapsed"
-    )
-    if limit_choice == "Kuni 50 kirjet":
-        st.session_state["display_limit_choice"] = DEFAULT_MAX_LIMIT
-    else:
-        st.session_state["display_limit_choice"] = EXTENDED_MAX_LIMIT
+    search_query = st.text_input("🔍 Otsi süsteemist...", placeholder="Sisesta nt diivan, teler, pesumasin...", label_visibility="collapsed")
 
 selected_tab = st.radio(
     "Vali moodul:",
@@ -501,9 +440,5 @@ elif selected_tab == TAB_GARAGES:
     render_garages_tab(search_query)
 elif selected_tab == TAB_GARDEN:
     render_garden_tab(search_query)
-elif selected_tab == TAB_FOOD:
-    render_food_sample(search_query)
-elif selected_tab == TAB_TOOLS:
-    render_tools_tab(search_query)
 elif selected_tab == TAB_INVEST:
     render_invest_tab()
