@@ -1,9 +1,14 @@
 import html
 import random
+import re
+import time
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+
+import requests
 import streamlit as st
+from bs4 import BeautifulSoup
 
 # =============================================================================
 # 1. ENTERPRISE SYSTEM CONFIG & ARCHITECTURE (ESTONIA & IOS OPTIMIZED)
@@ -29,7 +34,7 @@ FB_GROUP_2_URL = f"https://www.facebook.com/groups/{FB_GROUP_2_ID}"
 
 TAB_FREE = "🎁 Tasuta asjad (Otsepostitused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
-TAB_GARDEN = "🌿 Haljastus & AI Hange"
+TAB_GARDEN = "🌿 Haljastus ja AI hange"
 TAB_INVEST = "📈 Neural Portfolio & AI"
 TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_INVEST]
 
@@ -183,10 +188,12 @@ def render_card(item, button_text, badges=""):
     )
 
 
-def render_items_with_scroll(items, *, page_key, button_text, base_badge, search_query, empty_msg):
+def render_items_with_scroll(items, *, page_key, button_text, base_badge, search_query, empty_msg, only_current_year=True):
+    # only_current_year=False: kirjete aktiivsus on juba mujal kontrollitud (nt Hange.ee tähtaeg)
     filtered = [
         it for it in items
-        if it.get("year") == CURRENT_YEAR and matches(search_query, it.get("title"), it.get("description"))
+        if (not only_current_year or it.get("year") == CURRENT_YEAR)
+        and matches(search_query, it.get("title"), it.get("description"))
     ]
     if not filtered:
         st.info(empty_msg)
@@ -300,31 +307,306 @@ GARAGE_ITEMS = [
     },
 ]
 
-GARDEN_ITEMS = [
-    {
-        "title": "Heki pügamine ja korrastus",
-        "description": "Vaja pügada ca 30m elupuuheekki ja ära viia oksi.",
-        "link": "https://www.hange.ee/hanked/?category=aia-ehitus",
-        "date_str": "📅 Lisatud: 07. November 2026",
-        "year": 2026,
-        "tags": [("badge-year", "✨ 2026"), ("badge-gardening", "🌿 Haljastus"), ("badge-price", "💶 Keskmine hind 350 €"), ("badge-location", "👥 Pakkujaid: 4")]
-    },
-    {
-        "title": "Muru rajamine ja tasandamine",
-        "description": "Uue muru külvamine 600m2 alale, pinnase freesimine ja silumine.",
-        "link": "https://www.hange.ee/hanked/?category=aia-ehitus",
-        "date_str": "📅 Lisatud: 05. November 2026",
-        "year": 2026,
-        "tags": [("badge-year", "✨ 2026"), ("badge-gardening", "🌿 Aiatööd"), ("badge-price", "💶 Keskmine hind 1200 €"), ("badge-location", "👥 Pakkujaid: 7")]
-    },
-]
-
 TOP_STOCKS = [
     {"symbol": "NVDA", "name": "NVIDIA Corp.", "base_price": 128.50, "sector": "Artificial Intelligence"},
     {"symbol": "AAPL", "name": "Apple Inc.", "base_price": 224.20, "sector": "Consumer Electronics"},
     {"symbol": "MSFT", "name": "Microsoft Corp.", "base_price": 448.30, "sector": "Cloud & AI Infrastructure"},
     {"symbol": "TSLA", "name": "Tesla Inc.", "base_price": 242.10, "sector": "Autonomous Systems & Energy"},
 ]
+
+
+# =============================================================================
+# 4b. HANGE.EE: AINULT PÄRISELT AKTIIVSED HANKED
+# =============================================================================
+# Allikas on ainult Hange.ee avalik aktiivsete hangete nimekiri.
+# Pealkirju ega hankeid ei genereerita. Vahemälu aegub 24 tunni järel.
+# Märksõnade vaste tehakse hanke PEALKIRJA põhjal, mitte väljamõeldud näidisandmetest.
+
+HANGE_LIST_URL = "https://www.hange.ee/hanked/?filter=all-active"
+HANGE_LIST_BASE = "https://www.hange.ee/hanked/"
+HANGE_MAX_PAGES = 30
+HANGE_CACHE_TTL = 24 * 60 * 60
+HANGE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+    ),
+    "Accept-Language": "et-EE,et;q=0.9,en;q=0.7",
+}
+HANGE_LINK_RE = re.compile(
+    r"^(?:https?://(?:www\.)?hange\.ee)?/(\d+)/([^/?#]+)/?$",
+    re.IGNORECASE,
+)
+
+# Sõnamustrid katavad eesti käändeid, kuid ei lisa sinu loetelusse sünonüüme.
+TREE = r"\b(?:puu|puud|puude|puudel|puudele|puudelt|puudega|puid)\b"
+PLANTS = r"\btaim\w*"
+FENCE = r"\b(?:aed|aeda|aedu|aedade\w*|aiad|aia|aiaga|aiale)\b"
+PLANT_VERB = r"\bistut\w*"
+CUT_VERB = r"\blõi[kg]\w*"
+BUILD_VERB = r"\braja\w*"
+CARE_NOUN = r"\bkorrashoi\w*"
+
+
+def _near(a: str, b: str, gap: int = 4) -> str:
+    """Kaks märksõna samas pealkirjas, kuni gap sõna vahel."""
+    middle = rf"(?:\W+\w+){{0,{gap}}}?\W+"
+    return rf"(?:{a}{middle}{b}|{b}{middle}{a})"
+
+
+KEYWORD_RULES = [
+    ("Aiatööd", [r"\baia\s*töö\w*"]),
+    ("Lokaalne kanalisatsioon", [
+        r"\blokaal\w*\W+(?:\w+\W+){0,2}kanalisatsioon\w*",
+        r"\blokaalkanalisatsioon\w*",
+    ]),
+    ("Puude istutamine", [_near(TREE, PLANT_VERB)]),
+    ("Puude lõikus", [_near(TREE, CUT_VERB)]),
+    ("Aedade rajamine", [_near(FENCE, BUILD_VERB)]),
+    # Selle kategooria pealkirjas peavad KÕIK kolm sõna olemas olema:
+    # puu + taim + istutamise/istutada/istutus tüvi.
+    ("Puude ja taimede istutamine", [
+        rf"^(?=.*{TREE})(?=.*{PLANTS})(?=.*{PLANT_VERB})"
+    ]),
+    ("Aedade korrashoid", [_near(FENCE, CARE_NOUN)]),
+]
+
+COMPILED_RULES = [
+    (label, [re.compile(pattern, re.IGNORECASE) for pattern in patterns])
+    for label, patterns in KEYWORD_RULES
+]
+KEYWORD_LABELS = [label for label, _ in COMPILED_RULES]
+
+
+def match_keywords(title: str) -> list:
+    """Tagastab ainult pealkirjale vastavad kasutaja valitud kategooriad."""
+    title = " ".join(str(title or "").split())
+    labels = [
+        label for label, patterns in COMPILED_RULES
+        if any(pattern.search(title) for pattern in patterns)
+    ]
+    # Kolme sõna nõudega kategooria asendab üldisema "Puude istutamine" sildi.
+    if (
+        "Puude ja taimede istutamine" in labels
+        and "Puude istutamine" in labels
+    ):
+        labels.remove("Puude istutamine")
+    return labels
+
+
+def _clean(text) -> str:
+    return " ".join(str(text or "").split())
+
+
+def _parse_date(value):
+    try:
+        return datetime.strptime(value, "%d.%m.%Y").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_listing_metadata(anchor):
+    """
+    Hange.ee nimekirjas on hanke pealkiri ja metaandmed kõrvuti.
+    Otsime lähimast sobivast ümbrisest asukoha, korraldaja, pakkumiste arvu
+    ja pakkumiste tähtaja. Kui mõni väli puudub, jätame selle tühjaks.
+    """
+    containers = []
+    node = anchor
+    for _ in range(6):
+        if node is None:
+            break
+        node = node.parent
+        if node is not None:
+            containers.append(node)
+
+    block_text = ""
+    for node in containers:
+        candidate = _clean(node.get_text(" ", strip=True))
+        if "Asukoht:" in candidate and (
+            "Pakkumisi:" in candidate or "Hanke etapp:" in candidate
+        ):
+            block_text = candidate
+            break
+
+    location = re.search(
+        r"Asukoht:\s*(.+?)(?=\s+Hanke etapp:|\s+Hanke korraldaja:|\s+Pakkumisi:|$)",
+        block_text,
+    )
+    organizer = re.search(
+        r"Hanke korraldaja:\s*(.+?)(?=\s+Pakkumisi:|$)",
+        block_text,
+    )
+    bids = re.search(r"Pakkumisi:\s*(\d+)", block_text)
+    deadline = re.search(
+        r"(?:Pakkumiste tegemine kuni|kuni)\s*(\d{2}\.\d{2}\.\d{4})",
+        block_text,
+    )
+    added = re.search(
+        r"(\d{2}\.\d{2}\.\d{4})\s+\d+p?\s*",
+        block_text,
+    )
+
+    return {
+        "location": location.group(1).strip(" .") if location else "",
+        "organizer": organizer.group(1).strip(" .") if organizer else "",
+        "bids": int(bids.group(1)) if bids else None,
+        "deadline": _parse_date(deadline.group(1)) if deadline else None,
+        "added": added.group(1) if added else "",
+    }
+
+
+def parse_hange_page(html_text: str) -> list:
+    """Loeb aktiivsete hangete nimekirja ühe lehe."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    found = {}
+
+    for anchor in soup.find_all("a", href=True):
+        href = urllib.parse.urljoin("https://www.hange.ee", anchor["href"].strip())
+        parsed_url = urllib.parse.urlparse(href)
+        match = HANGE_LINK_RE.match(parsed_url.path)
+        if not match:
+            continue
+
+        tender_id, slug = match.groups()
+        label = _clean(anchor.get_text(" ", strip=True))
+        if not label or label.lower().startswith("aega jäänud"):
+            continue
+        if label.lower() in {"hange on lõppenud", "hanke võitja"}:
+            continue
+
+        # Sama hanke juures võib olla mitu linki; pealkiri salvestatakse ühe korra.
+        if tender_id not in found:
+            found[tender_id] = {
+                "id": tender_id,
+                "slug": slug,
+                "title": label,
+                "url": f"https://www.hange.ee/{tender_id}/{slug}/",
+                **_extract_listing_metadata(anchor),
+            }
+
+    return list(found.values())
+
+
+def _get_page(session, params, tries=3):
+    """Laeb Hange.ee lehe; ebaõnnestumise korral proovib uuesti."""
+    last_error = None
+    for attempt in range(tries):
+        try:
+            response = session.get(
+                HANGE_LIST_BASE,
+                params=params,
+                timeout=(10, 30),
+            )
+            response.raise_for_status()
+            response.encoding = response.apparent_encoding or "utf-8"
+            return response.text
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt < tries - 1:
+                time.sleep(1.5 * (attempt + 1))
+    raise last_error
+
+
+@st.cache_data(ttl=HANGE_CACHE_TTL, show_spinner="Laen Hange.ee aktiivseid hankeid...")
+def load_hange_tenders():
+    """
+    Loeb järjest Hange.ee aktiivsete hangete leheküljed.
+    Jätkab, kuni lehtedel pole enam uusi hanke-ID-sid.
+    Kui allikas ei vasta või HTML muutub ootamatult, annab vea
+    ega esita vanu ega genereeritud hankeid uute pähe.
+    """
+    session = requests.Session()
+    session.headers.update(HANGE_HEADERS)
+
+    seen_ids = set()
+    scanned = []
+    pages_read = 0
+
+    for page_number in range(1, HANGE_MAX_PAGES + 1):
+        params = {"filter": "all-active"}
+        if page_number > 1:
+            params["page"] = page_number
+
+        page_html = _get_page(session, params)
+        page_items = parse_hange_page(page_html)
+        new_items = [item for item in page_items if item["id"] not in seen_ids]
+
+        if not new_items:
+            break
+
+        seen_ids.update(item["id"] for item in new_items)
+        scanned.extend(new_items)
+        pages_read += 1
+        time.sleep(0.4)
+
+    if not scanned:
+        raise RuntimeError(
+            "Hange.ee aktiivsete hangete lehelt ei leitud ühtegi hanke kirjet. "
+            "Võimalik, et Hange.ee muutis lehe HTML-struktuuri."
+        )
+
+    today = datetime.now(TZ).date()
+    matched = []
+
+    for tender in scanned:
+        # Nimekiri on Hange.ee enda aktiivsete hangete vaade.
+        # Kui tähtaja kuupäev on olemas, kontrollime selle ka üle.
+        if tender["deadline"] and tender["deadline"] < today:
+            continue
+
+        labels = match_keywords(tender["title"])
+        if labels:
+            matched.append({**tender, "labels": labels})
+
+    matched.sort(key=lambda item: int(item["id"]), reverse=True)
+
+    now = datetime.now(TZ)
+    return {
+        "items": matched,
+        "scanned": len(scanned),
+        "pages": pages_read,
+        "fetched_at": now.strftime("%d.%m.%Y %H:%M"),
+        "next_refresh": (
+            now + timedelta(seconds=HANGE_CACHE_TTL)
+        ).strftime("%d.%m.%Y %H:%M"),
+    }
+
+
+def hange_to_card(t: dict) -> dict:
+    """Muudab päris Hange.ee kirje veebilehe kaardi vormingusse."""
+    deadline_text = (
+        t["deadline"].strftime("%d.%m.%Y")
+        if t.get("deadline")
+        else "Hange.ee aktiivsete hangete nimekirjas"
+    )
+    tags = [
+        ("badge-gardening", f"🌿 {label}")
+        for label in t.get("labels", [])
+    ]
+
+    if t.get("location"):
+        tags.append(("badge-location", f"📍 {t['location']}"))
+    if t.get("bids") is not None:
+        tags.append(("badge-price", f"💬 Pakkumisi: {t['bids']}"))
+    tags.append(("badge-year", f"⏳ {deadline_text}"))
+
+    description_parts = []
+    if t.get("organizer"):
+        description_parts.append(f"Hankija: {t['organizer']}")
+    if t.get("location"):
+        description_parts.append(f"Asukoht: {t['location']}")
+
+    return {
+        "title": t["title"],
+        "description": ". ".join(description_parts),
+        "link": t["url"],
+        "date_str": (
+            f"📅 Lisatud: {t.get('added') or 'kuupäev pole nimekirjas nähtav'}"
+            f" · Pakkumised kuni: {deadline_text}"
+        ),
+        "tags": tags,
+    }
 
 
 # =============================================================================
@@ -369,16 +651,70 @@ def render_garages_tab(search_query):
 
 
 def render_garden_tab(search_query):
-    show_html(f'<div class="system-status">🌿 Hange.ee Aiatööd ({CURRENT_YEAR})</div>')
-    st.markdown("**Allikas:** [Hange.ee – aia ehitus](https://www.hange.ee/hanked/?category=aia-ehitus)")
-    render_items_with_scroll(
-        GARDEN_ITEMS, 
-        page_key="hange", 
-        button_text="Ava Hange.ee keskkonnas", 
-        base_badge=pill("badge-gardening", "🌿 Aiatöö"), 
-        search_query=search_query, 
-        empty_msg="Hankeid ei leitud."
+    show_html('<div class="system-status">🌿 Hange.ee aktiivsed hanked · ainult sinu märksõnad</div>')
+    st.markdown(f"**Allikas:** [Hange.ee – kõik aktiivsed hanked]({HANGE_LIST_URL})")
+
+    col_kw, col_btn = st.columns([4, 1])
+    with col_kw:
+        chosen = st.multiselect(
+            "Märksõnad",
+            KEYWORD_LABELS,
+            default=KEYWORD_LABELS,
+            key="hange_keywords",
+            label_visibility="collapsed",
+        )
+    with col_btn:
+        if st.button("🔄 Värskenda", key="hange_refresh", use_container_width=True):
+            load_hange_tenders.clear()
+
+    try:
+        data = load_hange_tenders()
+    except Exception as exc:  # võrguviga, lehe struktuur muutunud vms
+        st.error("Hange.ee hankeid ei õnnestunud praegu laadida. Näitan pigem tühja kui väljamõeldud andmeid.")
+        st.caption(f"Tehniline põhjus: {type(exc).__name__}: {exc}")
+        st.markdown(f"Ava käsitsi: [Hange.ee aktiivsed hanked]({HANGE_LIST_URL})")
+        return
+
+    today = datetime.now(TZ).date()
+    chosen_set = set(chosen)
+    active = [
+        t for t in data["items"]
+        if (t["deadline"] is None or t["deadline"] >= today)  # ainult aktiivsed
+        and chosen_set.intersection(t["labels"])
+    ]
+
+    st.caption(
+        f"Skaneeritud {data['scanned']} aktiivset hanget ({data['pages']} lehte). "
+        f"Märksõnadele vastab {len(data['items'])}, kuvatakse {len(active)}. "
+        f"Viimati uuendatud: {data['fetched_at']} · uueneb automaatselt kord ööpäevas "
+        f"(järgmine {data['next_refresh']} järel esimesel külastusel)."
     )
+
+    if search_query:
+        empty_msg = f"Otsingukastis on tekst “{search_query}”. Kustuta see, et näha kõiki märksõnadele vastavaid hankeid."
+    else:
+        empty_msg = (
+            "Praegu ei ole ühtegi aktiivset hanget, mille pealkirjas oleks need märksõnad. "
+            "See on korrektne tulemus: uued hanked ilmuvad siia, kui neid Hange.ee-sse lisatakse."
+        )
+
+    render_items_with_scroll(
+        [hange_to_card(t) for t in active],
+        page_key="hange",
+        button_text="Ava Hange.ee-s",
+        base_badge=pill("badge-gardening", "🌿 Haljastus"),
+        search_query=search_query,
+        empty_msg=empty_msg,
+        only_current_year=False,
+    )
+
+    with st.expander("🔧 Diagnostika"):
+        st.write(
+            f"Skaneeritud: {data['scanned']} · lehti: {data['pages']} · "
+            f"märksõnadele sobis: {len(data['items'])} · "
+            f"andmed laaditud: {data['fetched_at']}"
+        )
+        st.caption("Märksõnad: " + ", ".join(KEYWORD_LABELS))
 
 
 def render_invest_tab():
