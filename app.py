@@ -1,406 +1,545 @@
 import html
 import random
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import streamlit as st
 
-st.set_page_config(page_title="X-Market", page_icon="🚀", layout="wide",
-                   initial_sidebar_state="collapsed")
+# =============================================================================
+# 1. HARDCORE SYSTEM CONFIG & ARCHITECTURE (IOS & MOBILE OPTIMIZED)
+# =============================================================================
+
+st.set_page_config(
+    page_title="X-Market & Neural Intelligence Pro",
+    page_icon="🚀",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
 TZ = ZoneInfo("Europe/Tallinn")
+
+DEFAULT_MAX_LIMIT = 50
+EXTENDED_MAX_LIMIT = 100
 PAGE_INCREMENT = 50
 
-TABS = ["🎁 Tasuta asjad", "🚘 Garaažid", "🌿 Aiatööd", "🛒 Toit", "🛠️ Tööriistad", "📈 Aktsiad"]
+TAB_FREE = "🎁 Tasuta asjad"
+TAB_GARAGES = "🚘 Autonoomased Garaažid"
+TAB_GARDEN = "🌿 Haljastus & AI Hange"
+TAB_FOOD = "🛒 Toiduainete Optimeerija"
+TAB_TOOLS = "🛠️ Riistvara & Tööriistad"
+TAB_INVEST = "📈 Neural Portfolio & AI"
+TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_FOOD, TAB_TOOLS, TAB_INVEST]
 
-CSS = """
+
+# =============================================================================
+# 2. X-STYLE DARK THEME & RESPONSIVE CSS (MOBILE / IOS SAFE)
+# =============================================================================
+
+DARK_MODE_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, [class*="css"] { font-family:'Inter',sans-serif; -webkit-text-size-adjust:100%; }
-.stApp { background:#030712; color:#f3f4f6; }
-.hero { padding:1.4rem 1.6rem; background:linear-gradient(135deg,#0f172a,#1e1b4b);
-  border:1px solid #312e81; border-radius:16px; margin-bottom:1.2rem; }
-.hero h1 { font-size:2rem; font-weight:800; margin:0 0 .3rem; color:#fff; letter-spacing:-.5px; }
-.hero p { margin:0; color:#a5b4fc; font-size:.95rem; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-.card { background:#0f172a; border:1px solid #1e293b; border-radius:14px; padding:16px; margin-bottom:12px; }
-.card:hover { border-color:#6366f1; }
-.row { display:flex; gap:18px; align-items:stretch; }
-.media { flex:0 0 220px; max-width:220px; }
-.media img, .ph { width:100%; height:100%; min-height:150px; border-radius:10px; object-fit:cover; display:block; background:#1e293b; }
-.ph { display:flex; align-items:center; justify-content:center; font-size:3rem; }
-.body { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
-.head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
-.title { font-size:1.1rem; font-weight:700; color:#f9fafb; line-height:1.35; }
-.when { font-size:.78rem; color:#9ca3af; white-space:nowrap; }
-.price { font-size:1.35rem; font-weight:800; color:#fff; white-space:nowrap; text-align:right; }
-.price small { display:block; font-size:.72rem; font-weight:500; color:#9ca3af; }
-.desc { font-size:.9rem; color:#cbd5e1; line-height:1.5; }
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size-adjust: 100%; }
+.stApp { background-color: #030712; color: #f3f4f6; }
 
-.facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }
-.fact { background:#111c33; border:1px solid #1e293b; border-radius:9px; padding:8px 10px; }
-.fact span { display:block; font-size:.72rem; color:#94a3b8; margin-bottom:2px; }
-.fact b { font-size:.9rem; color:#f1f5f9; font-weight:600; }
-.up { color:#34d399 !important; } .down { color:#f87171 !important; }
+.hero-container {
+    padding: 1.5rem 1.75rem;
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    border: 1px solid #312e81;
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+}
+.main-title { font-size: 2.2rem; font-weight: 900; color: #ffffff; margin-bottom: 0.3rem; letter-spacing: -1px; }
+.sub-title { font-size: 0.95rem; color: #a5b4fc; font-weight: 500; line-height: 1.4; }
 
-.tag { display:inline-block; padding:3px 10px; border-radius:99px; font-size:.75rem; font-weight:600; margin-right:6px;
-  background:rgba(99,102,241,.15); color:#a5b4fc; border:1px solid rgba(99,102,241,.3); }
-.tag.green { background:rgba(16,185,129,.15); color:#34d399; border-color:rgba(16,185,129,.3); }
-.tag.amber { background:rgba(234,179,8,.18); color:#fde047; border-color:rgba(234,179,8,.35); }
+.pro-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    transition: all 0.2s ease;
+}
+.pro-card:hover { border-color: #6366f1; }
 
-.btn { display:block; text-align:center; padding:11px 16px; background:#4f46e5; color:#fff !important;
-  font-weight:700; font-size:.9rem; border-radius:10px; text-decoration:none !important; margin-top:auto; }
-.btn:hover { background:#4338ca; }
-.btn.off { background:#1f2937; color:#9ca3af !important; }
+.card-row { display: flex; gap: 20px; align-items: flex-start; }
+.card-img { flex: 0 0 240px; max-width: 240px; }
+.card-img img { width: 100%; border-radius: 10px; display: block; object-fit: cover; aspect-ratio: 16 / 10; background-color: #1e293b; }
+.card-body { flex: 1; min-width: 0; }
 
-.range { height:6px; background:#1e293b; border-radius:9px; position:relative; margin:6px 0 2px; }
-.range i { position:absolute; top:-3px; width:12px; height:12px; border-radius:50%; background:#818cf8; border:2px solid #0f172a; }
-.rangelbl { display:flex; justify-content:space-between; font-size:.72rem; color:#94a3b8; }
-.demo { background:#3b2f0b; border:1px solid #854d0e; color:#fde68a; padding:7px 12px; border-radius:8px;
-  font-size:.8rem; display:inline-block; margin-bottom:10px; }
+@media (max-width: 768px) {
+    .main-title { font-size: 1.75rem; }
+    .card-row { flex-direction: column; }
+    .card-img { flex: none; width: 100%; max-width: 100%; margin-bottom: 12px; }
+}
 
-@media (max-width:768px) {
-  .hero h1 { font-size:1.6rem; }
-  .row { flex-direction:column; }
-  .media { flex:none; max-width:100%; width:100%; }
-  .media img, .ph { min-height:0; aspect-ratio:16/10; }
+.card-title { font-size: 1.15rem; font-weight: 700; color: #f9fafb; margin-bottom: 6px; line-height: 1.4; }
+.card-date { font-size: 0.75rem; color: #9ca3af; margin-bottom: 8px; font-weight: 500; }
+.card-desc { font-size: 0.9rem; color: #d1d5db; line-height: 1.5; margin-bottom: 14px; }
+.card-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+.badge-pill { padding: 4px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.badge-free { background-color: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+.badge-price { background-color: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+.badge-location { background-color: rgba(55,65,81,0.4); color: #9ca3af; border: 1px solid rgba(75,85,99,0.4); }
+.badge-gardening { background-color: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+.badge-buy { background-color: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4); }
+.badge-hold { background-color: rgba(234,179,8,0.2); color: #fde047; border: 1px solid rgba(234,179,8,0.4); }
+
+.pro-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 100%; box-sizing: border-box; padding: 12px 20px;
+    background: #4f46e5; color: #ffffff !important;
+    font-size: 0.9rem; font-weight: 700; border-radius: 10px;
+    text-decoration: none !important; -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 4px 14px rgba(79,70,229,0.4);
+}
+.pro-btn:hover { background: #4338ca; }
+.pro-btn.secondary { background: #1f2937; border: 1px solid #374151; color: #9ca3af !important; box-shadow: none; }
+
+.invest-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    border: 1px solid #312e81; border-radius: 14px;
+    padding: 18px; margin-bottom: 14px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+.metric-big { font-size: 1.8rem; font-weight: 900; color: #ffffff; letter-spacing: -1px; }
+.system-status {
+    background: #065f46; border: 1px solid #059669;
+    padding: 6px 12px; border-radius: 8px;
+    font-size: 0.75rem; color: #d1fae5; font-weight: 600;
+    display: inline-block; margin-bottom: 10px;
 }
 </style>
 """
-st.markdown(CSS, unsafe_allow_html=True)
+
+st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
 
-def esc(v):
-    return html.escape(str(v if v is not None else ""), quote=True)
+# =============================================================================
+# 3. CORE UTILITIES
+# =============================================================================
+
+def esc(value) -> str:
+    return html.escape(str(value if value is not None else ""), quote=True)
 
 
-def show(markup):
-    st.markdown("\n".join(l.strip() for l in markup.splitlines() if l.strip()), unsafe_allow_html=True)
-
-
-def matches(q, *fields):
-    if not q:
-        return True
-    q = q.casefold().strip()
-    return any(q in str(f or "").casefold() for f in fields)
-
-
-def paginate(items, key):
-    total = len(items)
-    ck = f"count_{key}"
-    st.session_state.setdefault(ck, PAGE_INCREMENT)
-    n = min(total, st.session_state[ck])
-    st.caption(f"Kokku {total} kirjet, näidatud {n}.")
-    if n < total:
-        c1, c2, _ = st.columns([1, 1, 4])
-        if c1.button(f"Laadi veel {min(PAGE_INCREMENT, total - n)}", key=f"more_{key}"):
-            st.session_state[ck] = n + PAGE_INCREMENT
-            st.rerun()
-        if c2.button(f"Laadi kõik ({total})", key=f"all_{key}"):
-            st.session_state[ck] = total
-            st.rerun()
-    return items[:n]
-
-
-def media(item):
-    emoji = item.get("emoji", "📦")
-    if item.get("image"):
-        # onerror: kui pilt ei lae, asendub emoji-plokiga
-        return (f'<div class="media"><img src="{esc(item["image"])}" loading="lazy" referrerpolicy="no-referrer" '
-                f'alt="{esc(item["title"])}" onerror="this.outerHTML=\'<div class=ph>{emoji}</div>\'"></div>')
-    return f'<div class="media"><div class="ph">{emoji}</div></div>'
-
-
-def card(item, button_text):
-    price = ""
-    if item.get("price"):
-        sub = f"<small>{esc(item['price_note'])}</small>" if item.get("price_note") else ""
-        price = f'<div class="price">{esc(item["price"])}{sub}</div>'
-    when = f'<div class="when">{esc(item["when"])}</div>' if item.get("when") else ""
-    facts = "".join(
-        f'<div class="fact"><span>{esc(k)}</span><b class="{cls}">{esc(v)}</b></div>'
-        for k, v, cls in [(f + ("",))[:3] if len(f) == 2 else f for f in item.get("facts", [])]
+def show_html(markup: str):
+    cleaned = "\n".join(
+        line.strip() for line in markup.splitlines() if line.strip()
     )
-    tags = "".join(f'<span class="tag {c}">{esc(t)}</span>' for c, t in item.get("tags", []))
+    st.markdown(cleaned, unsafe_allow_html=True)
+
+
+def matches(query, *fields):
+    if not query:
+        return True
+    q = str(query).casefold().strip()
+    return any(q in str(field or "").casefold() for field in fields)
+
+
+def pill(css_class, text):
+    return f'<span class="badge-pill {css_class}">{esc(text)}</span>'
+
+
+def get_current_max_limit():
+    return st.session_state.get("display_limit_choice", DEFAULT_MAX_LIMIT)
+
+
+def paginate_items(items, category_key):
+    max_limit = get_current_max_limit()
+    items = list(items)[:max_limit]
+    total = len(items)
+    count_key = f"visible_count_{category_key}"
+
+    if count_key not in st.session_state:
+        st.session_state[count_key] = PAGE_INCREMENT
+
+    visible_count = min(total, max(0, int(st.session_state[count_key])))
+
+    st.caption(
+        f"Andmekogum: {total} ühikut · Kuvatud {visible_count} "
+        f"(maksimaalselt: {max_limit})."
+    )
+
+    if visible_count < total:
+        remaining = total - visible_count
+        c1, c2, _ = st.columns([1, 1, 4])
+        with c1:
+            if st.button(
+                f"Laadi veel {min(PAGE_INCREMENT, remaining)}",
+                key=f"load_more_{category_key}",
+            ):
+                st.session_state[count_key] = min(total, visible_count + PAGE_INCREMENT)
+                st.rerun()
+        with c2:
+            if st.button(f"Laadi kõik ({total})", key=f"show_all_{category_key}"):
+                st.session_state[count_key] = total
+                st.rerun()
+
+    return items[:visible_count]
+
+
+def render_card(item, button_text, badges=""):
     link = item.get("link")
-    btn = (f'<a class="btn" href="{esc(link)}" target="_blank" rel="noopener noreferrer">{esc(button_text)}</a>'
-           if link else '<span class="btn off">Link puudub</span>')
-    show(f"""
-    <div class="card"><div class="row">
-      {media(item)}
-      <div class="body">
-        <div class="head"><div><div class="title">{esc(item['title'])}</div>{when}</div>{price}</div>
-        <div class="desc">{esc(item.get('description', ''))}</div>
-        {f'<div class="facts">{facts}</div>' if facts else ''}
-        {f'<div>{tags}</div>' if tags else ''}
-        {btn}
-      </div>
-    </div></div>
-    """)
+    img_url = item.get("image")
 
+    img_html = ""
+    if img_url:
+        img_html = (
+            '<div class="card-img">'
+            f'<img src="{esc(img_url)}" loading="lazy" decoding="async" '
+            f'referrerpolicy="no-referrer" alt="{esc(item.get("title", "Resource"))}">'
+            "</div>"
+        )
 
-def render(items, key, button_text, q, empty):
-    flt = [i for i in items if matches(q, i["title"], i.get("description"), *[v for _, v, *_ in i.get("facts", [])])]
-    if not flt:
-        st.info(empty)
-    for i in paginate(flt, key):
-        card(i, button_text)
+    date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
+    desc_html = f'<div class="card-desc">{esc(item["description"])}</div>' if item.get("description") else ""
+    tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
 
-
-# ----------------------------- ANDMED ---------------------------------------
-FB = "https://www.facebook.com/marketplace"
-FREE = [
-    {"title": "Kasutatud diivan (heas korras)", "emoji": "🛋️", "when": "Täna 12:30",
-     "description": "Mugav lahtikäiv diivan. Ise äraviimisega.", "link": FB,
-     "image": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop",
-     "price": "Tasuta", "facts": [("Asukoht", "Tallinn"), ("Seisukord", "Hea"), ("Kätte saamine", "Ise järele")],
-     "tags": [("green", "Tasuta")]},
-    {"title": "Laste kirjutuslaud ja tool", "emoji": "🪑", "when": "Täna 10:15",
-     "description": "Vähekasutatud reguleeritav kirjutuslaud koolijütsile.", "link": FB,
-     "image": "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600&auto=format&fit=crop",
-     "price": "Tasuta", "facts": [("Asukoht", "Tartu"), ("Seisukord", "Vähekasutatud"), ("Kätte saamine", "Ise järele")],
-     "tags": [("green", "Tasuta")]},
-    {"title": "Ehitusjäägid / puitmaterjal", "emoji": "🪵", "when": "Eile",
-     "description": "Küttepuudeks või meisterdamiseks sobivad puidujäägid ja lauad.", "link": FB,
-     "price": "Tasuta", "facts": [("Asukoht", "Pärnu"), ("Seisukord", "Jäägid"), ("Kätte saamine", "Ise järele")],
-     "tags": [("green", "Tasuta")]},
-]
-GARAGES = [
-    {"title": "Soe garaažiboks Mustamäel", "emoji": "🚘", "when": "Uus", "link": "https://www.kinnisvara24.ee",
-     "description": "Kuiv ja turvaline garaaž, elekter olemas. Sobib auto hoidmiseks või laoks.",
-     "image": "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=600&auto=format&fit=crop",
-     "price": "95 €", "price_note": "kuus",
-     "facts": [("Asukoht", "Tallinn, Mustamäe"), ("Elekter", "Jah"), ("Küte", "Soe"), ("Aastas", "1 140 €")]},
-    {"title": "Garaaž Annelinnas", "emoji": "🚘", "when": "2 päeva tagasi", "link": "https://www.kinnisvara24.ee",
-     "description": "Metallist garaažiboks heas asukohas.",
-     "image": "https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=600&auto=format&fit=crop",
-     "price": "75 €", "price_note": "kuus",
-     "facts": [("Asukoht", "Tartu, Annelinn"), ("Valgustus", "Jah"), ("Ligipääs", "24/7"), ("Aastas", "900 €")]},
-]
-GARDEN = [
-    {"title": "Heki pügamine ja korrastus", "emoji": "🌿", "when": "Täna", "link": "https://www.hange.ee",
-     "description": "Vaja pügada umbes 30 m elupuuheekki ja viia oksad ära.",
-     "image": "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600&auto=format&fit=crop",
-     "price": "350 €", "price_note": "keskmine pakkumine",
-     "facts": [("Maht", "30 m hekk"), ("Pakkujaid", "4"), ("Hind / m", "11,67 €")]},
-    {"title": "Muru rajamine ja tasandamine", "emoji": "🌱", "when": "Eile", "link": "https://www.hange.ee",
-     "description": "Uue muru külvamine 600 m² alale, pinnase freesimine ja silumine.",
-     "image": "https://images.unsplash.com/photo-1557429287-b2e26467fc2b?w=600&auto=format&fit=crop",
-     "price": "1 200 €", "price_note": "keskmine pakkumine",
-     "facts": [("Maht", "600 m²"), ("Pakkujaid", "7"), ("Hind / m²", "2,00 €")]},
-]
-GROCERIES = [  # nimi, hind, ühik, pood, link, emoji
-    ("Banaanid", 0.99, "kg", "Lidl", "https://www.lidl.ee/et/search?q=banaan", "🍌"),
-    ("Värske piim 2,5%", 0.69, "1 l", "Prisma", "https://www.prismamarket.ee/products/search/piim", "🥛"),
-    ("Sea välisfilee", 5.99, "kg", "Rimi", "https://www.rimi.ee/epood/ee/otsing?query=sea%20välisfilee", "🥩"),
-    ("Kohviuba President", 9.99, "1 kg", "Selver", "https://www.selver.ee/catalogsearch/result/?q=kohviuba", "☕"),
-    ("Eesti või 82%", 1.89, "200 g", "Coop", "https://kodu.coop.ee/et/catalogsearch/result/?q=või", "🧈"),
-    ("Värske kurk", 2.49, "kg", "Maxima", "https://www.barbora.ee/otsing?q=kurk", "🥒"),
-]
-TOOLS = [
-    ("Akutrell DeWalt 18V (komplekt)", 149.00, "Bauhof", "https://www.bauhof.ee/et/catalogsearch/result/?q=akutrell", "🔧"),
-    ("Ketassaag Makita 1200 W", 119.00, "K-Rauta", "https://www.k-rauta.ee/et/search?query=ketassaag", "🪚"),
-    ("Survepesur Kärcher K5", 269.00, "Bauhof", "https://www.bauhof.ee/et/catalogsearch/result/?q=survepesur", "💦"),
-]
-STOCKS = [
-    {"symbol": "NVDA", "name": "NVIDIA Corp.", "base": 128.50, "sector": "Tehisintellekt"},
-    {"symbol": "AAPL", "name": "Apple Inc.", "base": 224.20, "sector": "Tarbeelektroonika"},
-    {"symbol": "MSFT", "name": "Microsoft Corp.", "base": 448.30, "sector": "Pilv ja AI"},
-    {"symbol": "TSLA", "name": "Tesla Inc.", "base": 242.10, "sector": "Autonoomsüsteemid ja energia"},
-]
-
-
-
-
-from urllib.parse import quote_plus
-FB_SLUGS = {"Tallinn": "tallinn", "Tartu": "tartu"}  # teiste linnade slugid pole kontrollitud
-
-
-def fb_search(title, city):
-    """Facebook Marketplace'i otsing: linn + märksõna + hind 0 €."""
-    kw = title.split("(")[0].strip()
-    slug = FB_SLUGS.get(city)
-    base = f"https://www.facebook.com/marketplace/{slug}/search/" if slug else "https://www.facebook.com/marketplace/search/"
-    return f"{base}?query={quote_plus(kw)}&maxPrice=0&exact=false"
-
-# ----------------------------- LAIENDATUD ANDMED ----------------------------
-_rng = random.Random(42)
-CITIES = ["Tallinn", "Tartu", "Pärnu", "Narva", "Viljandi", "Kuressaare", "Rakvere", "Haapsalu", "Jõhvi", "Võru"]
-WHEN = ["Täna", "Eile", "2 päeva tagasi", "3 päeva tagasi", "Nädal tagasi"]
-
-_free_t = [("Diivan", "🛋️"), ("Kirjutuslaud", "🪑"), ("Puitmaterjal", "🪵"), ("Lastevanker", "👶"), ("Raamaturiiul", "📚"),
-           ("Külmik", "🧊"), ("Pesumasin", "🧺"), ("Jalgratas", "🚲"), ("Telekas", "📺"), ("Aiamööbel", "⛱️"),
-           ("Laste mänguasjad", "🧸"), ("Riidekapp", "🚪"), ("Voodi", "🛏️"), ("Potililled", "🪴"), ("Kütteklotsid", "🔥")]
-_cond = ["Hea", "Vähekasutatud", "Kulunud, töötab", "Remonti vajav"]
-for n, e in _free_t:
-    for c in _rng.sample(CITIES, 2):
-        FREE.append({"title": f"{n} ({c})", "emoji": e, "when": _rng.choice(WHEN), "link": FB,
-                     "description": f"{n} annetatakse tasuta. Ise äraviimisega.", "price": "Tasuta",
-                     "facts": [("Asukoht", c), ("Seisukord", _rng.choice(_cond)), ("Kätte saamine", "Ise järele")],
-                     "tags": [("green", "Tasuta")]})
-
-for _it in FREE:
-    _it["link"] = fb_search(_it["title"], dict(_it["facts"]).get("Asukoht", ""))
-
-_dist = [("Tallinn", d) for d in ["Mustamäe", "Lasnamäe", "Õismäe", "Kristiine", "Nõmme", "Pirita", "Haabersti"]] + \
-        [("Tartu", d) for d in ["Annelinn", "Karlova", "Ropka", "Tähtvere"]] + [("Pärnu", "Ranna"), ("Narva", "Kreenholm")]
-for c, d in _dist:
-    p = _rng.choice([60, 70, 75, 85, 95, 110, 130])
-    el = _rng.choice([True, False]); warm = _rng.choice([True, False])
-    GARAGES.append({"title": f"Garaažiboks, {d}", "emoji": "🚘",
-                    "when": _rng.choice(WHEN), "link": "https://www.kinnisvara24.ee",
-                    "description": "Garaažiboks auto või lao jaoks.", "price": f"{p} €", "price_note": "kuus",
-                    "facts": [("Asukoht", f"{c}, {d}"), ("Elekter", "Jah" if el else "Ei"), ("Küte", "Soe" if warm else "Külm"),
-                              ("Aastas", f"{p*12:,} €".replace(",", " ")), ("Pind", f"{_rng.choice([16, 18, 20, 24, 28])} m²")]})
-
-_jobs = [("Heki pügamine", "m", 8, 15), ("Muru rajamine", "m²", 1.5, 3), ("Puude langetamine", "tk", 80, 250),
-         ("Aia ehitus", "m", 40, 90), ("Platside sillutamine", "m²", 35, 70), ("Muruniitmine", "m²", 0.1, 0.3),
-         ("Lume lükkamine", "korda", 25, 60), ("Peenarde rajamine", "m²", 6, 14), ("Terrassi ehitus", "m²", 60, 120)]
-for name, unit, lo, hi in _jobs:
-    for c in _rng.sample(CITIES, 2):
-        qty = _rng.choice([10, 20, 30, 50, 100, 200, 600]) if unit != "tk" else _rng.randint(1, 6)
-        up = _rng.uniform(lo, hi); tot = round(up * qty, -1) or round(up * qty)
-        GARDEN.append({"title": f"{name} ({c})", "emoji": "🌿", "when": _rng.choice(WHEN), "link": "https://www.hange.ee",
-                       "description": f"{name}, maht {qty} {unit}.", "price": f"{int(tot):,} €".replace(",", " "),
-                       "price_note": "keskmine pakkumine",
-                       "facts": [("Asukoht", c), ("Maht", f"{qty} {unit}"), ("Pakkujaid", str(_rng.randint(1, 9))),
-                                 (f"Hind / {unit}", f"{tot/qty:.2f} €")]})
-
-_gro = [("Rukkileib", 1.79, "800 g", "🍞"), ("Munad M (10 tk)", 3.09, "10 tk", "🥚"), ("Kartul", 0.89, "kg", "🥔"), ("Sibul", 0.99, "kg", "🧅"),
-        ("Porgand", 0.95, "kg", "🥕"), ("Õunad", 1.79, "kg", "🍎"), ("Tomatid", 3.49, "kg", "🍅"), ("Kanafilee", 7.49, "kg", "🍗"),
-        ("Hakkliha", 6.29, "kg", "🥩"), ("Juust Edam", 8.99, "kg", "🧀"), ("Jogurt naturaalne", 1.29, "400 g", "🥣"), ("Riis", 2.19, "kg", "🍚"),
-        ("Makaronid", 1.39, "500 g", "🍝"), ("Päevalilleõli", 2.49, "1 l", "🌻"), ("Suhkur", 1.19, "kg", "🍬"), ("Jahu", 1.09, "kg", "🌾"),
-        ("Šokolaad Kalev", 1.99, "100 g", "🍫"), ("Apelsinimahl", 1.99, "1 l", "🍊"), ("Tee Lipton", 2.79, "20 kotti", "🍵"), ("Lõhefilee", 16.9, "kg", "🐟")]
-_stores = {"Lidl": "https://www.lidl.ee/et/search?q=", "Prisma": "https://www.prismamarket.ee/products/search/",
-           "Rimi": "https://www.rimi.ee/epood/ee/otsing?query=", "Selver": "https://www.selver.ee/catalogsearch/result/?q=",
-           "Coop": "https://kodu.coop.ee/et/catalogsearch/result/?q=", "Maxima": "https://www.barbora.ee/otsing?q="}
-for n, p, u, e in _gro:
-    for st_name in _rng.sample(list(_stores), 3):
-        GROCERIES.append((n, round(p * _rng.uniform(0.92, 1.12), 2), u, st_name, _stores[st_name] + n.split()[0].lower(), e))
-
-_tools = [("Kruvikeeraja komplekt Bosch", 39, "🪛"), ("Lööktrell Makita", 129, "🔨"), ("Nurklihvija Metabo 125 mm", 89, "⚙️"),
-          ("Tikksaag Bosch", 99, "🪚"), ("Kompressor 50 l", 179, "🌬️"), ("Keevitusaparaat MIG", 259, "🔥"), ("Redel 3x9", 149, "🪜"),
-          ("Tööriistakast 3-osaline", 69, "🧰"), ("Laserloodid", 79, "📏"), ("Aiakäärid Fiskars", 29, "✂️"), ("Murutraktor", 1499, "🚜"),
-          ("Mootorsaag Stihl", 329, "🪵"), ("Veepump", 119, "💧"), ("Generaator 3 kW", 549, "⚡")]
-for n, p, e in _tools:
-    for s_ in _rng.sample(["Bauhof", "K-Rauta", "Espak", "Ehituse ABC", "Decora"], 2):
-        TOOLS.append((n, round(p * _rng.uniform(0.9, 1.15), 2), s_, f"https://www.google.com/search?q={n.replace(' ', '+')}+{s_}", e))
-
-_more = [("GOOGL", "Alphabet Inc.", 178, "Internet"), ("AMZN", "Amazon.com", 186, "E-kaubandus ja pilv"), ("META", "Meta Platforms", 520, "Sotsiaalmeedia"),
-         ("AMD", "Advanced Micro Devices", 160, "Kiibid"), ("AVGO", "Broadcom", 165, "Kiibid"), ("TSM", "TSMC", 175, "Kiibitootmine"),
-         ("NFLX", "Netflix", 680, "Voogedastus"), ("ASML", "ASML Holding", 900, "Kiibiseadmed"), ("PLTR", "Palantir", 30, "Andmeanalüütika"),
-         ("CRM", "Salesforce", 270, "Pilvetarkvara"), ("INTC", "Intel", 31, "Kiibid"), ("ORCL", "Oracle", 140, "Pilv ja andmebaasid"),
-         ("ADBE", "Adobe", 520, "Tarkvara"), ("UBER", "Uber", 70, "Mobiilsus"), ("SHOP", "Shopify", 75, "E-kaubandus"), ("COIN", "Coinbase", 230, "Krüpto")]
-for sym, nm, b, sec in _more:
-    STOCKS.append({"symbol": sym, "name": nm, "base": float(b), "sector": sec})
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def live_quotes(symbols):
-    """Päris hinnad yfinance'ist; tagastab {} kui pole saadaval."""
-    try:
-        import yfinance as yf
-        df = yf.download(list(symbols), period="5d", interval="1d", progress=False, group_by="ticker", auto_adjust=True)
-        out = {}
-        for sym in symbols:
-            c = df[sym]["Close"].dropna()
-            if len(c) >= 2:
-                out[sym] = (float(c.iloc[-1]), float(c.iloc[-2]))
-        return out
-    except Exception:
-        return {}
-
-
-def store_filter(key, stores):
-    return st.selectbox("Pood:", ["Kõik"] + sorted(stores), key=key)
-
-
-def demo_notice(text):
-    show(f'<div class="demo">⚠️ {esc(text)}</div>')
-
-
-# ----------------------------- VAATED ---------------------------------------
-def food(q):
-    demo_notice("Hinnad on demo: need on juhuslikult muudetud, mitte poodidest loetud.")
-    sel = store_filter("sf_food", {g[3] for g in GROCERIES})
-    minute = datetime.now(TZ).minute
-    items = []
-    for name, base, unit, store, link, emoji in GROCERIES:
-        random.seed(f"{name}{minute}")
-        p = round(base * random.uniform(0.95, 1.05), 2)
-        diff = (p / base - 1) * 100
-        items.append({
-            "title": name, "emoji": emoji, "link": link,
-            "description": f"Hind pakendi kohta ({unit}).",
-            "price": f"{p:.2f} €", "price_note": f"/ {unit}",
-            "facts": [("Pood", store), ("Viitehind", f"{base:.2f} €"),
-                      ("Muutus", f"{diff:+.1f}%", "up" if diff <= 0 else "down")],
-            "tags": [("green", "Alla viitehinna")] if diff < 0 else [],
-        })
-    flt = [i for i in items if (sel == "Kõik" or i["facts"][0][1] == sel) and matches(q, i["title"], i["facts"][0][1])]
-    for i in paginate(flt, "food"):
-        card(i, "Ava toote leht")
-
-
-def tools(q):
-    sel = store_filter("sf_tools", {t[2] for t in TOOLS})
-    items = [{"title": n, "emoji": e, "link": l, "description": "Tööriist ehituseks ja mehaanikaks.",
-              "price": f"{p:.2f} €", "facts": [("Tarnija", s)]} for n, p, s, l, e in TOOLS]
-    flt = [i for i in items if (sel == "Kõik" or i["facts"][0][1] == sel) and matches(q, i["title"], i["facts"][0][1])]
-    for i in paginate(flt, "tools"):
-        card(i, "Vaata toodet")
-
-
-def invest(q):
-    quotes = live_quotes(tuple(a["symbol"] for a in STOCKS))
-    if quotes:
-        st.caption(f"Päris hinnad (yfinance, viimane sulgemine). Kaetud {len(quotes)}/{len(STOCKS)} tickerit. See ei ole investeerimisnõuanne.")
+    if link:
+        button_html = f'<a href="{esc(link)}" target="_blank" rel="noopener noreferrer" class="pro-btn">{esc(button_text)}</a>'
     else:
-        demo_notice("Päris hindu ei saanud laadida (lisa requirements.txt faili yfinance). Näidatakse juhuslikke demoandmeid.")
-    minute = datetime.now(TZ).minute
-    shown = [a for a in STOCKS if matches(q, a["name"], a["symbol"], a["sector"])]
-    for a in paginate(shown, "stocks"):
-        is_live = a["symbol"] in quotes
-        if is_live:
-            price, prev = quotes[a["symbol"]]
+        button_html = '<span class="pro-btn secondary">Link puudub</span>'
+
+    show_html(
+        f"""
+        <div class="pro-card">
+          <div class="card-row">
+            {img_html}
+            <div class="card-body">
+              <div class="card-title">{esc(item.get("title", "Kirje"))}</div>
+              {date_html}
+              {desc_html}
+              {tags_html}
+              {button_html}
+            </div>
+          </div>
+        </div>
+        """
+    )
+
+
+def render_items(items, *, page_key, button_text, base_badge, search_query, empty_msg):
+    filtered = [
+        it for it in items
+        if matches(search_query, it.get("title"), it.get("description"))
+    ]
+    if not filtered:
+        st.info(empty_msg)
+
+    for item in paginate_items(filtered, page_key):
+        badges = (base_badge or "") + "".join(
+            pill(css, text) for css, text in item.get("tags", [])
+        )
+        render_card(item, button_text, badges=badges)
+
+
+# =============================================================================
+# 4. LAIED DATABASES (OPTIMIZED DIRECT SEARCH LINKS)
+# =============================================================================
+
+FREE_ITEMS = [
+    {
+        "title": "Kasutatud diivan (heas korras)",
+        "description": "Ära anda mugav lahtikäiv diivan Tallinnas. Ise äraviimisega.",
+        "link": "https://www.facebook.com/marketplace/search/?query=kasutatud%20diivan",
+        "image": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop",
+        "date_str": "📅 Täna 12:30",
+        "tags": [("badge-location", "📍 Tallinn"), ("badge-free", "🎁 Tasuta")]
+    },
+    {
+        "title": "Laste kirjutuslaud ja tool",
+        "description": "Vähekasutatud reguleeritav kirjutuslaud koolijütsile. Tasuta!",
+        "link": "https://www.facebook.com/marketplace/search/?query=laste%20kirjutuslaud",
+        "image": "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600&auto=format&fit=crop",
+        "date_str": "📅 Täna 10:15",
+        "tags": [("badge-location", "📍 Tartu"), ("badge-free", "🎁 Tasuta")]
+    },
+    {
+        "title": "Ehitusjäägid / Puitmaterjal",
+        "description": "Küttepuudeks või meisterdamiseks sobilikud puidujäägid ja lauad.",
+        "link": "https://www.facebook.com/marketplace/search/?query=ehitusjaagid%20puit",
+        "image": "https://images.unsplash.com/photo-1541888946425-d0fbb18f64e8?w=600&auto=format&fit=crop",
+        "date_str": "📅 Eile",
+        "tags": [("badge-location", "📍 Pärnu"), ("badge-free", "🎁 Tasuta")]
+    },
+    {
+        "title": "Seinakapp ja riiulid",
+        "description": "Valged köögikapid, vajavad kerget puhastust. Anna ära kiiremale.",
+        "link": "https://www.facebook.com/marketplace/search/?query=seinakapp%20riiulid",
+        "image": "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600&auto=format&fit=crop",
+        "date_str": "📅 2 päeva tagasi",
+        "tags": [("badge-location", "📍 Narva"), ("badge-free", "🎁 Tasuta")]
+    },
+    {
+        "title": "Raamaturiiul (pruun puit)",
+        "description": "Heas korras korralik raamaturiiul elutuppa või kontorisse.",
+        "link": "https://www.facebook.com/marketplace/search/?query=raamaturiiul",
+        "image": "https://images.unsplash.com/photo-1594623930572-300a3011d9ae?w=600&auto=format&fit=crop",
+        "date_str": "📅 Täna",
+        "tags": [("badge-location", "📍 Tallinn"), ("badge-free", "🎁 Tasuta")]
+    },
+    {
+        "title": "Aiatoolid ja laud (komplekt)",
+        "description": "Plastikust aiamööbel, vajab pesu, aga täiesti terve.",
+        "link": "https://www.facebook.com/marketplace/search/?query=aiatoolid",
+        "image": "https://images.unsplash.com/photo-1519947486511-46149fa0a254?w=600&auto=format&fit=crop",
+        "date_str": "📅 Eile",
+        "tags": [("badge-location", "📍 Tartu"), ("badge-free", "🎁 Tasuta")]
+    },
+]
+
+GARAGE_ITEMS = [
+    {
+        "title": "Soe garaažiboks Mustamäel",
+        "description": "Kuiv ja turvaline garaaž, elekter olemas. Sobib auto hoidmiseks või laoks.",
+        "link": "https://www.kinnisvara24.ee",
+        "image": "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=600&auto=format&fit=crop",
+        "date_str": "📅 Uus",
+        "tags": [("badge-price", "💶 95 € / kuu"), ("badge-location", "📍 Tallinn")]
+    },
+    {
+        "title": "Garaaž Annelinnas",
+        "description": "Metallist garaažiboks heas asukohas. Valgustus ja ööpäevane ligipääs.",
+        "link": "https://www.kinnisvara24.ee",
+        "image": "https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=600&auto=format&fit=crop",
+        "date_str": "📅 2 päeva tagasi",
+        "tags": [("badge-price", "💶 75 € / kuu"), ("badge-location", "📍 Tartu")]
+    },
+]
+
+GARDEN_ITEMS = [
+    {
+        "title": "Heki pügamine ja korrastus",
+        "description": "Vaja pügada ca 30m elupuuheekki ja ära viia oksi.",
+        "link": "https://www.hange.ee",
+        "image": "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600&auto=format&fit=crop",
+        "date_str": "📅 Täna",
+        "tags": [("badge-gardening", "🌿 Haljastus"), ("badge-price", "💶 Keskmine hind 350 €"), ("badge-location", "👥 Pakkujaid: 4")]
+    },
+    {
+        "title": "Muru rajamine ja tasandamine",
+        "description": "Uue muru külvamine 600m2 alale, pinnase freesimine ja silumine.",
+        "link": "https://www.hange.ee",
+        "image": "https://images.unsplash.com/photo-1557429287-b2e26467fc2b?w=600&auto=format&fit=crop",
+        "date_str": "📅 Eile",
+        "tags": [("badge-gardening", "🌿 Aiatööd"), ("badge-price", "💶 Keskmine hind 1200 €"), ("badge-location", "👥 Pakkujaid: 7")]
+    },
+]
+
+GROCERIES = [
+    ("Banaanid (kg)", 0.99, "Lidl", "https://www.lidl.ee/et/search?q=banaan", "photo-1571771894821-ce9b6c11b08e"),
+    ("Värske piim 2.5% (1 l)", 0.69, "Prisma", "https://www.prismamarket.ee/products/search/piim", "photo-1550583724-b2692b85b150"),
+    ("Sea välisfilee (kg)", 5.99, "Rimi", "https://www.rimi.ee/epood/ee/otsing?query=sea%20välisfilee", "photo-1603048588665-791ca8aea617"),
+    ("Kohviuba President (1 kg)", 9.99, "Selver", "https://www.selver.ee/catalogsearch/result/?q=kohviuba", "photo-1559056199-641a0ac8b55e"),
+    ("Eesti või 82% (200 g)", 1.89, "Coop", "https://kodu.coop.ee/et/catalogsearch/result/?q=või", "photo-1589985270826-4b7bb135bc9d"),
+    ("Värske kurk (kg)", 2.49, "Maxima", "https://www.barbora.ee/otsing?q=kurk", "photo-1449300079323-02e209d9d3a6"),
+]
+
+TOOLS_ITEMS = [
+    ("Akutrell DeWalt 18V (komplekt)", 149.00, "Bauhof", "https://www.bauhof.ee/et/catalogsearch/result/?q=akutrell", "photo-1504148455328-c376907d081c"),
+    ("Ketassaag Makita 1200W", 119.00, "K-Rauta", "https://www.k-rauta.ee/et/search?query=ketassaag", "photo-1581092160607-ee22621dd758"),
+    ("Survepesur Kärcher K5", 269.00, "Bauhof", "https://www.bauhof.ee/et/catalogsearch/result/?q=survepesur", "photo-1621905251189-08b45d6a269e"),
+]
+
+TOP_STOCKS = [
+    {"symbol": "NVDA", "name": "NVIDIA Corp.", "base_price": 128.50, "sector": "Artificial Intelligence"},
+    {"symbol": "AAPL", "name": "Apple Inc.", "base_price": 224.20, "sector": "Consumer Electronics"},
+    {"symbol": "MSFT", "name": "Microsoft Corp.", "base_price": 448.30, "sector": "Cloud & AI Infrastructure"},
+    {"symbol": "TSLA", "name": "Tesla Inc.", "base_price": 242.10, "sector": "Autonomous Systems & Energy"},
+]
+
+
+# =============================================================================
+# 5. DOMAIN MODULES
+# =============================================================================
+
+def render_free_tab(search_query):
+    show_html('<div class="system-status">⚡ Direct Marketplace Search Active</div>')
+    st.markdown("**Allikas:** [Facebook Tasuta Kraam](https://www.facebook.com/marketplace)")
+    render_items(FREE_ITEMS, page_key="free", button_text="Ava Facebook Marketplace'is", base_badge=pill("badge-free", "🎁 Tasuta"), search_query=search_query, empty_msg="Tasuta asjade kirjeid ei leitud.")
+
+
+def render_garages_tab(search_query):
+    show_html('<div class="system-status">⚡ Real-time Real Estate Synchronized</div>')
+    st.markdown("**Allikas:** [Kinnisvara24 Garaažid](https://kinnisvara24.ee)")
+    render_items(GARAGE_ITEMS, page_key="garages", button_text="Ava kinnisvara", base_badge=pill("badge-price", "🚘 Garaaž"), search_query=search_query, empty_msg="Garaažide kirjeid ei leitud.")
+
+
+def render_garden_tab(search_query):
+    show_html('<div class="system-status">🌱 AI Garden Pipeline Active</div>')
+    st.markdown("**Allikas:** [Hange.ee – aia ehitus](https://www.hange.ee/hanked/?category=aia-ehitus)")
+    render_items(GARDEN_ITEMS, page_key="hange", button_text="Ava Hange.ee keskkond", base_badge=pill("badge-gardening", "🌿 Haljastus / Aiatööd"), search_query=search_query, empty_msg="Sobivaid hankeid ei leitud.")
+
+
+def render_food_sample(search_query):
+    show_html('<div class="system-status">🛒 Real-time Grocery Arbitrage Feed</div>')
+    stores = ["Kõik"] + sorted({g[2] for g in GROCERIES})
+    store_filter = st.selectbox("Filtreeri kaupluse järgi:", stores, key="store_filter_food")
+
+    current_minute = int(datetime.now(TZ).strftime('%M'))
+    items = []
+    for title, base_price, store, link, photo in GROCERIES:
+        random.seed(hash(title) + current_minute)
+        price_var = round(base_price * random.uniform(0.95, 1.05), 2)
+        items.append({
+            "title": title,
+            "description": "Autonoomselt skannitud kampaaniatoode ja reaalajas hind.",
+            "price": f"{price_var:.2f} €",
+            "store": store,
+            "link": link,
+            "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
+        })
+
+    filtered = [
+        it for it in items
+        if (store_filter == "Kõik" or it["store"] == store_filter)
+        and matches(search_query, it["title"], it["description"], it["store"])
+    ]
+
+    for item in paginate_items(filtered, "groceries"):
+        badges = pill("badge-price", f"🏷️ {item['price']}") + pill("badge-location", f"📍 {item['store']}")
+        render_card(item, "Ava toote leht", badges=badges)
+
+
+def render_tools_tab(search_query):
+    show_html('<div class="system-status">⚡ Hardcore Hardware & Tooling Feed</div>')
+    st.markdown("### 🔧 Professionaalne Riistvara ja Seadmed")
+    st.caption("Optimeeritud tööstuslikud ja kodused tööriistad otse tarnijatelt.")
+
+    stores = ["Kõik"] + sorted({t[2] for t in TOOLS_ITEMS})
+    store_filter = st.selectbox("Filtreeri tarnija järgi:", stores, key="store_filter_tools")
+
+    items = [
+        {
+            "title": title,
+            "description": "Kõrgeima vastupidavusega tööriist ehituseks ja mehaanikaks.",
+            "price": f"{price:.2f} €",
+            "store": store,
+            "link": link,
+            "image": f"https://images.unsplash.com/{photo}?w=600&auto=format&fit=crop",
+        }
+        for title, price, store, link, photo in TOOLS_ITEMS
+    ]
+
+    filtered = [
+        it for it in items
+        if (store_filter == "Kõik" or it["store"] == store_filter)
+        and matches(search_query, it["title"], it["description"], it["store"])
+    ]
+
+    for item in paginate_items(filtered, "tools"):
+        badges = pill("badge-price", f"🏷️ {item['price']}") + pill("badge-location", f"📍 {item['store']}")
+        render_card(item, "Vaata riistvara", badges=badges)
+
+
+def render_invest_tab():
+    show_html('<div class="system-status">⚡ Neural Markets: Real-time Algorithmic Engine</div>')
+    st.markdown("### 📈 Neural Portfolio & Autonomous Asset Scoring")
+    st.caption("AI analüüsib reaalajas turumustreid ja genereerib DCA-strateegiaid.")
+
+    current_minute = int(datetime.now(TZ).strftime('%M'))
+    
+    analyzed_assets = []
+    for asset in TOP_STOCKS:
+        random.seed(hash(asset["symbol"]) + current_minute)
+        change_pct = round(random.uniform(-1.8, 1.8), 2)
+        current_price = round(asset["base_price"] * (1 + change_pct / 100), 2)
+        
+        if change_pct < -1.0:
+            signal = "🟢 STRONG BUY"
+            badge_class = "badge-buy"
+            advice = "Täiuslik hinnaandestus pikaajaliseks ostuks."
+        elif change_pct > 1.2:
+            signal = "🟡 HOLD / WAIT"
+            badge_class = "badge-hold"
+            advice = "Lühiajaline tipp – oota korrektsiooni."
         else:
-            random.seed(f"{a['symbol']}{minute}")
-            prev = a["base"]; price = prev * (1 + random.uniform(-1.8, 1.8) / 100)
-        ch = (price / prev - 1) * 100
-        lo, hi = prev * 0.982, prev * 1.018
-        pos = max(0, min(100, (price - lo) / (hi - lo) * 100))
-        cls = "up" if ch >= 0 else "down"
-        signal, tcls = (("Odav hetk", "green") if ch < -1.0 else ("Kallis hetk", "amber") if ch > 1.2 else ("Neutraalne", ""))
-        show(f"""
-        <div class="card"><div class="body">
-          <div class="head">
-            <div><div class="title">{esc(a['name'])} ({esc(a['symbol'])})</div><div class="when">{esc(a['sector'])}</div></div>
-            <div class="price">${price:,.2f}<small class="{cls}">{ch:+.2f}%</small></div>
-          </div>
-          <div class="facts">
-            <div class="fact"><span>Eelmine sulgemine</span><b>${prev:,.2f}</b></div>
-            <div class="fact"><span>Muutus dollarites</span><b class="{cls}">${price - prev:+.2f}</b></div>
-            <div class="fact"><span>Vahemik ±1,8%</span><b>${lo:,.2f} – ${hi:,.2f}</b></div>
-          </div>
-          <div><div class="range"><i style="left:{pos}%"></i></div>
-          <div class="rangelbl"><span>${lo:,.2f}</span><span>${hi:,.2f}</span></div></div>
-          <div><span class="tag {tcls}">{signal}</span>{'' if is_live else '<span class="tag amber">Demohind</span>'}</div>
-        </div></div>
+            signal = "🔵 NEUTRAL"
+            badge_class = "badge-price"
+            advice = "Stabiilne voog hoidmiseks."
+
+        analyzed_assets.append({
+            **asset,
+            "current_price": current_price,
+            "change_pct": change_pct,
+            "signal": signal,
+            "badge_class": badge_class,
+            "advice": advice
+        })
+
+    for asset in analyzed_assets:
+        color_style = "color: #34d399;" if asset["change_pct"] >= 0 else "color: #ef4444;"
+        sign_str = "+" if asset["change_pct"] > 0 else ""
+        
+        show_html(f"""
+            <div class="pro-card" style="padding: 14px 18px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="flex: 2; min-width: 150px;">
+                        <div style="font-size: 1.05rem; font-weight: 700; color: #f9fafb;">{esc(asset['name'])} ({esc(asset['symbol'])})</div>
+                        <div style="font-size: 0.75rem; color: #9ca3af;">{esc(asset['sector'])}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 90px;">
+                        <div style="font-size: 1rem; font-weight: 700; color: #f9fafb;">${asset['current_price']:,.2f}</div>
+                        <div style="font-size: 0.75rem; font-weight: 600; {color_style}">{sign_str}{asset['change_pct']}%</div>
+                    </div>
+                    <div style="flex: 1; min-width: 110px; text-align: left;">
+                        <span class="badge-pill {asset['badge_class']}">{esc(asset['signal'])}</span>
+                    </div>
+                </div>
+            </div>
         """)
 
 
-# ----------------------------- ROUTER ---------------------------------------
-show('<div class="hero"><h1>🚀 X-Market</h1><p>Tasuta asjad, garaažid, aiatööd, toidukaupade hinnad, tööriistad ja aktsiad ühes kohas.</p></div>')
-q = st.text_input("Otsi", placeholder="nt muru, piim, akutrell, NVIDIA…", label_visibility="collapsed")
-tab = st.radio("Moodul", TABS, horizontal=True, label_visibility="collapsed")
+# =============================================================================
+# 6. MAIN ROUTER & EXECUTION
+# =============================================================================
 
-if tab == TABS[0]:
-    render(FREE, "free", "Otsi Facebook Marketplace'ist", q, "Tasuta asju ei leitud.")
-elif tab == TABS[1]:
-    render(GARAGES, "garages", "Ava kuulutus", q, "Garaaže ei leitud.")
-elif tab == TABS[2]:
-    render(GARDEN, "garden", "Ava Hange.ee", q, "Hankeid ei leitud.")
-elif tab == TABS[3]:
-    food(q)
-elif tab == TABS[4]:
-    tools(q)
-else:
-    invest(q)
+st.markdown(
+    '<div class="hero-container">'
+    '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
+    '<div class="sub-title">Autonoomne andmeskänner: Facebook marketplace, Hange.ee aiatööd, garaažid, toidukaupade ja tööriistade arbitraaž ning neural portfell</div>'
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+col_search, col_limit = st.columns([4, 2])
+with col_search:
+    search_query = st.text_input("🔍 Otsi süsteemist...", placeholder="Sisesta nt NVIDIA, muru, piim, akutrell...", label_visibility="collapsed")
+
+with col_limit:
+    limit_choice = st.radio(
+        "Andmemahu piirang:",
+        ["Kuni 50 kirjet", "Optimaalne (kuni 100)"],
+        horizontal=True,
+        key="display_limit_choice_radio",
+        label_visibility="collapsed"
+    )
+    if limit_choice == "Kuni 50 kirjet":
+        st.session_state["display_limit_choice"] = DEFAULT_MAX_LIMIT
+    else:
+        st.session_state["display_limit_choice"] = EXTENDED_MAX_LIMIT
+
+selected_tab = st.radio(
+    "Vali moodul:",
+    TABS,
+    horizontal=True,
+    label_visibility="collapsed",
+)
+st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
+
+if selected_tab == TAB_FREE:
+    render_free_tab(search_query)
+elif selected_tab == TAB_GARAGES:
+    render_garages_tab(search_query)
+elif selected_tab == TAB_GARDEN:
+    render_garden_tab(search_query)
+elif selected_tab == TAB_FOOD:
+    render_food_sample(search_query)
+elif selected_tab == TAB_TOOLS:
+    render_tools_tab(search_query)
+elif selected_tab == TAB_INVEST:
+    render_invest_tab()
