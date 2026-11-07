@@ -193,7 +193,7 @@ def render_items_with_scroll(items, *, page_key, button_text, base_badge, search
 
 
 # =============================================================================
-# 4. EXPANDED DATASETS & DIRECT GROUP SEARCH ROUTING
+# 4. EXPANDED DATASETS & CLEANED URL SEARCH ROUTING
 # =============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -201,7 +201,7 @@ def get_extended_free_items():
     raw_data = [
         ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas diivan. Ära anda kiiremale järeletulijale.", "Tallinn", True),
         ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!", "Tartu", True),
-        ("Reguleeritav kirjutuslaud õpilasele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "Pärnu", True),
+        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.", "Pärnu", True),
         ("Köögikapid ja seinariiulid", "Valged köögikapid, korralikud ja koheselt saadaval.", "Narva", True),
         ("Pruun puidust raamaturiiul", "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.", "Tallinn", True),
         ("Plastikust aiamööbli komplekt", "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.", "Tartu", True),
@@ -227,7 +227,8 @@ def get_extended_free_items():
 
     result = []
     for title, desc, loc, is_giving in raw_data:
-        encoded_title = urllib.parse.quote(title)
+        # Kasutame quote_plus() funktsiooni, et tühikud ja täpitähed kodeeruksid veatult + märkideks või %20-ks
+        encoded_title = urllib.parse.quote_plus(title)
         precise_link = f"{FB_GROUP_URL}/search/?query={encoded_title}"
         
         result.append({
@@ -381,7 +382,7 @@ def render_invest_tab():
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
-    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi täpsed esemepõhised otselingid, Hange.ee aiatööd ja garaažid</div>'
+    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi korrektselt kodeeritud otsingud, Hange.ee aiatööd ja garaažid</div>'
     "</div>",
     unsafe_allow_html=True,
 )
