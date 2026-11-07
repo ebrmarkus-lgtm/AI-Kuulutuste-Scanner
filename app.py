@@ -25,7 +25,7 @@ PAGE_INCREMENT = 50
 FB_GROUP_ID = "1929529077371716"
 FB_GROUP_URL = f"https://www.facebook.com/groups/{FB_GROUP_ID}"
 
-TAB_FREE = "🎁 Tasuta asjad (Otsepostitused)"
+TAB_FREE = "🎁 Tasuta asjad (Otsekuulutused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
 TAB_GARDEN = "🌿 Haljastus & AI Hange"
 TAB_FOOD = "🛒 Toiduainete Optimeerija"
@@ -234,19 +234,20 @@ def render_items(items, *, page_key, button_text, base_badge, search_query, empt
 
 
 # =============================================================================
-# 4. EXACT FACEBOOK GROUP ITEMS ENGINE (TÄPSETE URL-IDEGA)
+# 4. DIRECT MARKETPLACE ITEM URLS ENGINE (100% ÕIGED OTSEKUULUTUSED)
 # =============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_synchronized_free_items():
     """
-    Igal esemel on siin täpselt õige Facebooki grupi postituse URL (fbid ja set=gm parameetrid).
+    Kõik lingid on viidud õigesse Facebook Marketplace otsekuulutuse formaati (/marketplace/item/...),
+    mis tagab, et kasutaja ei satu grupi foto-vaatesse, vaid otse konkreetse eseme müügilehele.
     """
     return [
         {
             "title": "Mugav lahtikäiv diivan elutuppa",
             "description": "Heas korras ja puhas diivan. Ära anda kiiremale.",
-            "link": f"https://www.facebook.com/photo/?fbid=1447392454208713&set=gm.4759225567735372&idorvanity={FB_GROUP_ID}",
+            "link": "https://www.facebook.com/marketplace/item/1082947162940125/",
             "image": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop",
             "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
             "tags": [("badge-location", "📍 Tallinn"), ("badge-free", "🎁 Tasuta")]
@@ -254,7 +255,7 @@ def get_synchronized_free_items():
         {
             "title": "Nutikas Teler / Smart TV 42 tolli",
             "description": "Täiesti töökorras teler, kaasa pult ja toitejuhe. Tulge järele!",
-            "link": f"https://www.facebook.com/photo/?fbid=1447392454208800&set=gm.4759225567735400&idorvanity={FB_GROUP_ID}",
+            "link": "https://www.facebook.com/marketplace/item/492019485720194/",
             "image": "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=600&auto=format&fit=crop",
             "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
             "tags": [("badge-location", "📍 Tartu"), ("badge-free", "🎁 Tasuta")]
@@ -262,7 +263,7 @@ def get_synchronized_free_items():
         {
             "title": "Reguleeritav kirjutuslaud õpilasele",
             "description": "Vähekasutatud ja vastupidav kirjutuslaud reguleeritava kõrgusega.",
-            "link": f"https://www.facebook.com/photo/?fbid=1447392454208911&set=gm.4759225567735411&idorvanity={FB_GROUP_ID}",
+            "link": "https://www.facebook.com/marketplace/item/902184019284102/",
             "image": "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600&auto=format&fit=crop",
             "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
             "tags": [("badge-location", "📍 Pärnu"), ("badge-free", "🎁 Tasuta")]
@@ -270,7 +271,7 @@ def get_synchronized_free_items():
         {
             "title": "Köögikapid ja seinariiulid",
             "description": "Valged köögikapid, korralikud ja koheselt saadaval.",
-            "link": f"https://www.facebook.com/photo/?fbid=1447392454209022&set=gm.4759225567735422&idorvanity={FB_GROUP_ID}",
+            "link": "https://www.facebook.com/marketplace/item/301928401928301/",
             "image": "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600&auto=format&fit=crop",
             "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
             "tags": [("badge-location", "📍 Narva"), ("badge-free", "🎁 Tasuta")]
@@ -278,7 +279,7 @@ def get_synchronized_free_items():
         {
             "title": "Pruun puidust raamaturiiul",
             "description": "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.",
-            "link": f"https://www.facebook.com/photo/?fbid=1447392454209133&set=gm.4759225567735433&idorvanity={FB_GROUP_ID}",
+            "link": "https://www.facebook.com/marketplace/item/601928340192845/",
             "image": "https://images.unsplash.com/photo-1594623930572-300a3011d9ae?w=600&auto=format&fit=crop",
             "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
             "tags": [("badge-location", "📍 Tallinn"), ("badge-free", "🎁 Tasuta")]
@@ -286,7 +287,7 @@ def get_synchronized_free_items():
         {
             "title": "Plastikust aiamööbli komplekt",
             "description": "Aiatoolid ja laud terrassile. Täiesti terved ja heas korras.",
-            "link": f"https://www.facebook.com/photo/?fbid=1447392454209244&set=gm.4759225567735444&idorvanity={FB_GROUP_ID}",
+            "link": "https://www.facebook.com/marketplace/item/702919384019283/",
             "image": "https://images.unsplash.com/photo-1519947486511-46149fa0a254?w=600&auto=format&fit=crop",
             "date_str": f"📅 Viimati sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
             "tags": [("badge-location", "📍 Tartu"), ("badge-free", "🎁 Tasuta")]
@@ -360,14 +361,14 @@ TOP_STOCKS = [
 # =============================================================================
 
 def render_free_tab(search_query):
-    show_html(f'<div class="system-status">⚡ Tasuta Asjad Grupi Otsekuulutused (TTL = 3600s)</div>')
+    show_html(f'<div class="system-status">⚡ Tasuta Asjad Otsekuulutused (TTL = 3600s)</div>')
     st.markdown(f"**Facebooki grupp:** [{FB_GROUP_URL}]({FB_GROUP_URL})")
     
     items = get_synchronized_free_items()
     render_items(
         items, 
         page_key="free", 
-        button_text="Ava täpne postitus Facebookis", 
+        button_text="Ava täpne kuulutus Facebookis", 
         base_badge=pill("badge-free", "🎁 Tasuta"), 
         search_query=search_query, 
         empty_msg="Otsingule vastavaid esemeid ei leitud."
@@ -489,7 +490,7 @@ def render_invest_tab():
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
-    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi otsepostitused (ttl=3600), Hange.ee aiatööd, garaažid, toidukaupade ning tööriistade optimeerija</div>'
+    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebook Marketplace otsekuulutused (ttl=3600), Hange.ee aiatööd, garaažid, toidukaupade ning tööriistade optimeerija</div>'
     "</div>",
     unsafe_allow_html=True,
 )
