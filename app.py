@@ -21,7 +21,7 @@ DEFAULT_MAX_LIMIT = 50
 EXTENDED_MAX_LIMIT = 100
 PAGE_INCREMENT = 50
 
-# Sinu Facebooki grupp ja ID
+# Sinu Facebooki grupi ID
 FB_GROUP_ID = "1929529077371716"
 FB_GROUP_URL = f"https://www.facebook.com/groups/{FB_GROUP_ID}"
 
@@ -234,14 +234,13 @@ def render_items(items, *, page_key, button_text, base_badge, search_query, empt
 
 
 # =============================================================================
-# 4. EXACT FACEBOOK GROUP ITEMS ENGINE (TASUTA ASJAD GRUPP)
+# 4. EXACT FACEBOOK GROUP ITEMS ENGINE (TÄPSETE URL-IDEGA)
 # =============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_synchronized_free_items():
     """
-    Igal esemel on siin täpne unikaalne postituse URL sinu Facebooki grupist.
-    Tagab, et nupule vajutamisel avaneb täpselt vastava eseme konkreetne postitus.
+    Igal esemel on siin täpselt õige Facebooki grupi postituse URL (fbid ja set=gm parameetrid).
     """
     return [
         {
