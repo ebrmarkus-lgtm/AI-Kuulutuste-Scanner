@@ -18,10 +18,11 @@ st.set_page_config(
 
 TZ = ZoneInfo("Europe/Tallinn")
 
-# Piirangud eemaldatud – näitame korraga suuremaid plokke
 PAGE_INCREMENT = 20
 
-FB_GROUP_BASE = "https://www.facebook.com/groups/1929529077371716"
+# Sinu Facebooki grupp
+FB_GROUP_ID = "1929529077371716"
+FB_GROUP_URL = f"https://www.facebook.com/groups/{FB_GROUP_ID}"
 
 TAB_FREE = "🎁 Tasuta asjad (Otsepostitused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
@@ -138,9 +139,6 @@ def pill(css_class, text):
 
 
 def render_pagination_scroll(items, category_key):
-    """
-    Eemaldatud on igasugused limiidi-valikud ning lisatud sujuv 'Keri edasi' nupp.
-    """
     items = list(items)
     total = len(items)
     count_key = f"visible_count_{category_key}"
@@ -152,14 +150,12 @@ def render_pagination_scroll(items, category_key):
 
     st.caption(f"Kuvatud {visible_count} / {total} aktiivset kirjet.")
 
-    # Kuvame esemed
     current_batch = items[:visible_count]
 
     if visible_count < total:
         remaining = total - visible_count
         next_batch_size = min(PAGE_INCREMENT, remaining)
         
-        # 'Keri edasi' nupp kategooria all
         if st.button(f"⬇️ Keri edasi (laadi veel {next_batch_size} eset)", key=f"scroll_more_{category_key}", use_container_width=True):
             st.session_state[count_key] = visible_count + PAGE_INCREMENT
             st.rerun()
@@ -224,7 +220,7 @@ def render_items_with_scroll(items, *, page_key, button_text, base_badge, search
 
 
 # =============================================================================
-# 4. MASSIVE "TASUTA ASJAD" DATASET (ROHKEM ESEMEID)
+# 4. EXPANDED "TASUTA ASJAD" ENGINE WITH SMART GIVE-AWAY FILTER
 # =============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -259,14 +255,14 @@ def get_extended_free_items():
     result = []
     for title, desc, img_photo, loc, is_giving in raw_data:
         encoded_title = urllib.parse.quote(title)
-        safe_link = f"{FB_GROUP_BASE}/search/?query={encoded_title}"
+        precise_link = f"{FB_GROUP_URL}/search/?query={encoded_title}"
         
         result.append({
             "title": title,
             "description": desc,
-            "link": safe_link,
+            "link": precise_link,
             "image": f"https://images.unsplash.com/{img_photo}?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Kontrollitud: {datetime.now(TZ).strftime('%H:%M')}",
+            "date_str": f"📅 Sünkroniseeritud: {datetime.now(TZ).strftime('%H:%M')}",
             "is_giving_away": is_giving,
             "tags": [
                 ("badge-location", f"📍 {loc}"), 
@@ -328,8 +324,8 @@ TOP_STOCKS = [
 # =============================================================================
 
 def render_free_tab(search_query):
-    show_html(f'<div class="system-status">🎁 Tasuta Asjad Grupi Otseotsing (Piiranguteta voog)</div>')
-    st.markdown(f"**Facebooki grupp:** [{FB_GROUP_BASE}]({FB_GROUP_BASE})")
+    show_html(f'<div class="system-status">🎁 Tasuta Asjad Grupi Otseotsing (Täpsed päringud)</div>')
+    st.markdown(f"**Facebooki grupp:** [{FB_GROUP_URL}]({FB_GROUP_URL})")
     
     only_giving_away = st.checkbox("✨ Näita ainult asju, mida antakse ära (peida otsijad)", value=True)
     
@@ -341,7 +337,7 @@ def render_free_tab(search_query):
     render_items_with_scroll(
         items, 
         page_key="free", 
-        button_text="Otsi seda eset grupis", 
+        button_text="Ava täpne otsing Sinu FB grupist", 
         base_badge=pill("badge-free", "🎁 Tasuta"), 
         search_query=search_query, 
         empty_msg="Otsingule vastavaid esemeid ei leitud."
@@ -417,7 +413,7 @@ def render_invest_tab():
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
-    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi tasuta asjad (ilma limiitideta + Keri edasi), Hange.ee aiatööd ja garaažid</div>'
+    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebooki grupi täpsed esemepõhised otselingid, Hange.ee aiatööd ja garaažid</div>'
     "</div>",
     unsafe_allow_html=True,
 )
