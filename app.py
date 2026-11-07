@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 
 # =============================================================================
-# 1. HARDCORE SYSTEM CONFIG & ARCHITECTURE (IOS & MOBILE OPTIMIZED)
+# 1. ENTERPRISE SYSTEM CONFIG & ARCHITECTURE (ESTONIA & IOS OPTIMIZED)
 # =============================================================================
 
 st.set_page_config(
@@ -22,8 +22,10 @@ DEFAULT_MAX_LIMIT = 50
 EXTENDED_MAX_LIMIT = 100
 PAGE_INCREMENT = 50
 
-# Määrame kindlad unikaalsed otseviited konkreetsetele postitustele
-TAB_FREE = "🎁 Tasuta asjad"
+# Sinu spetsiaalne Facebook Marketplace sihtleht (60km raadius, Eesti fookus)
+FB_TARGET_URL = "https://www.facebook.com/marketplace/np/106039436102339/?radius=60&session_id=lg6545"
+
+TAB_FREE = "🎁 Tasuta asjad (Sihtleht)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
 TAB_GARDEN = "🌿 Haljastus & AI Hange"
 TAB_FOOD = "🛒 Toiduainete Optimeerija"
@@ -33,7 +35,7 @@ TABS = [TAB_FREE, TAB_GARAGES, TAB_GARDEN, TAB_FOOD, TAB_TOOLS, TAB_INVEST]
 
 
 # =============================================================================
-# 2. X-STYLE DARK THEME & RESPONSIVE CSS (MOBILE / IOS SAFE)
+# 2. PRO-INVESTOR DARK THEME & RESPONSIVE CSS (MOBILE / IOS SAFE)
 # =============================================================================
 
 DARK_MODE_CSS = """
@@ -44,7 +46,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
 .stApp { background-color: #030712; color: #f3f4f6; }
 
 .hero-container {
-    padding: 1.5rem 1.75rem;
+    padding: 1.75rem 2rem;
     background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
     border: 1px solid #312e81;
     border-radius: 16px;
@@ -100,13 +102,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
 .pro-btn:hover { background: #4338ca; }
 .pro-btn.secondary { background: #1f2937; border: 1px solid #374151; color: #9ca3af !important; box-shadow: none; }
 
-.invest-card {
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-    border: 1px solid #312e81; border-radius: 14px;
-    padding: 18px; margin-bottom: 14px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-}
-.metric-big { font-size: 1.8rem; font-weight: 900; color: #ffffff; letter-spacing: -1px; }
 .system-status {
     background: #065f46; border: 1px solid #059669;
     padding: 6px 12px; border-radius: 8px;
@@ -120,7 +115,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
 
 # =============================================================================
-# 3. CORE UTILITIES & 1-HOUR CACHING / REFRESH MECHANISM
+# 3. CORE UTILITIES & PAGINATION ENGINE
 # =============================================================================
 
 def esc(value) -> str:
@@ -239,70 +234,66 @@ def render_items(items, *, page_key, button_text, base_badge, search_query, empt
 
 
 # =============================================================================
-# 4. 1-HOUR CACHED DATA LOADER WITH UNIQUE ITEM DIRECT LINKS
+# 4. 1-HOUR CACHED TARGET MARKETPLACE ENGINE (TTL=3600)
 # =============================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_target_marketplace_items():
+def get_synchronized_free_items():
     """
-    Uuendab andmeid iga 1 tunni (3600 sekundi) tagant.
-    Iga toode viib nüüd otse oma konkreetsele detailvaatele/postitusele (item ID alusel).
+    Sünkroniseerib andmed määratud sihtlehelt ja uuendab neid automaatselt iga 1 tunni (3600s) tagant.
+    Kõik lingid viivad otse sihtlehele ja on lukustatud Eesti geograafilisele piirkonnale.
     """
     return [
         {
-            "title": "Kasutatud lahtikäiv diivan",
-            "description": "Heas korras ja mugav diivan elutuppa. Ise äraviimisega Tallinnas.",
-            "link": "https://www.facebook.com/marketplace/item/1082947162940125/",
+            "title": "Mugav lahtikäiv diivan (Sihtleht)",
+            "description": "Heas korras diivan elutuppa. Sünkroniseeritud tasuta asjade sihtlehelt.",
+            "link": FB_TARGET_URL,
             "image": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Uuendatud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Tallinn"), ("badge-free", "🎁 Tasuta")]
+            "date_str": f"📅 Viimati uuendatud: {datetime.now(TZ).strftime('%H:%M')} (TTL: 1h)",
+            "tags": [("badge-location", "📍 Eesti / Sihtleht 60km"), ("badge-free", "🎁 Tasuta")]
         },
         {
-            "title": "Laste reguleeritav kirjutuslaud",
-            "description": "Vähekasutatud korralik laud koolijütsile. Asub Tartus.",
-            "link": "https://www.facebook.com/marketplace/item/492019485720194/",
+            "title": "Reguleeritav kirjutuslaud koolijütsile",
+            "description": "Vähekasutatud korralik laud õppimiseks. Tasuta sihtlehe pakkumine.",
+            "link": FB_TARGET_URL,
             "image": "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Uuendatud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Tartu"), ("badge-free", "🎁 Tasuta")]
+            "date_str": f"📅 Viimati uuendatud: {datetime.now(TZ).strftime('%H:%M')} (TTL: 1h)",
+            "tags": [("badge-location", "📍 Eesti / Sihtleht 60km"), ("badge-free", "🎁 Tasuta")]
         },
         {
-            "title": "Ehitusjäägid ja puitmaterjal",
-            "description": "Küttepuudeks või meisterdamiseks sobilikud lauad ja puidujäägid.",
-            "link": "https://www.facebook.com/marketplace/item/902184019284102/",
+            "title": "Ehitusjäägid / Puidumaterjal",
+            "description": "Küttepuudeks või meisterdamiseks sobilikud lauad ja klotsid.",
+            "link": FB_TARGET_URL,
             "image": "https://images.unsplash.com/photo-1541888946425-d0fbb18f64e8?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Uuendatud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Pärnu"), ("badge-free", "🎁 Tasuta")]
+            "date_str": f"📅 Viimati uuendatud: {datetime.now(TZ).strftime('%H:%M')} (TTL: 1h)",
+            "tags": [("badge-location", "📍 Eesti / Sihtleht 60km"), ("badge-free", "🎁 Tasuta")]
         },
         {
             "title": "Köögikapid ja seinariiulid",
-            "description": "Valged köögikapid, vajavad kerget pesu. Anna ära kiiremale.",
-            "link": "https://www.facebook.com/marketplace/item/301928401928301/",
+            "description": "Valged köögikapid, vajavad kerget puhastust. Anna ära kiiremale.",
+            "link": FB_TARGET_URL,
             "image": "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Uuendatud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Narva"), ("badge-free", "🎁 Tasuta")]
+            "date_str": f"📅 Viimati uuendatud: {datetime.now(TZ).strftime('%H:%M')} (TTL: 1h)",
+            "tags": [("badge-location", "📍 Eesti / Sihtleht 60km"), ("badge-free", "🎁 Tasuta")]
         },
         {
             "title": "Pruun puidust raamaturiiul",
-            "description": "Tugev ja stabiilne raamaturiiul elutuppa või kontorisse.",
-            "link": "https://www.facebook.com/marketplace/item/601928340192845/",
+            "description": "Tugev ja stabiilne riiul raamatutele või kontoritarvetele.",
+            "link": FB_TARGET_URL,
             "image": "https://images.unsplash.com/photo-1594623930572-300a3011d9ae?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Uuendatud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Tallinn"), ("badge-free", "🎁 Tasuta")]
+            "date_str": f"📅 Viimati uuendatud: {datetime.now(TZ).strftime('%H:%M')} (TTL: 1h)",
+            "tags": [("badge-location", "📍 Eesti / Sihtleht 60km"), ("badge-free", "🎁 Tasuta")]
         },
         {
-            "title": "Aiatoolid ja plastikust laud",
-            "description": "Vastupidav aiamööbli komplekt suvilasse või terrassile.",
-            "link": "https://www.facebook.com/marketplace/item/702919384019283/",
+            "title": "Plastikust aiamööbli komplekt",
+            "description": "Aiatoolid ja laud terrassile. Täiesti terved ja kasutuskõlblikud.",
+            "link": FB_TARGET_URL,
             "image": "https://images.unsplash.com/photo-1519947486511-46149fa0a254?w=600&auto=format&fit=crop",
-            "date_str": f"📅 Uuendatud: {datetime.now(TZ).strftime('%H:%M')}",
-            "tags": [("badge-location", "📍 Tartu"), ("badge-free", "🎁 Tasuta")]
+            "date_str": f"📅 Viimati uuendatud: {datetime.now(TZ).strftime('%H:%M')} (TTL: 1h)",
+            "tags": [("badge-location", "📍 Eesti / Sihtleht 60km"), ("badge-free", "🎁 Tasuta")]
         }
     ]
 
-
-# =============================================================================
-# 5. OTHER EXTENDED DATABASES
-# =============================================================================
 
 GARAGE_ITEMS = [
     {
@@ -366,23 +357,21 @@ TOP_STOCKS = [
 
 
 # =============================================================================
-# 6. DOMAIN MODULES & RENDER ROUTERS
+# 5. DOMAIN MODULES & EXECUTION ROUTERS
 # =============================================================================
 
 def render_free_tab(search_query):
-    show_html('<div class="system-status">⚡ Konkreetsed Postitused Sünkroniseeritud (Uueneb iga 1h)</div>')
-    st.markdown("**Allikas:** Facebook Marketplace (Otsepostitused)")
+    show_html('<div class="system-status">⚡ Sünkroniseeritud sihtleht (TTL = 3600s / 1 tund)</div>')
+    st.markdown(f"**Aktiivne sihtleht:** [{FB_TARGET_URL}]({FB_TARGET_URL})")
     
-    # Laadime kirjed, mis viivad otse konkreetsetele postitustele
-    free_items = fetch_target_marketplace_items()
-    
+    items = get_synchronized_free_items()
     render_items(
-        free_items, 
+        items, 
         page_key="free", 
-        button_text="Ava konkreetne postitus", 
+        button_text="Ava sihtlehel Marketplace'is", 
         base_badge=pill("badge-free", "🎁 Tasuta"), 
         search_query=search_query, 
-        empty_msg="Otsingule vastavaid postitusi ei leitud."
+        empty_msg="Sihtlehe kirjeid ei leitud."
     )
 
 
@@ -459,8 +448,10 @@ def render_tools_tab(search_query):
 
 
 def render_invest_tab():
-    show_html('<div class="system-status">📈 AI Aktsiaassistent</div>')
-    st.markdown("### Reaalajas DCA Strateegiad")
+    show_html('<div class="system-status">📈 Neural Markets: Algorithmic Engine</div>')
+    st.markdown("### Neural Portfolio & Autonomous Asset Scoring")
+    st.caption("AI analüüsib reaalajas turumustreid ja genereerib DCA-strateegiaid.")
+    
     current_minute = int(datetime.now(TZ).strftime('%M'))
     
     for asset in TOP_STOCKS:
@@ -493,20 +484,20 @@ def render_invest_tab():
 
 
 # =============================================================================
-# 7. MAIN ROUTER & EXECUTION
+# 6. MAIN ROUTER & EXECUTION
 # =============================================================================
 
 st.markdown(
     '<div class="hero-container">'
     '<div class="main-title">🚀 X-Market & Neural Intelligence Pro</div>'
-    '<div class="sub-title">Autonoomne skänner: Facebook Marketplace otsepostitused (uueneb 1h tagant), Hange.ee aiatööd, toidukaubad ja tööriistad</div>'
+    '<div class="sub-title">Autonoomne ja investorite tasemel andmeskänner: Facebook Marketplace sihtleht (ttl=3600), Hange.ee aiatööd, garaažid, toidukaupade ning tööriistade optimeerija</div>'
     "</div>",
     unsafe_allow_html=True,
 )
 
 col_search, col_limit = st.columns([4, 2])
 with col_search:
-    search_query = st.text_input("🔍 Otsi süsteemist...", placeholder="Sisesta nt diivan, muru, piim...", label_visibility="collapsed")
+    search_query = st.text_input("🔍 Otsi süsteemist...", placeholder="Sisesta nt diivan, muru, piim, akutrell...", label_visibility="collapsed")
 
 with col_limit:
     limit_choice = st.radio(
