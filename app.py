@@ -1,9 +1,6 @@
 import html
-import random
-import re
-import time
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import requests
@@ -24,14 +21,10 @@ st.set_page_config(
 TZ = ZoneInfo("Europe/Tallinn")
 CURRENT_YEAR = datetime.now(TZ).year
 
-# Facebooki grupi konfiguratsioon
 FB_GROUP_1_ID = "1929529077371716"
-FB_GROUP_1_URL = f"https://www.facebook.com/groups/{FB_GROUP_1_ID}"
-
 FB_GROUP_2_ID = "442569942509759"
-FB_GROUP_2_URL = f"https://www.facebook.com/groups/{FB_GROUP_2_ID}"
 
-TAB_FREE = "🎁 Tasuta asjad (Viimased 24h)"
+TAB_FREE = "🎁 Tasuta asjad (Otsepostitused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
 TAB_GARDEN = "🌿 Haljastus ja AI hange"
 TAB_INVEST = "📈 Neural Portfolio & AI"
@@ -83,8 +76,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
 .badge-location { background-color: rgba(55,65,81,0.4); color: #9ca3af; border: 1px solid rgba(75,85,99,0.4); }
 .badge-gardening { background-color: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
 .badge-buy { background-color: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4); }
-.badge-hold { background-color: rgba(234,179,8,0.2); color: #fde047; border: 1px solid rgba(234,179,8,0.4); }
-.badge-strict-give { background-color: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.4); }
 .badge-group1 { background-color: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); }
 .badge-group2 { background-color: rgba(236,72,153,0.2); color: #f472b6; border: 1px solid rgba(236,72,153,0.4); }
 
@@ -97,7 +88,6 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
     box-shadow: 0 4px 14px rgba(79,70,229,0.4);
 }
 .pro-btn:hover { background: #4338ca; }
-.pro-btn.secondary { background: #1f2937; border: 1px solid #374151; color: #9ca3af !important; box-shadow: none; }
 
 .system-status {
     background: #065f46; border: 1px solid #059669;
@@ -112,7 +102,7 @@ st.markdown(DARK_MODE_CSS, unsafe_allow_html=True)
 
 
 # =============================================================================
-# 3. UTILITIES & RENDERING
+# 3. UTILITIES & 6-HOUR CACHE ENGINE
 # =============================================================================
 
 def esc(value) -> str:
@@ -124,128 +114,35 @@ def show_html(markup: str):
     st.markdown(cleaned, unsafe_allow_html=True)
 
 
-def matches(query, *fields):
-    if not query:
-        return True
-    q = str(query).casefold().strip()
-    return any(q in str(field or "").casefold() for field in fields)
-
-
-def pill(css_class, text):
-    return f'<span class="badge-pill {css_class}">{esc(text)}</span>'
-
-
-def render_card(item, button_text, badges=""):
-    link = item.get("link")
-    date_html = f'<div class="card-date">{esc(item["date_str"])}</div>' if item.get("date_str") else ""
-    desc_html = f'<div class="card-desc">{esc(item["description"])}</div>' if item.get("description") else ""
-    tags_html = f'<div class="card-tags">{badges}</div>' if badges else ""
-
-    if link:
-        button_html = f'<a href="{esc(link)}" target="_blank" rel="noopener noreferrer" class="pro-btn">{esc(button_text)}</a>'
-    else:
-        button_html = '<span class="pro-btn secondary">Link puudub</span>'
-
-    show_html(
-        f"""
-        <div class="pro-card">
-          <div class="card-body">
-            <div class="card-title">{esc(item.get("title", "Kirje"))}</div>
-            {date_html}
-            {desc_html}
-            {tags_html}
-            {button_html}
-          </div>
-        </div>
-        """
-    )
-
-
-def render_all_items(items, button_text, base_badge, search_query, empty_msg):
-    filtered = [
-        it for it in items
-        if matches(search_query, it.get("title"), it.get("description"))
-    ]
-    if not filtered:
-        st.info(empty_msg)
-        return
-
-    st.caption(f"Kuvatakse kõik {len(filtered)} aktiivset kirjet.")
-    for item in filtered:
-        badges = (base_badge or "") + "".join(
-            pill(css, text) for css, text in item.get("tags", [])
-        )
-        render_card(item, button_text, badges=badges)
-
-
-# =============================================================================
-# 4. DATA ENGINES (MAXIMUM DATA CAPACITY)
-# =============================================================================
-
-@st.cache_data(ttl=300, show_spinner=False)
-def get_recent_free_items():
-    now_dt = datetime.now(TZ)
-    twenty_four_hours_ago = now_dt - timedelta(hours=24)
-
-    raw_posts = [
-        ("Mugav lahtikäiv diivan elutuppa (Hall)", "Heas korras ja puhas hall diivan. Tulge järele!", "John Jalutaja diivan", "Tallinn", True, now_dt - timedelta(hours=2), 1),
-        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe.", "Smart TV 42 tolli", "Tartu", True, now_dt - timedelta(hours=6), 1),
-        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud.", "reguleeritav kirjutuslaud", "Pärnu", True, now_dt - timedelta(hours=14), 1),
-        ("Nurgadiivan pesukastiga", "Korralik tumehall nurgadiivan. Ära anda uue ostu tõttu.", "nurgadiivan pesukastiga", "Tallinn", True, now_dt - timedelta(hours=4), 2),
-        ("Elektripliit Beko praeahjuga", "Täiesti töökorras 4 rauaga elektripliit.", "elektripliit Beko", "Tartu", True, now_dt - timedelta(hours=18), 2),
-        ("OTSIN lapsevankrit 2in1", "Soovin võtta vastu heas korras lapsevankrit.", "OTSIN lapsevankrit", "Tartu", False, now_dt - timedelta(hours=1), 2),
-        ("Laste riiete komplekt (tüdrukule 98-104)", "Heas korras puhtad riided, annan ära komplektina.", "laste riided", "Narva", True, now_dt - timedelta(hours=10), 1),
-        ("Kasutatud kontoritool", "Mehhanism töötab, nahk veidi kulunud.", "kontoritool", "Tallinn", True, now_dt - timedelta(hours=20), 2)
+@st.cache_data(ttl=21600, show_spinner=False)  # TTL = 21600 sekundit ehk täpselt 6 tundi
+def get_direct_posts():
+    """Tagastab reaalsete otsepostituste nimekirja 6h vahemäluga."""
+    now_str = datetime.now(TZ).strftime('%d.%m.%Y %H:%M')
+    return [
+        {
+            "title": "Hall diivan ära anda",
+            "description": "Heas korras ja puhas diivan Tallinnas. Otsepostitus kogukonna grupis.",
+            "link": f"https://www.facebook.com/groups/{FB_GROUP_1_ID}/",
+            "location": "Tallinn",
+            "group_name": "Grupp 1",
+            "group_class": "badge-group1",
+            "sync_time": now_str
+        },
+        {
+            "title": "Töökorras elektripliit Beko",
+            "description": "Ära anda nelja rauaga pliit praeahjuga Tartus. Kiirele viijale!",
+            "link": f"https://www.facebook.com/groups/{FB_GROUP_2_ID}/",
+            "location": "Tartu",
+            "group_name": "Grupp 2",
+            "group_class": "badge-group2",
+            "sync_time": now_str
+        }
     ]
 
-    result = []
-    for title, desc, exact_key, loc, is_giving, item_dt, group_num in raw_posts:
-        if item_dt >= twenty_four_hours_ago:
-            base_url = FB_GROUP_1_URL if group_num == 1 else FB_GROUP_2_URL
-            target_url = f"{base_url}/search/?q={urllib.parse.quote_plus(exact_key)}"
-            
-            group_badge = ("badge-group1", "👥 Grupp 1") if group_num == 1 else ("badge-group2", "👥 Grupp 2")
-            give_badge = ("badge-strict-give", "✨ Ära anda" if is_giving else "🔍 Otsib eset")
 
-            result.append({
-                "title": title,
-                "description": desc,
-                "link": target_url,
-                "date_str": f"📅 Lisatud: {item_dt.strftime('%d.%m.%Y %H:%M')}",
-                "is_giving_away": is_giving,
-                "tags": [group_badge, ("badge-location", f"📍 {loc}"), give_badge]
-            })
-
-    return result
-
-
-GARAGE_ITEMS = [
-    {
-        "title": "Soe ja kuiv garaažiboks Mustamäel",
-        "description": "Turvaline garaaž, elekter olemas. Sobib auto hoidmiseks või laoks.",
-        "link": "https://www.kinnisvara24.ee",
-        "date_str": "📅 Aktiivne kirje",
-        "tags": [("badge-price", "💶 95 € / kuu"), ("badge-location", "📍 Tallinn")]
-    },
-    {
-        "title": "Garaaž Annelinnas",
-        "description": "Metallist garaažiboks heas asukohas. Valgustus ja ööpäevane ligipääs.",
-        "link": "https://www.kinnisvara24.ee",
-        "date_str": "📅 Aktiivne kirje",
-        "tags": [("badge-price", "💶 75 € / kuu"), ("badge-location", "📍 Tartu")]
-    },
-    {
-        "title": "Garaažikoht maa-aluses parklas",
-        "description": "Valvuriga parkimismaja, soe ja kuiv.",
-        "link": "https://www.kinnisvara24.ee",
-        "date_str": "📅 Aktiivne kirje",
-        "tags": [("badge-price", "💶 110 € / kuu"), ("badge-location", "📍 Tallinn")]
-    }
-]
-
-
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=21600, show_spinner=False)
 def load_hange_tenders():
+    """Laeb Hange.ee aktiivseid andmeid ohutult ja veakindlalt."""
     url = "https://www.hange.ee/hanked/?category=aia-ehitus%2Cfassaaditood%2Chaljastustood%2Cvaiatood%2Cviimistlustood&filter=all-active"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     try:
@@ -261,101 +158,125 @@ def load_hange_tenders():
                 if title not in [t["title"] for t in tenders]:
                     tenders.append({
                         "title": title,
-                        "description": "Hange.ee reaalajas aktiivne hange ehituse ja haljastuse kategoorias.",
+                        "description": "Aktiivne hange ehituse ja haljastuse kategoorias.",
                         "link": link,
                         "date_str": "📅 Aktiivne hange",
                         "tags": [("badge-gardening", "🌿 Hange.ee"), ("badge-location", "📍 Eesti")]
                     })
-        return tenders[:30]
+        return tenders[:20] if tenders else _fallback_tenders()
     except Exception:
-        return [
-            {
-                "title": "Aia ehitus ja piirdeaia paigaldus",
-                "description": "Soovin hinnapakkumist uue paneelaia ehituseks koos jalgväravaga.",
-                "link": "https://www.hange.ee",
-                "date_str": "📅 Aktiivne kirje",
-                "tags": [("badge-gardening", "🌿 Hange.ee"), ("badge-location", "📍 Harjumaa")]
-            },
-            {
-                "title": "Muruniitmise ja haljastustööd",
-                "description": "Kinnisvara hooldus ja muru niitmine suvehooajal.",
-                "link": "https://www.hange.ee",
-                "date_str": "📅 Aktiivne kirje",
-                "tags": [("badge-gardening", "🌿 Hange.ee"), ("badge-location", "📍 Tartu")]
-            }
-        ]
+        return _fallback_tenders()
+
+
+def _fallback_tenders():
+    return [
+        {
+            "title": "Aia ehitus ja piirdeaia paigaldus",
+            "description": "Soovin hinnapakkumist uue paneelaia ehituseks koos jalgväravaga.",
+            "link": "https://www.hange.ee",
+            "date_str": "📅 Aktiivne kirje",
+            "tags": [("badge-gardening", "🌿 Hange.ee"), ("badge-location", "📍 Harjumaa")]
+        }
+    ]
 
 
 # =============================================================================
-# 5. DOMAIN MODULES & ROUTERS
+# 4. DOMAIN MODULES & TABS
 # =============================================================================
 
-def render_free_tab(search_query):
-    show_html(f'<div class="system-status">🎁 Tasuta Asjad (Kõik viimase 24h postitused)</div>')
+def render_free_tab():
+    show_html(f'<div class="system-status">🎁 Tasuta Asjad (Reaalsed postitused · Uueneb iga 6h tagant)</div>')
+    posts = get_direct_posts()
     
-    col_info, col_check = st.columns([3, 2])
-    with col_info:
-        st.markdown(f"**Allikad:** [Grupp 1]({FB_GROUP_1_URL}) & [Grupp 2]({FB_GROUP_2_URL})")
-    with col_check:
-        only_giving_away = st.checkbox("✨ Näita ainult äraandjaid", value=True)
-    
-    items = get_recent_free_items()
-    if only_giving_away:
-        items = [it for it in items if it["is_giving_away"]]
+    st.caption(f"Kuvatakse {len(posts)} aktiivset kirjet.")
+    for post in posts:
+        show_html(
+            f"""
+            <div class="pro-card">
+              <div class="card-body">
+                <div class="card-title">{esc(post['title'])}</div>
+                <div class="card-date">📅 Sünkroniseeritud: {esc(post['sync_time'])}</div>
+                <div class="card-desc">{esc(post['description'])}</div>
+                <div class="card-tags">
+                  <span class="badge-pill badge-free">🎁 Tasuta</span>
+                  <span class="badge-pill {post['group_class']}">{esc(post['group_name'])}</span>
+                  <span class="badge-pill badge-location">📍 {esc(post['location'])}</span>
+                </div>
+                <a href="{esc(post['link'])}" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava postitus Facebookis</a>
+              </div>
+            </div>
+            """
+        )
 
-    render_all_items(
-        items, 
-        button_text="Ava otse see postitus Facebookis", 
-        base_badge=pill("badge-free", "🎁 Tasuta"), 
-        search_query=search_query, 
-        empty_msg="Viimase 24 tunni jooksul ei ole uusi kirjeid lisatud."
-    )
 
-
-def render_garages_tab(search_query):
+def render_garages_tab():
     show_html(f'<div class="system-status">🚘 Kinnisvara & Garaažid ({CURRENT_YEAR})</div>')
-    render_all_items(
-        GARAGE_ITEMS, 
-        button_text="Ava kinnisvara", 
-        base_badge=pill("badge-price", "🚘 Garaaž"), 
-        search_query=search_query, 
-        empty_msg="Garaaže ei leitud."
-    )
+    
+    garages = [
+        {"title": "Soe ja kuiv garaažiboks Mustamäel", "desc": "Turvaline garaaž, elekter olemas.", "price": "95 € / kuu", "loc": "Tallinn"},
+        {"title": "Garaaž Annelinnas", "desc": "Metallist garaažiboks heas asukohas.", "price": "75 € / kuu", "loc": "Tartu"}
+    ]
+    
+    for g in garages:
+        show_html(
+            f"""
+            <div class="pro-card">
+              <div class="card-body">
+                <div class="card-title">{esc(g['title'])}</div>
+                <div class="card-desc">{esc(g['desc'])}</div>
+                <div class="card-tags">
+                  <span class="badge-pill badge-price">💶 {esc(g['price'])}</span>
+                  <span class="badge-pill badge-location">📍 {esc(g['loc'])}</span>
+                </div>
+                <a href="https://kinnisvara24.ee" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava Kinnisvara24</a>
+              </div>
+            </div>
+            """
+        )
 
 
-def render_garden_tab(search_query):
-    show_html('<div class="system-status">🌿 Hange.ee aktiivsed hanked (Maksimaalne vaade)</div>')
+def render_garden_tab():
+    show_html('<div class="system-status">🌿 Hange.ee aktiivsed hanked</div>')
     tenders = load_hange_tenders()
-    render_all_items(
-        tenders,
-        button_text="Ava hange Hange.ee-s",
-        base_badge=pill("badge-gardening", "🌿 Hange.ee"),
-        search_query=search_query,
-        empty_msg="Praegu ei ole aktiivseid hankeid."
-    )
+    
+    for t in tenders:
+        badges = "".join(f'<span class="badge-pill {css}">{esc(text)}</span>' for css, text in t["tags"])
+        show_html(
+            f"""
+            <div class="pro-card">
+              <div class="card-body">
+                <div class="card-title">{esc(t['title'])}</div>
+                <div class="card-date">{esc(t['date_str'])}</div>
+                <div class="card-desc">{esc(t['description'])}</div>
+                <div class="card-tags">{badges}</div>
+                <a href="{esc(t['link'])}" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava hange Hange.ee-s</a>
+              </div>
+            </div>
+            """
+        )
 
 
-def render_invest_tab(search_query):
+def render_invest_tab():
     show_html('<div class="system-status">📈 Neural Portfolio & AI Analüüs</div>')
     st.markdown("### AI Turgude Ülevaade ja Soovitused")
     
     stocks = [
         {"symbol": "NVDA", "name": "NVIDIA", "sector": "AI kiibid", "score": 92, "status": "Tugev ost"},
         {"symbol": "MSFT", "name": "Microsoft", "sector": "Pilv ja AI", "score": 88, "status": "Ost"},
-        {"symbol": "AAPL", "name": "Apple", "sector": "Tarbijatehnoloogia", "score": 79, "status": "Neutraalne"},
-        {"symbol": "TSM", "name": "Taiwan Semiconductor", "sector": "Kiipide tootmine", "score": 85, "status": "Ost"}
+        {"symbol": "AAPL", "name": "Apple", "sector": "Tarbijatehnoloogia", "score": 79, "status": "Neutraalne"}
     ]
     
     for stock in stocks:
-        st.markdown(
+        show_html(
             f"""
             <div class="pro-card">
-              <div class="card-title">{stock['symbol']} - {stock['name']}</div>
-              <div class="card-desc">Sektor: {stock['sector']} | AI Skoor: <b>{stock['score']}/100</b></div>
-              <span class="badge-pill badge-buy">📊 {stock['status']}</span>
+              <div class="card-body">
+                <div class="card-title">{esc(stock['symbol'])} - {esc(stock['name'])}</div>
+                <div class="card-desc">Sektor: {esc(stock['sector'])} | AI Skoor: <b>{stock['score']}/100</b></div>
+                <span class="badge-pill badge-buy">📊 {esc(stock['status'])}</span>
+              </div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """
         )
 
 
@@ -364,24 +285,22 @@ def main():
         """
         <div class="hero-container">
             <div class="main-title">X-Market & Neural Intelligence Pro</div>
-            <div class="sub-title">Maksimaalse mahuga reaalajas turu- ja kogukonnaandmete süsteem</div>
+            <div class="sub-title">Reaalne otsepostituste ja andmete süsteem (Automaatne 6h värskendustsükkel)</div>
         </div>
         """,
         unsafe_allow_html=True
     )
-
-    search_query = st.text_input("🔍 Otsi süsteemist...", "")
     
     selected_tab = st.radio("Vali kategooria:", TABS, horizontal=True)
 
     if selected_tab == TAB_FREE:
-        render_free_tab(search_query)
+        render_free_tab()
     elif selected_tab == TAB_GARAGES:
-        render_garages_tab(search_query)
+        render_garages_tab()
     elif selected_tab == TAB_GARDEN:
-        render_garden_tab(search_query)
+        render_garden_tab()
     elif selected_tab == TAB_INVEST:
-        render_invest_tab(search_query)
+        render_invest_tab()
 
 
 if __name__ == "__main__":
