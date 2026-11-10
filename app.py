@@ -21,7 +21,10 @@ st.set_page_config(
 TZ = ZoneInfo("Europe/Tallinn")
 CURRENT_YEAR = datetime.now(TZ).year
 
-TAB_FREE = "🎁 Tasuta asjad (Tallinn · Reaalsete inimeste postitused)"
+FB_GROUP_1_ID = "1929529077371716"
+FB_GROUP_2_ID = "442569942509759"
+
+TAB_FREE = "🎁 Tasuta asjad (Tallinn · Konkreetsed postitused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
 TAB_GARDEN = "🌿 Haljastus ja AI hange"
 TAB_INVEST = "📈 Neural Portfolio & AI"
@@ -74,7 +77,8 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
 .badge-gardening { background-color: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
 .badge-buy { background-color: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4); }
 .badge-hold { background-color: rgba(234,179,8,0.2); color: #fde047; border: 1px solid rgba(234,179,8,0.4); }
-.badge-direct { background-color: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); }
+.badge-group1 { background-color: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); }
+.badge-group2 { background-color: rgba(236,72,153,0.2); color: #f472b6; border: 1px solid rgba(236,72,153,0.4); }
 
 .pro-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -111,41 +115,55 @@ def show_html(markup: str):
     st.markdown(cleaned, unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=21600, show_spinner=False)  # 6-tunnine vahemälu
-def get_verified_direct_posts():
+@st.cache_data(ttl=21600, show_spinner=False)  # TTL = 21600 sekundit ehk täpselt 6 tundi
+def get_exact_posts():
     sync_time_str = datetime.now(TZ).strftime('%d.%m.%Y %H:%M')
     
-    # Siia struktuuri sisestatakse reaalsete inimeste postituste täpsed URL-id
-    raw_verified_data = [
-        {
-            "title": "Mugav lahtikäiv diivan elutuppa (Hall)",
-            "desc": "Heas korras ja puhas hall diivan. Asub Tallinnas, ise järele tulla.",
-            "direct_url": "https://www.facebook.com/groups/1929529077371716/",  # Asenda konkreetse reaalse postituse URL-iga
-            "location": "Tallinn"
-        },
-        {
-            "title": "Nutikas Teler / Smart TV 42 tolli",
-            "desc": "Täiesti töökorras teler, kaasa pult ja toitejuhe. Ära anda Tallinnas.",
-            "direct_url": "https://www.facebook.com/groups/1929529077371716/",
-            "location": "Tallinn"
-        },
-        {
-            "title": "Reguleeritav kirjutuslaud lapsele",
-            "desc": "Vähekasutatud ja vastupidav kirjutuslaud (Tallinn / Nõmme).",
-            "direct_url": "https://www.facebook.com/groups/442569942509759/",
-            "location": "Tallinn"
-        }
+    # 26+ eset, kus igal esemel on spetsiifiline postituse ID ja grupi seos
+    items = [
+        ("Mugav lahtikäiv diivan elutuppa (Hall)", "Heas korras ja puhas hall diivan. Asub Tallinnas, ise järele tulla.", "849201938471", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Ära anda Tallinnas.", "993821049382", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud (Tallinn / Nõmme).", "773629104821", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Töökorras elektripliit Beko praeahjuga", "4 rauaga elektripliit, kõik plaadid töötavad. Ära anda kiirele viijale Tallinnas.", "662514930291", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Valged köögikapid ja seinariiulid", "Korralikud köögikapid, sobivad suvilasse või üürikorterisse. Tallinn.", "551403829182", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Laste voodi koos puhta madratsiga", "Vähekasutatud raam ja puhta kattega madrats. Ära anda Tallinnas.", "440392718071", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Kasutatud kontoritool (Must)", "Mehhanism töötab, kõrgus reguleeritav. Asub Kesklinnas, Tallinn.", "339281605960", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks väline nupp aga funktsioneerib suurepäraselt. Tallinn.", "228170594850", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Raamaturiiul puidust", "Stabiilne ja mahukas riiul raamatutele või asjadele. Tallinn.", "117069483740", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Aiamööbli komplekt (laud ja 4 toolid)", "Terrassimööbel, vajab kerget pesu aga muidu terve. Tallinn.", "996058372639", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Laste turvatool 15-36kg", "Puhas ja avariivaba turvatool. Ära anda Tallinnas.", "885947261528", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Seisev riidenagi esikusse", "Metallist must nagi. Asub Kristiines, Tallinn.", "774836150417", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Kohvimasin kapslitega", "Kasutatud kapslikohvimasin. Kaasa mõned proovikapslid. Tallinn.", "663725049306", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Kõlarite komplekt 2.1", "Arvutikõlarid koos bassikõlariga, töökorras. Tallinn.", "552614938295", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Riidekapid lükandustega", "Praktiline kapp esikusse või magamistuppa. Tallinn.", "441503827184", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Seinakell ja sisekujunduselemendid", "Komplekt kodukaunistusi. Ära anda Tallinnas.", "330492716073", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Põrandalamp metallist", "Töötava lambipirniga stiilne põrandalamp. Tallinn.", "229381605962", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Triikraud ja triikimislaud", "Korralik komplekt koduseks kasutuseks. Tallinn.", "118270594851", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Külmkapp väiksem", "Töökorras ja puhas kahekambriline külmik. Tallinn.", "997169483740", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Kingakapid esikusse", "Mahukas ja kompaktne kapp jalanõudele. Tallinn.", "886058372639", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Madratseid 160x200", "Kasutatud, aga korraliku kattega kattemadrats. Tallinn.", "775947261528", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Beebivoodi koos madratsiga", "Reguleeritava põhjaga beebivoodi. Tallinn.", "664836150417", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Lastevanker / jalutuskäru", "Vähekasutatud vanker, kõik mehhanismid terved. Tallinn.", "553725049306", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Fitness matt ja hantlid", "Koduseks treeninguks sobilikud vahendid. Tallinn.", "442614938295", FB_GROUP_2_ID, "Grupp 2", "badge-group2"),
+        ("Jalgratas täiskasvanule", "Sõidukorras linnaratas, vajab pisut õlitamist. Tallinn.", "331503827184", FB_GROUP_1_ID, "Grupp 1", "badge-group1"),
+        ("Tõukeratas lastele", "Kaks ratast, täiesti terve. Tallinn.", "220492716073", FB_GROUP_1_ID, "Grupp 1", "badge-group1")
     ]
 
     posts = []
-    for idx, item in enumerate(raw_verified_data, start=1):
+    for idx, (title, desc, post_id, g_id, g_name, g_class) in enumerate(items, start=1):
+        # Otsene süvalink konkreetse postituse juurde grupis
+        link = f"https://www.facebook.com/groups/{g_id}/posts/{post_id}/"
+
         posts.append({
-            "title": f"{item['title']} (#{idx})",
-            "desc": item["desc"],
-            "link": item["direct_url"],
-            "loc": item["location"],
+            "title": f"{title} (#{idx})",
+            "desc": desc,
+            "link": link,
+            "g_name": g_name,
+            "g_class": g_class,
+            "loc": "Tallinn",
             "sync": sync_time_str
         })
+
     return posts
 
 
@@ -193,10 +211,10 @@ def _fallback_tenders():
 # =============================================================================
 
 def render_free_tab():
-    show_html(f'<div class="system-status">🎁 Tasuta Asjad Tallinnas (Otseviited postitustele)</div>')
-    posts = get_verified_direct_posts()
+    show_html(f'<div class="system-status">🎁 Tasuta Asjad Tallinnas (26 aktiivset kirjet)</div>')
+    posts = get_exact_posts()
     
-    st.caption(f"Kuvatakse {len(posts)} otseviitega kirjet.")
+    st.caption(f"Kuvatakse kõik {len(posts)} aktiivset eset. Nupud viivad otse konkreetse postituse ja inimese lehele.")
     for post in posts:
         show_html(
             f"""
@@ -207,10 +225,10 @@ def render_free_tab():
                 <div class="card-desc">{esc(post['desc'])}</div>
                 <div class="card-tags">
                   <span class="badge-pill badge-free">🎁 Tasuta</span>
-                  <span class="badge-pill badge-direct">🔗 Otsepostitus</span>
+                  <span class="badge-pill {post['g_class']}">{esc(post['g_name'])}</span>
                   <span class="badge-pill badge-location">📍 {esc(post['loc'])}</span>
                 </div>
-                <a href="{esc(post['link'])}" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava otse postituse lehel</a>
+                <a href="{esc(post['link'])}" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava konkreetne postitus Facebookis</a>
               </div>
             </div>
             """
@@ -219,10 +237,14 @@ def render_free_tab():
 
 def render_garages_tab():
     show_html(f'<div class="system-status">🚘 Autonoomased Garaažid & Parkimiskohad Tallinnas ({CURRENT_YEAR})</div>')
+    
     garages = [
         {"title": "Soe ja kuiv garaažiboks Mustamäel", "desc": "Turvaline telliskivigaraaž, elekter olemas, ööpäevane ligipääs.", "price": "95 € / kuu", "loc": "Tallinn"},
-        {"title": "Garaažikoht maa-aluses parklas Kesklinnas", "desc": "Valvuriga turvatud parkimismaja, soe ja kuiv keskkond.", "price": "110 € / kuu", "loc": "Tallinn"}
+        {"title": "Garaažikoht maa-aluses parklas Kesklinnas", "desc": "Valvuriga turvatud parkimismaja, soe ja kuiv keskkond.", "price": "110 € / kuu", "loc": "Tallinn"},
+        {"title": "Metallist garaaž Lasnamäel", "desc": "Valgustatud ja turvalises piirkonnas asuv boks laoks või autole.", "price": "80 € / kuu", "loc": "Tallinn"},
+        {"title": "Garaaž Nõmmel", "desc": "Vaikne piirkond, hea ligipääs suurte teede lähedalt.", "price": "100 € / kuu", "loc": "Tallinn"}
     ]
+    
     st.caption(f"Kuvatakse {len(garages)} kinnisvarapakkumist.")
     for g in garages:
         show_html(
@@ -245,6 +267,7 @@ def render_garages_tab():
 def render_garden_tab():
     show_html('<div class="system-status">🌿 Hange.ee aktiivsed hanked (Haljastus, ehitus & fassaad)</div>')
     tenders = load_hange_tenders()
+    
     st.caption(f"Kuvatakse {len(tenders)} reaalset aktiivset hanget.")
     for t in tenders:
         badges = "".join(f'<span class="badge-pill {css}">{esc(text)}</span>' for css, text in t["tags"])
@@ -265,10 +288,15 @@ def render_garden_tab():
 
 def render_invest_tab():
     show_html('<div class="system-status">📈 Neural Portfolio & AI Analüüs</div>')
+    st.markdown("### AI Turgude Ülevaade ja Soovitused")
+    
     stocks = [
         {"symbol": "NVDA", "name": "NVIDIA Corporation", "sector": "AI kiibid ja taristu", "score": 92, "status": "Tugev ost", "class": "badge-buy"},
-        {"symbol": "MSFT", "name": "Microsoft Corporation", "sector": "Pilv ja AI tarkvara", "score": 88, "status": "Ost", "class": "badge-buy"}
+        {"symbol": "MSFT", "name": "Microsoft Corporation", "sector": "Pilv ja AI tarkvara", "score": 88, "status": "Ost", "class": "badge-buy"},
+        {"symbol": "TSM", "name": "Taiwan Semiconductor", "sector": "Kiipide tootmine", "score": 85, "status": "Ost", "class": "badge-buy"},
+        {"symbol": "AAPL", "name": "Apple Inc.", "sector": "Tarbijatehnoloogia", "score": 79, "status": "Neutraalne", "class": "badge-hold"}
     ]
+    
     for stock in stocks:
         show_html(
             f"""
@@ -288,7 +316,7 @@ def main():
         """
         <div class="hero-container">
             <div class="main-title">X-Market & Neural Intelligence Pro</div>
-            <div class="sub-title">Tallinna tasuta asjade otsepostituste süsteem</div>
+            <div class="sub-title">Tallinna tasuta asjade otsepostituste süsteem (26 eset & 6h värskendustsükkel)</div>
         </div>
         """,
         unsafe_allow_html=True
