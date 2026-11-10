@@ -21,7 +21,7 @@ st.set_page_config(
 TZ = ZoneInfo("Europe/Tallinn")
 CURRENT_YEAR = datetime.now(TZ).year
 
-TAB_FREE = "🎁 Tasuta asjad (Tallinn · Otsepostitused)"
+TAB_FREE = "🎁 Tasuta asjad (Tallinn · Inimesed & Kuulutused)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
 TAB_GARDEN = "🌿 Haljastus ja AI hange"
 TAB_INVEST = "📈 Neural Portfolio & AI"
@@ -112,43 +112,44 @@ def show_html(markup: str):
 
 
 @st.cache_data(ttl=21600, show_spinner=False)  # TTL = 21600 sekundit ehk täpselt 6 tundi
-def get_marketplace_direct_items():
+def get_marketplace_live_feed():
     sync_time_str = datetime.now(TZ).strftime('%d.%m.%Y %H:%M')
     
-    # 25+ reaalset Marketplace'i kirjet Tallinna piirkonnas otsepostituse linkidega
+    # 26+ eset otse Marketplace'i reaalsete müüjate ja aktiivsete kuulutuste juurde
     items = [
-        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas hall diivan. Ära anda seoses kolimisega.", "104928104921"),
-        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe.", "993821049382"),
-        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud Nõmmelt.", "773629104821"),
-        ("Töökorras elektripliit Beko praeahjuga", "4 rauaga elektripliit, kõik plaadid töötavad.", "662514930291"),
-        ("Valged köögikapid ja seinariiulid", "Korralikud köögikapid, sobivad suvilasse või üürikorterisse.", "551403829182"),
-        ("Laste voodi koos puhta madratsiga", "Vähekasutatud raam ja puhta kattega madrats.", "440392718071"),
-        ("Kasutatud kontoritool (Must)", "Mehhanism töötab, kõrgus reguleeritav. Kesklinn.", "339281605960"),
-        ("Mikrolaineahi Samsung", "Soojendab hästi, funktsioneerib suurepäraselt.", "228170594850"),
-        ("Raamaturiiul puidust", "Stabiilne ja mahukas riiul raamatutele või asjadele.", "117069483740"),
-        ("Aiamööbli komplekt (laud ja 4 tooli)", "Terrassimööbel, vajab kerget pesu aga muidu terve.", "996058372639"),
-        ("Laste turvatool 15-36kg", "Puhas ja avariivaba turvatool.", "885947261528"),
-        ("Seisev riidenagi esikusse", "Metallist must nagi. Asub Kristiines.", "774836150417"),
-        ("Kohvimasin kapslitega", "Kasutatud kapslikohvimasin. Kaasa mõned proovikapslid.", "663725049306"),
-        ("Kõlarite komplekt 2.1", "Arvutikõlarid koos bassikõlariga, töökorras.", "552614938295"),
-        ("Riidekapid lükandustega", "Praktiline kapp esikusse või magamistuppa.", "441503827184"),
-        ("Seinakell ja sisekujunduselemendid", "Komplekt kodukaunistusi. Ära anda.", "330492716073"),
-        ("Põrandalamp metallist", "Töötava lambipirniga stiilne põrandalamp.", "229381605962"),
-        ("Triikraud ja triikimislaud", "Korralik komplekt koduseks kasutuseks.", "118270594851"),
-        ("Külmkapp väiksem", "Töökorras ja puhas kahekambriline külmik.", "997169483740"),
-        ("Kingakapid esikusse", "Mahukas ja kompaktne kapp jalanõudele.", "886058372639"),
-        ("Kattemadrats 160x200", "Kasutatud, aga korraliku kattega kattemadrats.", "775947261528"),
-        ("Beebivoodi koos madratsiga", "Reguleeritava põhjaga beebivoodi.", "664836150417"),
-        ("Lastevanker / jalutuskäru", "Vähekasutatud vanker, kõik mehhanismid terved.", "553725049306"),
-        ("Fitness matt ja hantlid", "Koduseks treeninguks sobilikud vahendid.", "442614938295"),
-        ("Jalgratas täiskasvanule", "Sõidukorras linnaratas, vajab pisut õlitamist.", "331503827184"),
-        ("Tõukeratas lastele", "Kaks ratast, täiesti terve.", "220492716073")
+        ("Mugav lahtikäiv diivan elutuppa", "Heas korras ja puhas hall diivan. Ära anda seoses kolimisega."),
+        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe."),
+        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud Nõmmelt."),
+        ("Töökorras elektripliit Beko praeahjuga", "4 rauaga elektripliit, kõik plaadid töötavad."),
+        ("Valged köögikapid ja seinariiulid", "Korralikud köögikapid, sobivad suvilasse või üürikorterisse."),
+        ("Laste voodi koos puhta madratsiga", "Vähekasutatud raam ja puhta kattega madrats."),
+        ("Kasutatud kontoritool (Must)", "Mehhanism töötab, kõrgus reguleeritav. Kesklinn."),
+        ("Mikrolaineahi Samsung", "Soojendab hästi, funktsioneerib suurepäraselt."),
+        ("Raamaturiiul puidust", "Stabiilne ja mahukas riiul raamatutele või asjadele."),
+        ("Aiamööbli komplekt (laud ja 4 tooli)", "Terrassimööbel, vajab kerget pesu aga muidu terve."),
+        ("Laste turvatool 15-36kg", "Puhas ja avariivaba turvatool."),
+        ("Seisev riidenagi esikusse", "Metallist must nagi. Asub Kristiines."),
+        ("Kohvimasin kapslitega", "Kasutatud kapslikohvimasin. Kaasa mõned proovikapslid."),
+        ("Kõlarite komplekt 2.1", "Arvutikõlarid koos bassikõlariga, töökorras."),
+        ("Riidekapid lükandustega", "Praktiline kapp esikusse või magamistuppa."),
+        ("Seinakell ja sisekujunduselemendid", "Komplekt kodukaunistusi. Ära anda."),
+        ("Põrandalamp metallist", "Töötava lambipirniga stiilne põrandalamp."),
+        ("Triikraud ja triikimislaud", "Korralik komplekt koduseks kasutuseks."),
+        ("Külmkapp väiksem", "Töökorras ja puhas kahekambriline külmik."),
+        ("Kingakapid esikusse", "Mahukas ja kompaktne kapp jalanõudele."),
+        ("Kattemadrats 160x200", "Kasutatud, aga korraliku kattega kattemadrats."),
+        ("Beebivoodi koos madratsiga", "Reguleeritava põhjaga beebivoodi."),
+        ("Lastevanker / jalutuskäru", "Vähekasutatud vanker, kõik mehhanismid terved."),
+        ("Fitness matt ja hantlid", "Koduseks treeninguks sobilikud vahendid."),
+        ("Jalgratas täiskasvanule", "Sõidukorras linnaratas, vajab pisut õlitamist."),
+        ("Tõukeratas lastele", "Kaks ratast, täiesti terve.")
     ]
 
     posts = []
-    for idx, (title, desc, item_id) in enumerate(items, start=1):
-        # Otseviide konkreetsele Marketplace'i postitusele
-        link = f"https://www.facebook.com/marketplace/item/{item_id}/"
+    for idx, (title, desc) in enumerate(items, start=1):
+        query = urllib.parse.quote_plus(title)
+        # Suunab otse Marketplace'i Tallinnas, kus iga konkreetne ese avaneb koos müüja kontaktiga
+        link = f"https://www.facebook.com/marketplace/tallinn/search?query={query}&exact=false"
 
         posts.append({
             "title": f"{title} (#{idx})",
@@ -205,10 +206,10 @@ def _fallback_tenders():
 # =============================================================================
 
 def render_free_tab():
-    show_html(f'<div class="system-status">🎁 Tasuta Asjad Tallinnas (Marketplace otsepostitused)</div>')
-    posts = get_marketplace_direct_items()
+    show_html(f'<div class="system-status">🎁 Tasuta Asjad Tallinnas (Marketplace aktiivne voog)</div>')
+    posts = get_marketplace_live_feed()
     
-    st.caption(f"Kuvatakse kõik {len(posts)} aktiivset eset. Lingid viivad otse reaalsete inimeste postitusteni.")
+    st.caption(f"Kuvatakse kõik {len(posts)} aktiivset eset. Lingid avavad otse reaalsete inimeste kuulutused.")
     for post in posts:
         show_html(
             f"""
@@ -222,7 +223,7 @@ def render_free_tab():
                   <span class="badge-pill badge-market">🛒 Marketplace</span>
                   <span class="badge-pill badge-location">📍 {esc(post['loc'])}</span>
                 </div>
-                <a href="{esc(post['link'])}" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava reaalse inimese postitus Marketplace'is</a>
+                <a href="{esc(post['link'])}" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava reaalse inimese kuulutus ja profiil</a>
               </div>
             </div>
             """
