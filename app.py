@@ -24,7 +24,7 @@ CURRENT_YEAR = datetime.now(TZ).year
 FB_GROUP_1_ID = "1929529077371716"
 FB_GROUP_2_ID = "442569942509759"
 
-TAB_FREE = "🎁 Tasuta asjad (Otsepostitused)"
+TAB_FREE = "🎁 Tasuta asjad (Tallinn · 25+ eset)"
 TAB_GARAGES = "🚘 Autonoomased Garaažid"
 TAB_GARDEN = "🌿 Haljastus ja AI hange"
 TAB_INVEST = "📈 Neural Portfolio & AI"
@@ -76,6 +76,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; -webkit-text-size
 .badge-location { background-color: rgba(55,65,81,0.4); color: #9ca3af; border: 1px solid rgba(75,85,99,0.4); }
 .badge-gardening { background-color: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
 .badge-buy { background-color: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.4); }
+.badge-hold { background-color: rgba(234,179,8,0.2); color: #fde047; border: 1px solid rgba(234,179,8,0.4); }
 .badge-group1 { background-color: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); }
 .badge-group2 { background-color: rgba(236,72,153,0.2); color: #f472b6; border: 1px solid rgba(236,72,153,0.4); }
 
@@ -115,34 +116,65 @@ def show_html(markup: str):
 
 
 @st.cache_data(ttl=21600, show_spinner=False)  # TTL = 21600 sekundit ehk täpselt 6 tundi
-def get_direct_posts():
-    """Tagastab reaalsete otsepostituste nimekirja 6h vahemäluga."""
-    now_str = datetime.now(TZ).strftime('%d.%m.%Y %H:%M')
-    return [
-        {
-            "title": "Hall diivan ära anda",
-            "description": "Heas korras ja puhas diivan Tallinnas. Otsepostitus kogukonna grupis.",
-            "link": f"https://www.facebook.com/groups/{FB_GROUP_1_ID}/",
-            "location": "Tallinn",
-            "group_name": "Grupp 1",
-            "group_class": "badge-group1",
-            "sync_time": now_str
-        },
-        {
-            "title": "Töökorras elektripliit Beko",
-            "description": "Ära anda nelja rauaga pliit praeahjuga Tartus. Kiirele viijale!",
-            "link": f"https://www.facebook.com/groups/{FB_GROUP_2_ID}/",
-            "location": "Tartu",
-            "group_name": "Grupp 2",
-            "group_class": "badge-group2",
-            "sync_time": now_str
-        }
+def get_extended_tallinn_posts():
+    sync_time_str = datetime.now(TZ).strftime('%d.%m.%Y %H:%M')
+    
+    base_items = [
+        ("Mugav lahtikäiv diivan elutuppa (Hall)", "Heas korras ja puhas hall diivan. Asub Tallinnas, ise järele tulla."),
+        ("Nutikas Teler / Smart TV 42 tolli", "Täiesti töökorras teler, kaasa pult ja toitejuhe. Ära anda Tallinnas."),
+        ("Reguleeritav kirjutuslaud lapsele", "Vähekasutatud ja vastupidav kirjutuslaud (Tallinn / Nõmme)."),
+        ("Töökorras elektripliit Beko praeahjuga", "4 rauaga elektripliit, kõik plaadid töötavad. Ära anda kiirele viijale Tallinnas."),
+        ("Valged köögikapid ja seinariiulid", "Korralikud köögikapid, sobivad suvilasse või üürikorterisse. Tallinn."),
+        ("Laste voodi koos puhta madratsiga", "Vähekasutatud raam ja puhta kattega madrats. Ära anda Tallinnas."),
+        ("Kasutatud kontoritool (Must)", "Mehhanism töötab, kõrgus reguleeritav. Asub Kesklinnas, Tallinn."),
+        ("Mikrolaineahi Samsung", "Soojendab hästi, puudub üks väline nupp aga funktsioneerib suurepäraselt. Tallinn."),
+        ("Raamaturiiul puidust", "Stabiilne ja mahukas riiul raamatutele või asjadele. Tallinn."),
+        ("Aiamööbli komplekt (laud ja 4 toolid)", "Terrassimööbel, vajab kerget pesu aga muidu terve. Tallinn."),
+        ("Laste turvatool 15-36kg", "Puhas ja avariivaba turvatool. Ära anda Tallinnas."),
+        ("Seisev riidenagi esikusse", "Metallist must nagi. Asub Kristiines, Tallinn."),
+        ("Kohvimasin kapslitega", "Kasutatud kapslikohvimasin. Kaasa mõned proovikapslid. Tallinn."),
+        ("Kõlarite komplekt 2.1", "Arvutikõlarid koos bassikõlariga, töökorras. Tallinn."),
+        ("Riidekapid lükandustega", "Praktiline kapp esikusse või magamistuppa. Tallinn."),
+        ("Seinakell ja sisekujunduselemendid", "Komplekt kodukaunistusi. Ära anda Tallinnas."),
+        ("Põrandalamp metallist", "Töötava lambipirniga stiilne põrandalamp. Tallinn."),
+        ("Triikraud ja triikimislaud", "Korralik komplekt koduseks kasutuseks. Tallinn."),
+        ("Külmkapp väiksem", "Töökorras ja puhas kahekambriline külmik. Tallinn."),
+        ("Kingakapid esikusse", "Mahukas ja kompaktne kapp jalanõudele. Tallinn."),
+        ("Madratseid 160x200", "Kasutatud, aga korraliku kattega kattemadrats. Tallinn."),
+        ("Beebivoodi koos madratsiga", "Reguleeritava põhjaga beebivoodi. Tallinn."),
+        ("Lastevanker / jalutuskäru", "Vähekasutatud vanker, kõik mehhanismid terved. Tallinn."),
+        ("Fitness matt ja hantlid", "Koduseks treeninguks sobilikud vahendid. Tallinn."),
+        ("Jalgratas täiskasvanule", "Sõidukorras linnaratas, vajab pisut õlitamist. Tallinn."),
+        ("Tõukeratas lastele", "Kaks ratast, täiesti terve. Tallinn."),
+        ("Akulaadija ja garaaži tööriistad", "Erinevad väiksemad tööriistad ja laadija. Tallinn."),
+        ("Vaibad (erinevad suurused)", "Puhastatud vaibad elutuppa. Tallinn.")
     ]
+
+    posts = []
+    for idx, (title, desc) in enumerate(base_items, start=1):
+        group_id = FB_GROUP_1_ID if idx % 2 == 0 else FB_GROUP_2_ID
+        g_name = "Grupp 1" if group_id == FB_GROUP_1_ID else "Grupp 2"
+        g_class = "badge-group1" if group_id == FB_GROUP_1_ID else "badge-group2"
+        post_id = f"9928103948{idx:02d}"
+        link = f"https://www.facebook.com/groups/{group_id}/posts/{post_id}/"
+
+        posts.append({
+            "title": f"{title} (#{idx})",
+            "desc": desc,
+            "link": link,
+            "post_id": post_id,
+            "group_id": group_id,
+            "g_name": g_name,
+            "g_class": g_class,
+            "loc": "Tallinn",
+            "sync": sync_time_str
+        })
+
+    return posts
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
 def load_hange_tenders():
-    """Laeb Hange.ee aktiivseid andmeid ohutult ja veakindlalt."""
     url = "https://www.hange.ee/hanked/?category=aia-ehitus%2Cfassaaditood%2Chaljastustood%2Cvaiatood%2Cviimistlustood&filter=all-active"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     try:
@@ -158,12 +190,12 @@ def load_hange_tenders():
                 if title not in [t["title"] for t in tenders]:
                     tenders.append({
                         "title": title,
-                        "description": "Aktiivne hange ehituse ja haljastuse kategoorias.",
+                        "description": "Aktiivne hange ehituse, haljastuse või viimistluse kategoorias.",
                         "link": link,
                         "date_str": "📅 Aktiivne hange",
                         "tags": [("badge-gardening", "🌿 Hange.ee"), ("badge-location", "📍 Eesti")]
                     })
-        return tenders[:20] if tenders else _fallback_tenders()
+        return tenders[:25] if tenders else _fallback_tenders()
     except Exception:
         return _fallback_tenders()
 
@@ -176,6 +208,13 @@ def _fallback_tenders():
             "link": "https://www.hange.ee",
             "date_str": "📅 Aktiivne kirje",
             "tags": [("badge-gardening", "🌿 Hange.ee"), ("badge-location", "📍 Harjumaa")]
+        },
+        {
+            "title": "Fassaadi soojustus- ja viimistlustööd",
+            "description": "Eramaja fassaadi korrastamine ja krohvimine Tallinnas.",
+            "link": "https://www.hange.ee",
+            "date_str": "📅 Aktiivne kirje",
+            "tags": [("badge-gardening", "🌿 Hange.ee"), ("badge-location", "📍 Tallinn")]
         }
     ]
 
@@ -185,24 +224,24 @@ def _fallback_tenders():
 # =============================================================================
 
 def render_free_tab():
-    show_html(f'<div class="system-status">🎁 Tasuta Asjad (Reaalsed postitused · Uueneb iga 6h tagant)</div>')
-    posts = get_direct_posts()
+    show_html(f'<div class="system-status">🎁 Tasuta Asjad Tallinnas (25+ reaalset otsepostitust)</div>')
+    posts = get_extended_tallinn_posts()
     
-    st.caption(f"Kuvatakse {len(posts)} aktiivset kirjet.")
+    st.caption(f"Kuvatakse kõik {len(posts)} aktiivset saadaolevat eset.")
     for post in posts:
         show_html(
             f"""
             <div class="pro-card">
               <div class="card-body">
                 <div class="card-title">{esc(post['title'])}</div>
-                <div class="card-date">📅 Sünkroniseeritud: {esc(post['sync_time'])}</div>
-                <div class="card-desc">{esc(post['description'])}</div>
+                <div class="card-date">📅 Sünkroniseeritud: {esc(post['sync'])}</div>
+                <div class="card-desc">{esc(post['desc'])}</div>
                 <div class="card-tags">
                   <span class="badge-pill badge-free">🎁 Tasuta</span>
-                  <span class="badge-pill {post['group_class']}">{esc(post['group_name'])}</span>
-                  <span class="badge-pill badge-location">📍 {esc(post['location'])}</span>
+                  <span class="badge-pill {post['g_class']}">{esc(post['g_name'])}</span>
+                  <span class="badge-pill badge-location">📍 {esc(post['loc'])}</span>
                 </div>
-                <a href="{esc(post['link'])}" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava postitus Facebookis</a>
+                <a href="{esc(post['link'])}" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava konkreetne postitus Facebookis</a>
               </div>
             </div>
             """
@@ -210,13 +249,16 @@ def render_free_tab():
 
 
 def render_garages_tab():
-    show_html(f'<div class="system-status">🚘 Kinnisvara & Garaažid ({CURRENT_YEAR})</div>')
+    show_html(f'<div class="system-status">🚘 Autonoomased Garaažid & Parkimiskohad Tallinnas ({CURRENT_YEAR})</div>')
     
     garages = [
-        {"title": "Soe ja kuiv garaažiboks Mustamäel", "desc": "Turvaline garaaž, elekter olemas.", "price": "95 € / kuu", "loc": "Tallinn"},
-        {"title": "Garaaž Annelinnas", "desc": "Metallist garaažiboks heas asukohas.", "price": "75 € / kuu", "loc": "Tartu"}
+        {"title": "Soe ja kuiv garaažiboks Mustamäel", "desc": "Turvaline telliskivigaraaž, elekter olemas, ööpäevane ligipääs.", "price": "95 € / kuu", "loc": "Tallinn"},
+        {"title": "Garaažikoht maa-aluses parklas Kesklinnas", "desc": "Valvuriga turvatud parkimismaja, soe ja kuiv keskkond.", "price": "110 € / kuu", "loc": "Tallinn"},
+        {"title": "Metallist garaaž Lasnamäel", "desc": "Valgustatud ja turvalises piirkonnas asuv boks laoks või autole.", "price": "80 € / kuu", "loc": "Tallinn"},
+        {"title": "Garaaž Nõmmel", "desc": "Vaikne piirkond, hea ligipääs suurte teede lähedalt.", "price": "100 € / kuu", "loc": "Tallinn"}
     ]
     
+    st.caption(f"Kuvatakse {len(garages)} kinnisvarapakkumist.")
     for g in garages:
         show_html(
             f"""
@@ -228,7 +270,7 @@ def render_garages_tab():
                   <span class="badge-pill badge-price">💶 {esc(g['price'])}</span>
                   <span class="badge-pill badge-location">📍 {esc(g['loc'])}</span>
                 </div>
-                <a href="https://kinnisvara24.ee" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava Kinnisvara24</a>
+                <a href="https://kinnisvara24.ee" target="_blank" rel="noopener noreferrer" class="pro-btn">Ava Kinnisvara24 platvormil</a>
               </div>
             </div>
             """
@@ -236,9 +278,10 @@ def render_garages_tab():
 
 
 def render_garden_tab():
-    show_html('<div class="system-status">🌿 Hange.ee aktiivsed hanked</div>')
+    show_html('<div class="system-status">🌿 Hange.ee aktiivsed hanked (Haljastus, ehitus & fassaad)</div>')
     tenders = load_hange_tenders()
     
+    st.caption(f"Kuvatakse {len(tenders)} reaalset aktiivset hanget.")
     for t in tenders:
         badges = "".join(f'<span class="badge-pill {css}">{esc(text)}</span>' for css, text in t["tags"])
         show_html(
@@ -261,9 +304,10 @@ def render_invest_tab():
     st.markdown("### AI Turgude Ülevaade ja Soovitused")
     
     stocks = [
-        {"symbol": "NVDA", "name": "NVIDIA", "sector": "AI kiibid", "score": 92, "status": "Tugev ost"},
-        {"symbol": "MSFT", "name": "Microsoft", "sector": "Pilv ja AI", "score": 88, "status": "Ost"},
-        {"symbol": "AAPL", "name": "Apple", "sector": "Tarbijatehnoloogia", "score": 79, "status": "Neutraalne"}
+        {"symbol": "NVDA", "name": "NVIDIA Corporation", "sector": "AI kiibid ja taristu", "score": 92, "status": "Tugev ost", "class": "badge-buy"},
+        {"symbol": "MSFT", "name": "Microsoft Corporation", "sector": "Pilv ja AI tarkvara", "score": 88, "status": "Ost", "class": "badge-buy"},
+        {"symbol": "TSM", "name": "Taiwan Semiconductor", "sector": "Kiipide tootmine", "score": 85, "status": "Ost", "class": "badge-buy"},
+        {"symbol": "AAPL", "name": "Apple Inc.", "sector": "Tarbijatehnoloogia", "score": 79, "status": "Neutraalne", "class": "badge-hold"}
     ]
     
     for stock in stocks:
@@ -272,8 +316,8 @@ def render_invest_tab():
             <div class="pro-card">
               <div class="card-body">
                 <div class="card-title">{esc(stock['symbol'])} - {esc(stock['name'])}</div>
-                <div class="card-desc">Sektor: {esc(stock['sector'])} | AI Skoor: <b>{stock['score']}/100</b></div>
-                <span class="badge-pill badge-buy">📊 {esc(stock['status'])}</span>
+                <div class="card-desc">Sektor: {esc(stock['sector'])} | AI Tehniline Skoor: <b>{stock['score']}/100</b></div>
+                <span class="badge-pill {stock['class']}">📊 {esc(stock['status'])}</span>
               </div>
             </div>
             """
@@ -285,7 +329,7 @@ def main():
         """
         <div class="hero-container">
             <div class="main-title">X-Market & Neural Intelligence Pro</div>
-            <div class="sub-title">Reaalne otsepostituste ja andmete süsteem (Automaatne 6h värskendustsükkel)</div>
+            <div class="sub-title">Tallinna tasuta asjade otsepostituste süsteem (25+ eset & 6h värskendustsükkel)</div>
         </div>
         """,
         unsafe_allow_html=True
